@@ -1,0 +1,103 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments and local Python tools
+.venv/
+venv/
+env/
+.tox/
+.nox/
+.python-version.local
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# IDE and OS files
+.idea/
+.vscode/
+*.code-workspace
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs, reports, runs, and generated artifacts
+runs/**
+!runs/.gitkeep
+exports/**
+!exports/.gitkeep
+reports/**
+!reports/.gitkeep
+logs/**
+!logs/.gitkeep
+tuning/**
+!tuning/.gitkeep
+
+# Local tool configuration generated during verification.
+.ci/ultralytics/**
+!.ci/ultralytics/.gitkeep
+.ci/matplotlib/**
+
+# Model weights and deployment binaries
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.engine
+*.torchscript
+*.tflite
+*.pb
+*.mlpackage
+*.saved_model/
+
+# Dataset payloads. Keep dataset/*/data.yaml and any .gitkeep files tracked.
+dataset/**/*.[jJ][pP][gG]
+dataset/**/*.[jJ][pP][eE][gG]
+dataset/**/*.[pP][nN][gG]
+dataset/**/*.[bB][mM][pP]
+dataset/**/*.[wW][eE][bB][pP]
+dataset/**/*.[gG][iI][fF]
+dataset/**/*.[tT][iI][fF]
+dataset/**/*.[tT][iI][fF][fF]
+dataset/**/*.[jJ][fF][iI][fF]
+dataset/**/*.[jJ][pP][eE]
+dataset/**/*.txt
+dataset/**/*.xml
+dataset/**/*.json
+dataset/**/*.csv
+dataset/**/*.npy
+dataset/**/*.npz
+dataset/**/*.cache
+dataset/**/*.zip
+dataset/**/*.tar
+dataset/**/*.tar.gz
+dataset/**/*.tgz
+dataset/**/*.7z
+dataset/**/*.rar
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~$
+
+# 通用化分析/规划文档（不入版本库，仅项目根本地参考）
+full-analysis-*.md
+generalization-plan-*.md

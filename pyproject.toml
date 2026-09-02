@@ -1,0 +1,26 @@
+[project]
+name = "auto-yolo-training"
+version = "0.1.0"
+description = "通用 YOLO 模型自动训练平台：数据校验、训练、评估、导出、推理一体化"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.12,<3.13"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [
+    ".venv",
+    "basemodels",
+    "dataset",
+    "exports",
+    "logs",
+    "reports",
+    "runs",
+]
+
+[tool.ruff.lint]
+# Start with correctness checks that can safely gate the existing codebase.
+# Broader formatting/import rules can be enabled after the legacy source is
+# normalized in a dedicated change.
+select = ["E9", "F63", "F7", "F82"]

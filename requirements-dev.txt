@@ -1,0 +1,9 @@
+# Development and CI dependencies. This includes the complete runtime because
+# tests import the UI, API, tuning, and training orchestration modules.
+-r requirements.txt
+-c constraints.txt
+
+pytest
+pytest-cov
+httpx
+ruff

@@ -1,0 +1,11 @@
+train: ../../dataset/ring cable lug-yolo/images/train
+val: ../../dataset/ring cable lug-yolo/images/val
+test: ../../dataset/ring cable lug-yolo/images/test
+nc: 6
+names:
+- bend
+- deformation
+- good
+- heat damage
+- missing material
+- missing part

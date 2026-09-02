@@ -1,0 +1,70 @@
+project_name: _smoke_test_auto
+dataset_name: _smoke_test
+dataset_path: dataset/_smoke_test
+output_dir: runs/detect/_smoke_test_auto
+data_yaml_path: configs/models/data__smoke_test.yaml
+training_config:
+  model: yolov8n.pt
+  epochs: 1
+  imgsz: 64
+  batch: 2
+  workers: 8
+  device: ''
+  patience: 5
+  save: true
+  save_period: 10
+  cache: true
+  exist_ok: false
+  pretrained: true
+  optimizer: AdamW
+  verbose: true
+  seed: 0
+  deterministic: false
+  single_cls: false
+  rect: true
+  cos_lr: true
+  close_mosaic: 5
+  resume: false
+  amp: true
+  fraction: 1.0
+  profile: false
+  freeze: 10
+  lr0: 0.001
+  lrf: 0.01
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_epochs: 3.0
+  warmup_momentum: 0.8
+  warmup_bias_lr: 0.1
+  box: 7.5
+  cls: 0.5
+  dfl: 1.5
+  pose: 12.0
+  kobj: 1.0
+  label_smoothing: 0.05
+  nbs: 64
+  overlap_mask: true
+  mask_ratio: 4
+  dropout: 0.1
+  val: true
+  plots: true
+  hsv_h: 0.015
+  hsv_s: 0.7
+  hsv_v: 0.4
+  degrees: 5.0
+  translate: 0.1
+  scale: 0.5
+  shear: 0.0
+  perspective: 0.0
+  flipud: 0.0
+  fliplr: 0.5
+  bgr: 0.0
+  mosaic: 1.0
+  mixup: 0.1
+  copy_paste: 0.05
+  copy_paste_mode: flip
+  auto_augment: randaugment
+  erasing: 0.4
+  crop_fraction: 1.0
+created_at: '2026-09-03T00:06:06.782424'
+description: Auto-generated training for _smoke_test

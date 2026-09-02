@@ -1,0 +1,5 @@
+train: ../../dataset/_smoke_test/images/train
+val: ../../dataset/_smoke_test/images/val
+nc: 1
+names:
+- class_0

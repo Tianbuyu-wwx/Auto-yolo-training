@@ -1,0 +1,27 @@
+# Runtime dependencies for Auto YOLO Training.
+# Exact versions live in constraints.txt so runtime and development installs
+# resolve to the same tested baseline.
+-c constraints.txt
+
+# PyTorch is installed separately by scripts/bootstrap.ps1 so the same file can
+# be used with the official CPU and CUDA 12.8 wheel indexes.
+torch
+torchvision
+
+# Training and tuning
+ultralytics
+optuna
+
+# Web UI and inference API
+gradio
+fastapi
+uvicorn
+python-multipart
+pydantic
+
+# Data and configuration
+opencv-python
+numpy
+Pillow
+PyYAML
+pandas

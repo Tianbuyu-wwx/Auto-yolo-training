@@ -1,0 +1,7 @@
+train: ../../dataset/cabel-damage-mini/images/train
+val: ../../dataset/cabel-damage-mini/images/val
+test: ../../dataset/cabel-damage-mini/images/test
+nc: 2
+names:
+- class_0
+- class_1

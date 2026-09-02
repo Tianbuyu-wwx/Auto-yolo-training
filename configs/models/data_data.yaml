@@ -1,0 +1,6 @@
+train: ../../dataset/data/images/train
+val: ../../dataset/data/images/val
+nc: 2
+names:
+- Normal
+- Defect

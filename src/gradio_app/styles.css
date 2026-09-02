@@ -1,0 +1,362 @@
+/* YOLO训练平台 — 深色工业风格 */
+
+:root {
+    --yolo-bg-primary: oklch(0.13 0.01 260);
+    --yolo-bg-card: oklch(0.17 0.01 260);
+    --yolo-bg-input: oklch(0.20 0.01 260);
+    --yolo-border: oklch(0.25 0.01 260);
+    --yolo-text: oklch(0.90 0.01 260);
+    --yolo-text-muted: oklch(0.60 0.01 260);
+    --yolo-green: oklch(0.72 0.19 155);
+    --yolo-red: oklch(0.63 0.24 25);
+    --yolo-blue: oklch(0.62 0.19 250);
+    --yolo-amber: oklch(0.78 0.16 75);
+    --yolo-mono: 'JetBrains Mono', 'IBM Plex Mono', 'Consolas', monospace;
+}
+
+/* 标题 */
+.app-title {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--yolo-text);
+    border-bottom: 1px solid var(--yolo-border);
+    padding-bottom: 16px;
+    margin-bottom: 0;
+}
+.app-title span {
+    color: var(--yolo-blue);
+}
+
+/* 指标卡片 */
+.metric-card {
+    background: var(--yolo-bg-card);
+    border: 1px solid var(--yolo-border);
+    border-radius: 8px;
+    padding: 16px 12px;
+    text-align: center;
+    min-width: 120px;
+}
+.metric-card .value {
+    font-family: var(--yolo-mono);
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+.metric-card .value.green { color: var(--yolo-green); }
+.metric-card .value.blue { color: var(--yolo-blue); }
+.metric-card .value.amber { color: var(--yolo-amber); }
+.metric-card .value.red { color: var(--yolo-red); }
+.metric-card .label {
+    font-size: 11px;
+    color: var(--yolo-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 4px;
+}
+
+/* 状态指示器 */
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+}
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+.status-dot.running {
+    background: var(--yolo-green);
+    animation: pulse 2s infinite;
+}
+.status-dot.idle { background: var(--yolo-text-muted); }
+.status-dot.error { background: var(--yolo-red); }
+.status-dot.success { background: var(--yolo-green); }
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* 训练日志 */
+.training-log textarea {
+    font-family: var(--yolo-mono) !important;
+    font-size: 12px !important;
+    line-height: 1.6 !important;
+    background: oklch(0.08 0.01 260) !important;
+    color: oklch(0.75 0.02 155) !important;
+    border: 1px solid var(--yolo-border) !important;
+    border-radius: 6px !important;
+}
+
+/* 底部状态栏 */
+.status-bar {
+    background: oklch(0.10 0.01 260);
+    border-top: 1px solid var(--yolo-border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    font-size: 12px;
+    color: var(--yolo-text-muted);
+    font-family: var(--yolo-mono);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+}
+
+/* Tab 样式 */
+.tabs {
+    border-bottom: 1px solid var(--yolo-border);
+}
+
+/* 数据集列表 */
+.dataset-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.dataset-item:hover {
+    background: oklch(0.22 0.01 260);
+}
+.dataset-item.selected {
+    background: oklch(0.22 0.05 250);
+    border-left: 3px solid var(--yolo-blue);
+}
+
+/* 进度条 */
+.progress-bar-container {
+    background: oklch(0.20 0.01 260);
+    border-radius: 4px;
+    height: 8px;
+    overflow: hidden;
+}
+.progress-bar-fill {
+    background: linear-gradient(90deg, var(--yolo-blue), var(--yolo-green));
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+/* 预设按钮 */
+.preset-btn {
+    border: 1px solid var(--yolo-border);
+    border-radius: 6px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+}
+.preset-btn:hover {
+    border-color: var(--yolo-blue);
+}
+.preset-btn.active {
+    border-color: var(--yolo-blue);
+    background: oklch(0.22 0.05 250);
+}
+
+/* 隐藏Gallery上传按钮 */
+.hide-gallery-upload button[aria-label="Click to upload or drop files"],
+.hide-gallery-upload .svelte-edrmkl { display: none !important; }
+
+/* Tab hover 不变白：保持深色文字/背景 */
+button[role="tab"],
+.tabs > button,
+[role="tablist"] > button {
+    color: var(--yolo-text-muted) !important;
+    background: transparent !important;
+    transition: color 0.15s, background 0.15s;
+}
+button[role="tab"]:hover,
+.tabs > button:hover,
+[role="tablist"] > button:hover {
+    color: var(--yolo-text) !important;
+    background: oklch(0.22 0.01 260) !important;
+}
+button[role="tab"][aria-selected="true"],
+.tabs > button.selected,
+[role="tablist"] > button[aria-selected="true"] {
+    color: var(--yolo-text) !important;
+    border-bottom-color: var(--yolo-blue) !important;
+}
+
+/* Dropdown 深色背景：输入框 + 下拉列表 */
+[data-testid="dropdown"] .wrap,
+[data-testid="dropdown"] .wrap-inner,
+[data-testid="dropdown"] .secondary-wrap,
+[data-testid="dropdown"] input,
+input[role="listbox"],
+.container:has(> span + .wrap input[role="listbox"]) {
+    background: var(--yolo-bg-input) !important;
+    color: var(--yolo-text) !important;
+    border-color: var(--yolo-border) !important;
+}
+
+[data-testid="dropdown"] input::placeholder,
+input[role="listbox"]::placeholder {
+    color: var(--yolo-text-muted) !important;
+}
+
+/* 下拉箭头颜色 */
+[data-testid="dropdown"] .icon-wrap svg,
+.icon-wrap svg {
+    fill: var(--yolo-text-muted) !important;
+}
+
+/* 下拉列表展开面板 */
+[data-testid="dropdown"] .options,
+[data-testid="dropdown"] [role="listbox"] ~ div,
+#dropdown-options,
+[role="listbox"] + div,
+.dropdown-options {
+    background: var(--yolo-bg-card) !important;
+    border: 1px solid var(--yolo-border) !important;
+    color: var(--yolo-text) !important;
+}
+
+/* 下拉选项 hover */
+[data-testid="dropdown"] li,
+.dropdown-options li,
+[role="option"] {
+    color: var(--yolo-text) !important;
+    background: transparent !important;
+}
+[data-testid="dropdown"] li:hover,
+.dropdown-options li:hover,
+[role="option"]:hover,
+[role="option"][aria-selected="true"] {
+    background: oklch(0.25 0.01 260) !important;
+}
+
+/* 所有输入框统一深色背景 */
+input[type="text"],
+input[type="number"],
+textarea,
+select {
+    background: var(--yolo-bg-input) !important;
+    color: var(--yolo-text) !important;
+    border-color: var(--yolo-border) !important;
+}
+input::placeholder,
+textarea::placeholder {
+    color: var(--yolo-text-muted) !important;
+}
+
+/* ====== 全局悬停样式覆盖：禁止任何组件 hover 变白 ====== */
+
+/* 所有按钮 hover */
+button:hover,
+button:focus,
+[role="button"]:hover,
+[role="button"]:focus {
+    color: var(--yolo-text) !important;
+    background: oklch(0.30 0.01 260) !important;
+    border-color: var(--yolo-border) !important;
+}
+
+/* 主要按钮保持品牌色 hover */
+button.primary:hover,
+button[variant="primary"]:hover {
+    background: oklch(0.60 0.19 250) !important;
+    color: white !important;
+}
+
+/* 停止按钮保持红色 hover */
+button.stop:hover,
+button[variant="stop"]:hover {
+    background: oklch(0.68 0.20 25) !important;
+    color: white !important;
+}
+
+/* 所有输入框 hover */
+input:hover,
+input:focus,
+textarea:hover,
+textarea:focus,
+select:hover,
+select:focus,
+[contenteditable]:hover,
+[contenteditable]:focus {
+    background: oklch(0.24 0.01 260) !important;
+    color: var(--yolo-text) !important;
+    border-color: var(--yolo-blue) !important;
+    box-shadow: none !important;
+}
+
+/* Dropdown hover */
+[data-testid="dropdown"]:hover .wrap,
+[data-testid="dropdown"]:hover .wrap-inner,
+[data-testid="dropdown"]:hover .secondary-wrap,
+[data-testid="dropdown"]:hover input {
+    background: oklch(0.24 0.01 260) !important;
+}
+
+/* 文件上传区域 hover */
+[data-testid="file-upload-zone"]:hover,
+[data-testid="file"] .upload-button:hover,
+.drop-zone:hover,
+.upload-container:hover {
+    background: oklch(0.22 0.01 260) !important;
+    border-color: var(--yolo-blue) !important;
+    color: var(--yolo-text) !important;
+}
+
+/* Slider hover */
+input[type="range"]:hover,
+input[type="range"]::-webkit-slider-thumb:hover,
+input[type="range"]::-moz-range-thumb:hover {
+    background: var(--yolo-blue) !important;
+}
+
+/* Tab hover */
+button[role="tab"]:hover,
+.tabs > button:hover,
+[role="tablist"] > button:hover {
+    color: var(--yolo-text) !important;
+    background: oklch(0.22 0.01 260) !important;
+}
+
+/* Gallery 项 hover */
+.gallery-item:hover,
+.thumbnail-item:hover {
+    background: oklch(0.22 0.01 260) !important;
+    border-color: var(--yolo-blue) !important;
+}
+
+/* 列表/菜单项 hover */
+li:hover,
+[role="menuitem"]:hover,
+[role="option"]:hover,
+[role="listitem"]:hover {
+    color: var(--yolo-text) !important;
+    background: oklch(0.25 0.01 260) !important;
+}
+
+/* 链接 hover */
+a:hover,
+a:focus {
+    color: var(--yolo-blue) !important;
+}
+
+/* 通用 hover 兜底：禁止背景突然变白 */
+*:hover {
+    outline-color: var(--yolo-blue) !important;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+    .metric-card .value { font-size: 20px; }
+    .metric-card { padding: 10px 8px; min-width: 80px; }
+}

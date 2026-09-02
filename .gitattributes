@@ -1,0 +1,36 @@
+# Normalize source and configuration files for cross-platform development.
+* text=auto
+
+*.py       text eol=lf
+*.md       text eol=lf
+*.txt      text eol=lf
+*.yaml     text eol=lf
+*.yml      text eol=lf
+*.toml     text eol=lf
+*.json     text eol=lf
+*.css      text eol=lf
+*.html     text eol=lf
+*.sh       text eol=lf
+*.ps1      text eol=crlf
+*.bat      text eol=crlf
+*.cmd      text eol=crlf
+
+# Binary assets and model artifacts.
+*.jpg      binary
+*.jpeg     binary
+*.png      binary
+*.gif      binary
+*.bmp      binary
+*.webp     binary
+*.tif      binary
+*.tiff     binary
+*.npy      binary
+*.npz      binary
+*.zip      binary
+*.7z       binary
+*.pt       binary
+*.pth      binary
+*.onnx     binary
+*.engine   binary
+*.tflite   binary
+*.pb       binary

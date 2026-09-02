@@ -1,0 +1,27 @@
+# Reproducible Python 3.12 baseline (direct dependencies only).
+#
+# PyTorch wheel source is intentionally not encoded here. Install torch and
+# torchvision first from https://download.pytorch.org/whl/cpu (CI) or /cu128
+# (supported Windows/NVIDIA workstation), then install requirements*.txt.
+
+# Runtime
+torch==2.11.0
+torchvision==0.26.0
+ultralytics==8.4.102
+gradio==5.49.1
+fastapi==0.139.2
+uvicorn==0.41.0
+python-multipart==0.0.22
+pydantic==2.11.9
+optuna==4.9.0
+opencv-python==4.12.0.88
+numpy==2.2.6
+Pillow==11.3.0
+PyYAML==6.0.2
+pandas==2.3.3
+
+# Development / test
+pytest==8.4.2
+pytest-cov==7.0.0
+httpx==0.28.1
+ruff==0.14.14

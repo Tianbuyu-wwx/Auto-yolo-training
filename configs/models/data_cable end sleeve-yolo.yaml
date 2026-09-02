@@ -1,0 +1,7 @@
+train: ../../dataset/cable end sleeve-yolo/images/train
+val: ../../dataset/cable end sleeve-yolo/images/val
+test: ../../dataset/cable end sleeve-yolo/images/test
+nc: 2
+names:
+- good
+- missing material
