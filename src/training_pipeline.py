@@ -564,52 +564,35 @@ class TrainingPipeline:
         class_names: list | None,
         overrides: dict[str, Any] | None,
     ) -> PipelineResult:
-        """执行配置生成阶段"""
-        start = time.time()
+        """执行配置生成阶段（阶段 C4：薄包装转发到 src.pipeline_stages.run_config_generation）。
+
+        保留 logger.info 调用上下文（与训练/验证阶段一致），所有实际逻辑委托给 stages。
+        """
         logger.info("  -> Generating config for dataset: %s", dataset_name)
         logger.info("     Model: %s, imgsz: %d, batch: %d, epochs: %d", model, imgsz, batch, epochs)
         if overrides:
             logger.info("     Overrides: %s", json.dumps(overrides, ensure_ascii=False))
 
+        from src.pipeline_stages import run_config_generation
+
         try:
-            config = self.config_generator.generate_project_config(
+            return run_config_generation(
                 dataset_name=dataset_name,
+                base_dir=self.base_dir,
                 model=model,
                 imgsz=imgsz,
                 batch=batch,
                 epochs=epochs,
                 class_names=class_names,
-                description=f"Auto-generated training for {dataset_name}",
                 overrides=overrides,
             )
-
-            # 保存配置
-            config_path = self.config_generator.save_project_config(config)
-
-            duration = time.time() - start
-            logger.info("  -> Config generated in %.2f seconds", duration)
-            logger.info("     Config saved to: %s", config_path)
-            logger.info("     data.yaml path: %s", config.data_yaml_path)
-
-            return PipelineResult(
-                success=True,
-                stage="config_generation",
-                message="配置生成成功",
-                duration=duration,
-                details={
-                    "config_path": config_path,
-                    "data_yaml": config.data_yaml_path,
-                    "project_config": config,
-                },
-            )
-
         except Exception as e:
             logger.error("  -> Config generation exception: %s", str(e))
             return PipelineResult(
                 success=False,
                 stage="config_generation",
                 message=f"配置生成失败: {str(e)}",
-                duration=time.time() - start,
+                duration=0.0,
                 error=traceback.format_exc(),
             )
 
@@ -910,49 +893,31 @@ class TrainingPipeline:
         formats: list | None,
         imgsz: int,
     ) -> PipelineResult:
-        """执行模型导出阶段"""
-        start = time.time()
+        """执行模型导出阶段（阶段 C4：薄包装转发到 src.pipeline_stages.run_export）。
+
+        保留 logger.info 调用上下文（与训练/验证阶段一致），所有实际逻辑委托给 stages。
+        """
         logger.info("  -> Starting model export")
         logger.info("     Model: %s", model_path)
         logger.info("     Formats: %s", formats or ["onnx", "engine"])
         logger.info("     imgsz: %d", imgsz)
 
+        from src.pipeline_stages import run_export
+
         try:
-            report = self.exporter.export(
+            return run_export(
                 model_path=model_path,
                 formats=formats,
                 imgsz=imgsz,
+                base_dir=self.base_dir,
             )
-
-            duration = time.time() - start
-            success_count = report.success_count
-            total_count = report.total_count
-
-            logger.info("  -> Model export completed in %.2f seconds", duration)
-            logger.info("     Success: %d/%d formats exported", success_count, total_count)
-            for result in report.results:
-                if result.success:
-                    logger.info("     [OK] %s -> %s (%.2f MB)", result.format, result.output_path, result.file_size_mb)
-                else:
-                    logger.warning("     [FAIL] %s: %s", result.format, result.message)
-
-            return PipelineResult(
-                success=success_count > 0,
-                stage="export",
-                message=f"模型导出完成 ({success_count}/{total_count} 成功)",
-                duration=duration,
-                details={
-                    "export_report": report.to_dict(),
-                },
-            )
-
         except Exception as e:
             logger.error("  -> Model export exception: %s", str(e))
             return PipelineResult(
                 success=False,
                 stage="export",
                 message=f"模型导出失败: {str(e)}",
-                duration=time.time() - start,
+                duration=0.0,
                 error=traceback.format_exc(),
             )
 

@@ -69,6 +69,7 @@ ayt-export = "export:main"
 ayt-serve = "serve:main"
 ayt-validate = "validate_data:main"
 ayt-gradio = "gradio_app:main"
+ayt-models = "ayt_models:main"  # 阶段 C5：预训练模型清单与下载
 
 [project.gui-scripts]
 # Windows 菜单项；不影响 Unix

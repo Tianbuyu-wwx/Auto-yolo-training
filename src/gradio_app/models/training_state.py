@@ -70,6 +70,7 @@ class TrainingState:
 class TrainingConfig:
     """训练配置（替代15个参数的函数签名）"""
     dataset_name: str = ""
+    task: str = "detect"  # 阶段 C2：Ultralytics 任务类型
     model: str = "yolov8s.pt"
     epochs: int = 150
     imgsz: int = 640

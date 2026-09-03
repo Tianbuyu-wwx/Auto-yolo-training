@@ -45,6 +45,55 @@ class TestRunValidation(unittest.TestCase):
         self.assertTrue(result.success, f"validation 应通过：{result.message}")
 
 
+class TestRunConfigGeneration(unittest.TestCase):
+    """Stage 2: 配置生成——包装 ConfigGenerator"""
+
+    def setUp(self):
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.dataset_dir = self.temp_dir / "dataset" / "test_dataset"
+        (self.dataset_dir / "images" / "train").mkdir(parents=True)
+        (self.dataset_dir / "labels" / "train").mkdir(parents=True)
+        # 写一个最小化 data.yaml + 标签
+        (self.dataset_dir / "data.yaml").write_text(
+            "train: images/train\nval: images/val\nnc: 1\nnames: ['x']\n",
+            encoding="utf-8",
+        )
+        (self.dataset_dir / "labels" / "train" / "a.txt").write_text("0 0.5 0.5 0.2 0.2\n")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_config_generation_returns_project_config(self):
+        """成功时 details 应包含 project_config"""
+        from src.pipeline_stages import run_config_generation
+
+        result = run_config_generation(
+            dataset_name="test_dataset",
+            base_dir=self.temp_dir,
+            model="yolov8s.pt",
+            imgsz=320,
+            batch=2,
+            epochs=1,
+        )
+        self.assertEqual(result.stage, "config_generation")
+        self.assertTrue(result.success)
+        self.assertIn("project_config", result.details)
+        self.assertIn("data_yaml", result.details)
+        self.assertIn("config_path", result.details)
+
+    def test_config_generation_failure_for_missing_dataset(self):
+        from src.pipeline_stages import run_config_generation
+
+        result = run_config_generation(
+            dataset_name="nonexistent",
+            base_dir=self.temp_dir,
+        )
+        self.assertEqual(result.stage, "config_generation")
+        self.assertFalse(result.success)
+
+
 class TestRunExportStage(unittest.TestCase):
     """Stage 5: 模型导出——包装 ModelExporter"""
 

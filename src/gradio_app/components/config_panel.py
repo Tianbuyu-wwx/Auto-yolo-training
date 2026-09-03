@@ -40,11 +40,19 @@ def build_config_panel(dataset_svc: DatasetService = None):
                     value=_get_model_choices()[0] if _get_model_choices() else "yolov8s.pt",
                     label="预训练模型",
                 )
-                device_dropdown = gr.Dropdown(
-                    choices=["auto (recommended)", "cpu", "0", "1"],
-                    value="auto (recommended)",  # 通用化：让 Ultralytics 自动检测；UI 翻译为 device=""
-                    label="训练设备",
-                )
+                refresh_models_btn = gr.Button("🔄 检查模型", size="sm", scale=1)
+
+            # 模型状态（阶段 C2+C3：自动推断家族 + 缺失提示）
+            model_status = gr.Markdown(
+                _model_catalog_status_markdown(),
+                elem_classes=["model-status"],
+            )
+
+            device_dropdown = gr.Dropdown(
+                choices=["auto (recommended)", "cpu", "0", "1"],
+                value="auto (recommended)",  # 通用化：让 Ultralytics 自动检测；UI 翻译为 device=""
+                label="训练设备",
+            )
 
             with gr.Row():
                 epochs_slider = gr.Slider(
@@ -241,6 +249,30 @@ def build_config_panel(dataset_svc: DatasetService = None):
                  patience_slider, lr0_slider],
     )
 
+    # 模型状态刷新按钮（阶段 C3）
+    def on_refresh_models():
+        from src.model_catalog import check_local_models, suggest_download
+
+        base_dir = Path(__file__).parent.parent.parent.parent / "basemodels"
+        status = check_local_models(base_dir)
+
+        md = f"**本地模型：** {len(status.available)} 个（{status.total_size_mb:.1f} MB）\n\n"
+        if status.available:
+            md += "✅ " + ", ".join(f"`{p.name}`" for p in status.available) + "\n\n"
+        if status.missing_popular:
+            md += f"**缺失流行模型：** {len(status.missing_popular)} 个\n\n"
+            for e in status.missing_popular[:5]:
+                md += f"- `{e.filename}` ({e.family.value}, {e.task})\n"
+            if len(status.missing_popular) > 5:
+                md += f"- ... 还有 {len(status.missing_popular) - 5} 个\n"
+            md += "\n**下载命令：**\n\n```bash\n"
+            for cmd in suggest_download(status.missing_popular[:3], base_dir):
+                md += cmd + "\n"
+            md += "```\n"
+        return md
+
+    refresh_models_btn.click(fn=on_refresh_models, outputs=[model_status])
+
     return {
         "model": model_dropdown,
         "device": device_dropdown,
@@ -288,5 +320,55 @@ def _get_model_choices():
     if base_dir.exists():
         models = sorted([f.name for f in base_dir.glob("*.pt")])
     if not models:
-        models = ["yolov8n.pt", "yolov8s.pt", "yolov8m.pt", "yolov8l.pt", "yolov8x.pt"]
+        models = [
+            "yolov8n.pt",
+            "yolov8s.pt",
+            "yolov8m.pt",
+            "yolov8l.pt",
+            "yolov8x.pt",
+        ]
     return models
+
+
+def _get_model_choices_with_family() -> list[tuple[str, str]]:
+    """返回 ``[(filename, "family - task"), ...]`` 用于 UI 显示家族信息。
+    注意：阶段 C2 通过 ``resolve_model_family`` + MODEL_CATALOG 自动判断。
+    """
+    from src.model_catalog import MODEL_CATALOG, resolve_model_family
+
+    choices: list[tuple[str, str]] = []
+    for fname in _get_model_choices():
+        family = resolve_model_family(fname).value
+        entry = MODEL_CATALOG.get(fname)
+        task = entry.task if entry else "detect"
+        choices.append((fname, f"{family} - {task}"))
+    return choices
+
+
+def _model_catalog_status_markdown() -> str:
+    """生成模型清单状态的 Markdown（Gradio Markdown 组件用）。
+
+    展示：
+    - 本地已有模型数量 + 总大小
+    - 缺失的流行模型列表（n/s 系列）+ 下载命令提示
+    """
+    from src.model_catalog import check_local_models, suggest_download
+
+    base_dir = Path(__file__).parent.parent.parent.parent / "basemodels"
+    status = check_local_models(base_dir)
+
+    md = f"**本地模型：** {len(status.available)} 个（{status.total_size_mb:.1f} MB）\n\n"
+    if status.available:
+        md += "✅ " + ", ".join(f"`{p.name}`" for p in status.available) + "\n\n"
+
+    if status.missing_popular:
+        md += f"**缺失流行模型：** {len(status.missing_popular)} 个\n\n"
+        for e in status.missing_popular[:5]:
+            md += f"- `{e.filename}` ({e.family.value}, {e.task})\n"
+        if len(status.missing_popular) > 5:
+            md += f"- ... 还有 {len(status.missing_popular) - 5} 个\n"
+        md += "\n**下载命令（点击复制）：**\n\n```bash\n"
+        for cmd in suggest_download(status.missing_popular[:3], base_dir):
+            md += cmd + "\n"
+        md += "```\n"
+    return md

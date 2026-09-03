@@ -126,4 +126,70 @@ def run_export(
         )
 
 
-__all__ = ["run_export", "run_validation"]
+# ----------------------------------------------------------------------
+# Stage 2: 配置生成（阶段 C4 抽出）
+# ----------------------------------------------------------------------
+def run_config_generation(
+    dataset_name: str,
+    *,
+    base_dir: Path,
+    model: str = "yolov8s.pt",
+    imgsz: int = 640,
+    batch: int = 16,
+    epochs: int = 150,
+    class_names: list | None = None,
+    overrides: dict | None = None,
+    description: str | None = None,
+) -> PipelineResult:
+    """执行配置生成。
+
+    无状态实现：调用 ``ConfigGenerator.generate_project_config`` + ``save_project_config``，
+    把结果包装为 PipelineResult。
+
+    注：返回的 details["project_config"] 是 ``ProjectConfig`` dataclass 实例，
+    TrainingPipeline 薄包装会用它作为后续 Stage 3 的输入。
+    """
+    start = time.time()
+
+    from src.config_generator import ConfigGenerator
+
+    config_generator = ConfigGenerator(str(base_dir))
+    try:
+        project_config = config_generator.generate_project_config(
+            dataset_name=dataset_name,
+            model=model,
+            imgsz=imgsz,
+            batch=batch,
+            epochs=epochs,
+            class_names=class_names,
+            description=description or f"Auto-generated training for {dataset_name}",
+            overrides=overrides,
+        )
+        config_path = config_generator.save_project_config(project_config)
+
+        return PipelineResult(
+            success=True,
+            stage="config_generation",
+            message="配置生成成功",
+            duration=time.time() - start,
+            details={
+                "config_path": config_path,
+                "data_yaml": project_config.data_yaml_path,
+                "project_config": project_config,
+            },
+        )
+    except Exception as e:
+        return PipelineResult(
+            success=False,
+            stage="config_generation",
+            message=f"配置生成失败: {e}",
+            duration=time.time() - start,
+            error=str(e),
+        )
+
+
+__all__ = [
+    "run_config_generation",
+    "run_export",
+    "run_validation",
+]

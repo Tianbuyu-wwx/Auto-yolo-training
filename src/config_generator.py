@@ -55,6 +55,7 @@ class DatasetConfig:
 @dataclass
 class TrainingConfig:
     """训练超参数配置"""
+    task: str = "detect"  # 阶段 C2：Ultralytics 任务类型（detect/segment/pose/classify/obb）
     model: str = "yolov8s.pt"
     epochs: int = 150
     imgsz: int = 640

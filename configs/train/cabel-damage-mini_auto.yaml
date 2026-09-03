@@ -4,6 +4,7 @@ dataset_path: dataset/cabel-damage-mini
 output_dir: runs/detect/cabel-damage-mini_auto
 data_yaml_path: configs/models/data_cabel-damage-mini.yaml
 training_config:
+  task: detect
   model: basemodels/yolov8s.pt
   epochs: 150
   imgsz: 640
@@ -65,5 +66,5 @@ training_config:
   auto_augment: randaugment
   erasing: 0.4
   crop_fraction: 1.0
-created_at: '2026-09-03T17:31:54.412578'
+created_at: '2026-09-03T20:17:12.119809'
 description: Auto-generated config for cabel-damage-mini
