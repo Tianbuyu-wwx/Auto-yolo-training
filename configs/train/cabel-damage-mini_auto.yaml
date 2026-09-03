@@ -66,5 +66,5 @@ training_config:
   auto_augment: randaugment
   erasing: 0.4
   crop_fraction: 1.0
-created_at: '2026-09-03T20:17:12.119809'
+created_at: '2026-09-03T20:29:52.337797'
 description: Auto-generated config for cabel-damage-mini

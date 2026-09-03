@@ -70,6 +70,12 @@ class ModelEntry:
     size_mb: float | None = None  # 已知文件大小（MB），None 表示未下载
 
     @property
+    def display_name(self) -> str:
+        """人类可读展示名（如 ``"yolov8 n - detect"``）。"""
+        sub = "" if self.task == "detect" else f" - {self.task}"
+        return f"{self.family.value} {self.size}{sub}"
+
+    @property
     def download_url(self) -> str:
         """Ultralytics 自动下载 URL（首次使用时按需下载）。"""
         return f"https://github.com/ultralytics/assets/releases/download/v8.4.0/{self.filename}"
@@ -204,12 +210,62 @@ def model_filename_to_family_dict(filenames: list[str]) -> dict[str, ModelFamily
     return {name: resolve_model_family(name) for name in filenames}
 
 
+def list_available_models(
+    *,
+    task: str | ModelFamily | None = None,
+    family: str | ModelFamily | None = None,
+    size: str | None = None,
+) -> list[ModelEntry]:
+    """列出 catalog 中匹配条件的模型条目。
+
+    Args:
+        task: 任务类型过滤（"detect"/"segment"/... 或 None=全部）
+        family: 家族过滤（"yolov8"/"yolov11"/... 或 None=全部）
+        size: 尺寸过滤（"n"/"s"/... 或 None=全部）
+
+    Returns:
+        ModelEntry 列表（按 family → size → task 排序）
+    """
+    out: list[ModelEntry] = []
+    for entry in MODEL_CATALOG.values():
+        if task is not None and entry.task != str(task):
+            continue
+        if family is not None and entry.family.value != str(family):
+            continue
+        if size is not None and entry.size != size:
+            continue
+        out.append(entry)
+    out.sort(key=lambda e: (e.family.value, e.size, e.task))
+    return out
+
+
+def local_models(basemodels_dir: Path | str) -> list[ModelEntry]:
+    """列出 ``basemodels/`` 目录中已下载的 catalog 模型条目。
+
+    Args:
+        basemodels_dir: basemodels 目录路径
+
+    Returns:
+        ModelEntry 列表（仅含已下载的文件）
+    """
+    basemodels_dir = Path(basemodels_dir)
+    if not basemodels_dir.exists():
+        return []
+    out: list[ModelEntry] = []
+    for entry in MODEL_CATALOG.values():
+        if (basemodels_dir / entry.filename).exists():
+            out.append(entry)
+    return out
+
+
 __all__ = [
     "MODEL_CATALOG",
     "LocalModelStatus",
     "ModelEntry",
     "ModelFamily",
     "check_local_models",
+    "list_available_models",
+    "local_models",
     "model_filename_to_family_dict",
     "resolve_model_family",
     "suggest_download",
