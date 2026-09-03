@@ -4,8 +4,7 @@
 
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Any
 
 
 @dataclass
@@ -19,16 +18,16 @@ class TrainingState:
     current_loss: float = 0.0
     current_map50: float = 0.0
     current_map50_95: float = 0.0
-    log_messages: List[str] = field(default_factory=list)
-    start_time: Optional[str] = None
-    end_time: Optional[str] = None
-    error_message: Optional[str] = None
+    log_messages: list[str] = field(default_factory=list)
+    start_time: str | None = None
+    end_time: str | None = None
+    error_message: str | None = None
     success: bool = False
-    best_model_path: Optional[str] = None
+    best_model_path: str | None = None
 
     # 训练曲线数据
-    loss_history: List[Dict[str, Any]] = field(default_factory=list)
-    map_history: List[Dict[str, Any]] = field(default_factory=list)
+    loss_history: list[dict[str, Any]] = field(default_factory=list)
+    map_history: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self):
         self._lock = threading.Lock()
@@ -40,7 +39,7 @@ class TrainingState:
                 if hasattr(self, key):
                     setattr(self, key, value)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "is_running": self.is_running,
@@ -109,7 +108,7 @@ class TrainingConfig:
     hsv_v: float = 0.4
     skip_validation: bool = False
 
-    def to_overrides(self) -> Dict[str, Any]:
+    def to_overrides(self) -> dict[str, Any]:
         """转换为 TrainingPipeline 的 overrides 字典"""
         return {
             "lr0": self.lr0,

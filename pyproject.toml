@@ -5,6 +5,74 @@ description = "通用 YOLO 模型自动训练平台：数据校验、训练、�
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.12,<3.13"
+keywords = ["yolo", "ultralytics", "object-detection", "training", "mlops"]
+authors = [
+    {name = "Auto YOLO Training Contributors"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python",
+]
+
+# 直接依赖（与 requirements.txt 一致；PyTorch 单独通过 extras 安装）
+dependencies = [
+    "ultralytics>=8.4.0",
+    "optuna>=4.0",
+    "gradio>=5.0",
+    "fastapi>=0.139",
+    "uvicorn>=0.30",
+    "python-multipart>=0.0.9",
+    "pydantic>=2.11",
+    "opencv-python>=4.10",
+    "numpy>=2.0",
+    "Pillow>=10.0",
+    "PyYAML>=6.0",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+# PyTorch 必须单独安装（CUDA/CPU wheel 来源不同）
+# pip install 'auto-yolo-training[gpu-cu128]'
+gpu-cu128 = ["torch>=2.11", "torchvision>=0.26"]
+gpu-cu118 = ["torch>=2.11", "torchvision>=0.26"]
+cpu = ["torch>=2.11", "torchvision>=0.26"]
+# 导出 ONNX/TensorRT 时附加依赖
+onnx = ["onnx>=1.15", "onnxsim>=0.4"]
+tensorrt = ["tensorrt>=10.0"]
+# 开发与测试
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=7.0",
+    "httpx>=0.28",
+    "ruff>=0.14",
+]
+# 文档构建（阶段 B 末）
+docs = ["mkdocs>=1.5", "mkdocs-material>=9"]
+
+[project.urls]
+Homepage = "https://github.com/Tianbuyu/auto-yolo-training"
+Issues = "https://github.com/Tianbuyu/auto-yolo-training/issues"
+
+[project.scripts]
+# 阶段 B3：安装后系统 PATH 可直接调用
+ayt-train = "train:main"
+ayt-tune = "tune:main"
+ayt-eval = "eval:main"
+ayt-export = "export:main"
+ayt-serve = "serve:main"
+ayt-validate = "validate_data:main"
+ayt-gradio = "gradio_app:main"
+
+[project.gui-scripts]
+# Windows 菜单项；不影响 Unix
+ayt-gradio-gui = "gradio_app:main"
 
 [tool.ruff]
 target-version = "py312"
@@ -20,7 +88,36 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-# Start with correctness checks that can safely gate the existing codebase.
-# Broader formatting/import rules can be enabled after the legacy source is
-# normalized in a dedicated change.
-select = ["E9", "F63", "F7", "F82"]
+# 阶段 B4：启用全量规则集（基础 + 导入 + 现代化 + 错误捕获 + 简化）
+# E/W = pycodestyle, F = Pyflakes, I = isort, UP = pyupgrade, B = bugbear, C4 = comprehensions
+# SIM = simplify
+# 忽略：E501（行长——项目已有 100 字符限制）、B008（fastapi Depends 参数常见）
+select = ["E", "W", "F", "I", "UP", "B", "C4", "SIM"]
+ignore = [
+    "E501",  # 行长限制（pyproject.toml line-length=100 仍生效，但允许略超）
+    "B008",  # fastapi/pydantic 函数调用 in 默认值：项目里非常常见
+    "SIM108",  # 三元表达式 vs if/else：风格偏好，不强求
+    "SIM117",  # 嵌套 with 语句：某些场景嵌套更清晰
+    "SIM112",  # SystemRoot / CASE 敏感环境变量名（Windows 官方就是 SystemRoot）
+]
+# 允许 fix 模式自动修复安全项
+fixable = ["ALL"]
+unfixable = [
+    "F841",  # 未使用变量：避免误删（局部变量）
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 测试文件允许未使用方法（fixture 等）
+"test/*" = ["F401", "F811", "B011", "E402"]
+# run_tests.py 的 sys.path hack 故意在 import 后
+"test/run_tests.py" = ["E402"]
+# __init__.py 允许未使用 import（re-export）
+"src/__init__.py" = ["F401", "SIM112"]
+"src/gradio_app/__init__.py" = ["F401"]
+"src/gradio_app/components/__init__.py" = ["F401"]
+"src/gradio_app/models/__init__.py" = ["F401"]
+"src/gradio_app/services/__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+combine-as-imports = true

@@ -3,11 +3,11 @@
 含预设系统
 """
 
-import gradio as gr
 from pathlib import Path
-from typing import Dict, Any
 
-from src.gradio_app.models.training_state import TrainingConfig, PRESETS
+import gradio as gr
+
+from src.gradio_app.models.training_state import PRESETS
 from src.gradio_app.services.dataset_service import DatasetService
 
 

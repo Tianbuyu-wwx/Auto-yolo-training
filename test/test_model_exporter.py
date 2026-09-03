@@ -3,10 +3,12 @@
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import unittest
-from src.model_exporter import ExportResult, ExportReport
+
+from src.model_exporter import ExportReport, ExportResult
 
 
 class TestModelExporter(unittest.TestCase):

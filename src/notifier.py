@@ -3,16 +3,16 @@
 支持多种通知渠道：控制台、文件日志、Webhook
 """
 
-import os
-import json
 import ipaddress
-import urllib.request
+import json
+import os
 import urllib.parse
-from pathlib import Path
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any, List
 from enum import Enum
+from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 
@@ -31,9 +31,9 @@ class NotificationMessage:
     content: str
     level: NotificationLevel = NotificationLevel.INFO
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "title": self.title,
             "content": self.content,
@@ -105,19 +105,19 @@ class WebhookNotifier(BaseNotifier):
 
     # 允许的 Webhook 域名白名单（支持后缀匹配）
     # 默认仅允许常见企业协作平台；为空列表则允许所有公网域名
-    DEFAULT_ALLOWED_DOMAINS: List[str] = [
+    DEFAULT_ALLOWED_DOMAINS: list[str] = [
         "oapi.dingtalk.com",
         "open.feishu.cn",
         "qyapi.weixin.qq.com",
         "hooks.slack.com",
     ]
-    ALLOWED_DOMAINS: List[str] = [
+    ALLOWED_DOMAINS: list[str] = [
         d.strip()
         for d in os.environ.get("YOLO_WEBHOOK_ALLOWED_DOMAINS", "").split(",")
         if d.strip()
     ] or list(DEFAULT_ALLOWED_DOMAINS)
 
-    def __init__(self, webhook_url: str, enabled: bool = True, secret: Optional[str] = None):
+    def __init__(self, webhook_url: str, enabled: bool = True, secret: str | None = None):
         super().__init__(enabled)
         self.webhook_url = webhook_url
         self.secret = secret
@@ -153,7 +153,7 @@ class WebhookNotifier(BaseNotifier):
 
     def _send_impl(self, message: NotificationMessage) -> bool:
         if not self._is_safe_url(self.webhook_url):
-            print(f"通知发送失败: Webhook URL不安全或指向内网地址")
+            print("通知发送失败: Webhook URL不安全或指向内网地址")
             return False
 
         payload = self._build_payload(message)
@@ -173,7 +173,7 @@ class WebhookNotifier(BaseNotifier):
         with urllib.request.urlopen(req, timeout=30) as response:
             return response.status == 200
 
-    def _build_payload(self, message: NotificationMessage) -> Dict[str, Any]:
+    def _build_payload(self, message: NotificationMessage) -> dict[str, Any]:
         """构建Webhook请求体（通用格式）"""
         return {
             "msgtype": "text",
@@ -186,14 +186,7 @@ class WebhookNotifier(BaseNotifier):
 class DingTalkNotifier(WebhookNotifier):
     """钉钉通知器"""
 
-    def _build_payload(self, message: NotificationMessage) -> Dict[str, Any]:
-        colors = {
-            NotificationLevel.INFO: "#36a3f7",
-            NotificationLevel.SUCCESS: "#67c23a",
-            NotificationLevel.WARNING: "#e6a23c",
-            NotificationLevel.ERROR: "#f56c6c",
-        }
-
+    def _build_payload(self, message: NotificationMessage) -> dict[str, Any]:
         return {
             "msgtype": "markdown",
             "markdown": {
@@ -209,9 +202,9 @@ class DingTalkNotifier(WebhookNotifier):
 class NotifierManager:
     """通知管理器"""
 
-    def __init__(self, base_dir: Optional[str] = None):
+    def __init__(self, base_dir: str | None = None):
         self.base_dir = Path(base_dir) if base_dir else Path(__file__).parent.parent
-        self.notifiers: List[BaseNotifier] = []
+        self.notifiers: list[BaseNotifier] = []
 
         # 默认添加控制台和文件通知器
         self.add_console_notifier()
@@ -246,8 +239,8 @@ class NotifierManager:
         title: str,
         content: str,
         level: NotificationLevel = NotificationLevel.INFO,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> List[bool]:
+        metadata: dict[str, Any] | None = None,
+    ) -> list[bool]:
         """
         发送通知到所有通知器
 
@@ -273,7 +266,7 @@ class NotifierManager:
 
         return results
 
-    def notify_training_start(self, dataset_name: str, config: Dict[str, Any]):
+    def notify_training_start(self, dataset_name: str, config: dict[str, Any]):
         """训练开始通知"""
         return self.notify(
             title=f"训练开始: {dataset_name}",
@@ -285,7 +278,7 @@ class NotifierManager:
     def notify_training_complete(
         self,
         dataset_name: str,
-        metrics: Dict[str, Any],
+        metrics: dict[str, Any],
         duration: float,
     ):
         """训练完成通知"""
@@ -312,8 +305,8 @@ class NotifierManager:
         dataset_name: str,
         stage: str,
         error: str,
-        details: Optional[str] = None,
-    ) -> List[bool]:
+        details: str | None = None,
+    ) -> list[bool]:
         """流水线阶段失败通知（验证/配置/训练/评估/导出 任意阶段）。
 
         设计变更（2026-09-02）：原 ``notify_training_error`` 只在 except 块触发，
@@ -334,7 +327,7 @@ class NotifierManager:
         self,
         dataset_name: str,
         model_path: str,
-        metrics: Dict[str, Any],
+        metrics: dict[str, Any],
     ):
         """评估完成通知"""
         return self.notify(
@@ -348,9 +341,9 @@ class NotifierManager:
 
 
 def create_notifier(
-    webhook_url: Optional[str] = None,
+    webhook_url: str | None = None,
     webhook_type: str = "generic",
-    base_dir: Optional[str] = None,
+    base_dir: str | None = None,
 ) -> NotifierManager:
     """
     创建通知管理器便捷函数

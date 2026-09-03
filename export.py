@@ -9,8 +9,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import argparse
-from src.model_exporter import ModelExporter
+
 from src.branding import get_cli_banner
+from src.model_exporter import ModelExporter
 
 
 def main():

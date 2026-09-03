@@ -3,10 +3,12 @@
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import unittest
-from src.inference_service import InferenceService, DetectionResult, InferenceResponse
+
+from src.inference_service import DetectionResult, InferenceResponse, InferenceService
 
 
 class TestInferenceService(unittest.TestCase):
@@ -16,7 +18,7 @@ class TestInferenceService(unittest.TestCase):
     def setUpClass(cls):
         # 自动查找可用的模型文件
         base_dir = Path(__file__).parent.parent
-        
+
         # 优先查找训练结果中的 best.pt
         runs_dir = base_dir / "runs" / "detect"
         cls.model_path = None
@@ -26,7 +28,7 @@ class TestInferenceService(unittest.TestCase):
                 if best_pt.exists():
                     cls.model_path = str(best_pt)
                     break
-        
+
         # 如果没有找到训练结果，使用 basemodels 中的预训练模型
         if cls.model_path is None:
             basemodels_dir = base_dir / "basemodels"
@@ -34,10 +36,10 @@ class TestInferenceService(unittest.TestCase):
                 for pt_file in sorted(basemodels_dir.glob("*.pt"), key=lambda f: f.stat().st_mtime, reverse=True):
                     cls.model_path = str(pt_file)
                     break
-        
+
         if cls.model_path is None:
             raise unittest.SkipTest("跳过测试: 未找到可用的YOLO模型文件(.pt)")
-        
+
         cls.test_image = "dataset/cabel-damage-mini/images/val/IMG_6278_MOV-5_jpg.rf.ab8fcf694519e850ed70329ec295541e.jpg"
         cls.service = InferenceService(cls.model_path)
 

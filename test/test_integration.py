@@ -4,16 +4,17 @@
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import unittest
-import tempfile
 import shutil
+import tempfile
+import unittest
 
-from src.data_validator import validate_dataset, Severity
 from src.config_generator import ConfigGenerator, quick_setup
+from src.data_validator import Severity, validate_dataset
 from src.model_registry import ModelRegistry
-from src.notifier import NotificationMessage, NotificationLevel, ConsoleNotifier
+from src.notifier import ConsoleNotifier, NotificationLevel, NotificationMessage
 
 
 class TestIntegration(unittest.TestCase):
@@ -42,7 +43,7 @@ class TestIntegration(unittest.TestCase):
         self.assertTrue(Path(config.data_yaml_path).exists())
 
         import yaml
-        with open(config.data_yaml_path, "r", encoding="utf-8") as f:
+        with open(config.data_yaml_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         self.assertIn("train", data)
         self.assertIn("val", data)

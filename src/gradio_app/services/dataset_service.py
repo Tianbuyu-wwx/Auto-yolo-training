@@ -2,15 +2,15 @@
 数据集操作服务
 """
 
-import sys
-import shutil
 import logging
+import shutil
+import sys
 import zipfile
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any
 
-from src.dataset_manager import AutoDatasetManager, DatasetFormat
 from src.constants import ProjectPaths
+from src.dataset_manager import AutoDatasetManager
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +31,11 @@ class DatasetService:
         self.dataset_dir = self.paths.dataset_dir
         self.manager = AutoDatasetManager(str(self.dataset_dir))
 
-    def list_datasets(self) -> List[str]:
+    def list_datasets(self) -> list[str]:
         """列出所有可用数据集"""
         return self.manager.list_ready_datasets()
 
-    def get_all_statuses(self) -> List[Dict]:
+    def get_all_statuses(self) -> list[dict]:
         """获取所有数据集状态"""
         datasets = self.manager.scan_all_datasets()
         return [
@@ -52,7 +52,7 @@ class DatasetService:
             for ds in datasets
         ]
 
-    def get_info(self, dataset_name: str) -> Dict[str, Any]:
+    def get_info(self, dataset_name: str) -> dict[str, Any]:
         """获取数据集详情"""
         dataset_path = self.dataset_dir / dataset_name
         if not dataset_path.exists():
@@ -92,7 +92,7 @@ class DatasetService:
         info["sample_images"] = sample_images
         return info
 
-    def extract(self, zip_path: str, dataset_name: Optional[str] = None) -> Dict[str, str]:
+    def extract(self, zip_path: str, dataset_name: str | None = None) -> dict[str, str]:
         """解压数据集ZIP"""
         zip_path = Path(zip_path)
         if not zip_path.exists():
@@ -138,7 +138,7 @@ class DatasetService:
         except Exception as e:
             return {"status": "error", "message": f"解压失败: {str(e)}"}
 
-    def validate(self, dataset_name: str) -> Dict[str, Any]:
+    def validate(self, dataset_name: str) -> dict[str, Any]:
         """验证数据集"""
         dataset_path = self.dataset_dir / dataset_name
         if not dataset_path.exists():

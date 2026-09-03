@@ -2,11 +2,9 @@
 日志捕获与管理服务
 """
 
-import sys
 import logging
+import sys
 from collections import deque
-from typing import Optional
-
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +109,7 @@ class LogService:
 
     def __init__(self):
         self.log_queue: deque = deque(maxlen=self.MAX_LOG_LINES)
-        self.queue_handler: Optional[QueueLogHandler] = None
+        self.queue_handler: QueueLogHandler | None = None
         self._setup_logging()
 
     def _setup_logging(self):

@@ -10,8 +10,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import argparse
+
 from src.inference_service import run_server
-from src.branding import get_cli_banner
 
 
 def main():

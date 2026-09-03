@@ -3,14 +3,12 @@
 管理模型版本、元数据和血缘追踪
 """
 
-import os
 import json
 import shutil
-import hashlib
-from pathlib import Path
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from pathlib import Path
+from typing import Any
 
 
 @dataclass
@@ -20,21 +18,21 @@ class ModelVersion:
     model_path: str
     dataset_name: str
     created_at: str
-    metrics: Dict[str, float] = field(default_factory=dict)
-    params: Dict[str, Any] = field(default_factory=dict)
-    tags: List[str] = field(default_factory=list)
+    metrics: dict[str, float] = field(default_factory=dict)
+    params: dict[str, Any] = field(default_factory=dict)
+    tags: list[str] = field(default_factory=list)
     description: str = ""
-    parent_version: Optional[str] = None
+    parent_version: str | None = None
     status: str = "staging"  # staging / production / archived
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 class ModelRegistry:
     """模型注册表"""
 
-    def __init__(self, base_dir: Optional[str] = None):
+    def __init__(self, base_dir: str | None = None):
         self.base_dir = Path(base_dir) if base_dir else Path(__file__).parent.parent
         self.registry_dir = self.base_dir / "model_registry"
         self.registry_dir.mkdir(exist_ok=True)
@@ -42,14 +40,14 @@ class ModelRegistry:
         self.models_dir = self.registry_dir / "models"
         self.models_dir.mkdir(exist_ok=True)
 
-        self._versions: Dict[str, List[ModelVersion]] = {}
+        self._versions: dict[str, list[ModelVersion]] = {}
         self._load_registry()
 
     def _load_registry(self):
         """加载注册表"""
         if self.versions_file.exists():
             try:
-                with open(self.versions_file, "r", encoding="utf-8") as f:
+                with open(self.versions_file, encoding="utf-8") as f:
                     data = json.load(f)
                 for dataset_name, versions in data.items():
                     self._versions[dataset_name] = [
@@ -85,11 +83,11 @@ class ModelRegistry:
         self,
         model_path: str,
         dataset_name: str,
-        metrics: Optional[Dict[str, float]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
+        metrics: dict[str, float] | None = None,
+        params: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
         description: str = "",
-        parent_version: Optional[str] = None,
+        parent_version: str | None = None,
         copy_model: bool = True,
     ) -> ModelVersion:
         """
@@ -139,11 +137,11 @@ class ModelRegistry:
 
         return version
 
-    def get_versions(self, dataset_name: str) -> List[ModelVersion]:
+    def get_versions(self, dataset_name: str) -> list[ModelVersion]:
         """获取数据集的所有版本"""
         return self._versions.get(dataset_name, [])
 
-    def get_version(self, dataset_name: str, version_id: str) -> Optional[ModelVersion]:
+    def get_version(self, dataset_name: str, version_id: str) -> ModelVersion | None:
         """获取特定版本"""
         versions = self._versions.get(dataset_name, [])
         for v in versions:
@@ -151,7 +149,7 @@ class ModelRegistry:
                 return v
         return None
 
-    def get_latest(self, dataset_name: str, status: Optional[str] = None) -> Optional[ModelVersion]:
+    def get_latest(self, dataset_name: str, status: str | None = None) -> ModelVersion | None:
         """获取最新版本"""
         versions = self._versions.get(dataset_name, [])
         if status:
@@ -160,7 +158,7 @@ class ModelRegistry:
             return None
         return max(versions, key=lambda v: v.created_at)
 
-    def get_best(self, dataset_name: str, metric: str = "mAP50") -> Optional[ModelVersion]:
+    def get_best(self, dataset_name: str, metric: str = "mAP50") -> ModelVersion | None:
         """获取最佳版本（按指标）"""
         versions = self._versions.get(dataset_name, [])
         if not versions:
@@ -193,7 +191,7 @@ class ModelRegistry:
         # 提升指定版本
         return self.update_status(dataset_name, version_id, "production")
 
-    def add_tags(self, dataset_name: str, version_id: str, tags: List[str]) -> bool:
+    def add_tags(self, dataset_name: str, version_id: str, tags: list[str]) -> bool:
         """添加标签"""
         version = self.get_version(dataset_name, version_id)
         if version is None:
@@ -204,7 +202,7 @@ class ModelRegistry:
         self._save_registry()
         return True
 
-    def compare_versions(self, dataset_name: str, version_id1: str, version_id2: str) -> Dict[str, Any]:
+    def compare_versions(self, dataset_name: str, version_id1: str, version_id2: str) -> dict[str, Any]:
         """对比两个版本"""
         v1 = self.get_version(dataset_name, version_id1)
         v2 = self.get_version(dataset_name, version_id2)
@@ -240,14 +238,14 @@ class ModelRegistry:
 
         return comparison
 
-    def list_all(self) -> Dict[str, List[Dict[str, Any]]]:
+    def list_all(self) -> dict[str, list[dict[str, Any]]]:
         """列出所有注册模型"""
         return {
             dataset_name: [v.to_dict() for v in versions]
             for dataset_name, versions in self._versions.items()
         }
 
-    def get_production_model(self, dataset_name: str) -> Optional[str]:
+    def get_production_model(self, dataset_name: str) -> str | None:
         """获取生产环境模型路径"""
         versions = self._versions.get(dataset_name, [])
         for v in versions:
@@ -276,8 +274,8 @@ class ModelRegistry:
 def quick_register(
     model_path: str,
     dataset_name: str,
-    metrics: Optional[Dict[str, float]] = None,
-    base_dir: Optional[str] = None,
+    metrics: dict[str, float] | None = None,
+    base_dir: str | None = None,
 ) -> ModelVersion:
     """
     快速注册便捷函数

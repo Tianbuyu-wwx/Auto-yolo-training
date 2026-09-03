@@ -3,25 +3,25 @@ YOLO自动训练平台 — 主入口
 Tab式工作流：数据集 → 配置 → 训练 → 结果
 """
 
+import logging
 import os
 import sys
-import logging
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import gradio as gr
-from src.dataset_manager import AutoDatasetManager, DatasetFormat
 
-from src.gradio_app.theme import create_theme
-from src.gradio_app.models.training_state import TrainingConfig
-from src.gradio_app.services.log_service import LogService
-from src.gradio_app.services.dataset_service import DatasetService
-from src.gradio_app.services.training_service import TrainingService
-from src.gradio_app.components.dataset_panel import build_dataset_panel
+from src.dataset_manager import AutoDatasetManager, DatasetFormat
 from src.gradio_app.components.config_panel import build_config_panel
-from src.gradio_app.components.training_monitor import build_training_monitor
+from src.gradio_app.components.dataset_panel import build_dataset_panel
 from src.gradio_app.components.result_viewer import build_result_viewer
+from src.gradio_app.components.training_monitor import build_training_monitor
+from src.gradio_app.models.training_state import TrainingConfig
+from src.gradio_app.services.dataset_service import DatasetService
+from src.gradio_app.services.log_service import LogService
+from src.gradio_app.services.training_service import TrainingService
+from src.gradio_app.theme import create_theme
 from src.utils import is_path_allowed
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ def create_app(css: str = ""):
         # Tab工作流
         with gr.Tabs():
             with gr.Tab("① 数据集"):
-                ds_components = build_dataset_panel(dataset_svc, dataset_dropdown)
+                _ds_components = build_dataset_panel(dataset_svc, dataset_dropdown)
 
             with gr.Tab("② 配置"):
                 cfg_components = build_config_panel(dataset_svc)
@@ -66,7 +66,7 @@ def create_app(css: str = ""):
                 monitor_components = build_training_monitor(training_svc, log_svc)
 
             with gr.Tab("④ 结果"):
-                result_components = build_result_viewer(training_svc)
+                _result_components = build_result_viewer(training_svc)
 
         # ====== 全局事件绑定 ======
 

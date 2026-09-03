@@ -3,12 +3,11 @@
 含实时指标卡片 + 训练曲线 + 日志
 """
 
-import gradio as gr
-from typing import Dict, Any
 
-from src.gradio_app.services.training_service import TrainingService
+import gradio as gr
+
 from src.gradio_app.services.log_service import LogService
-from src.gradio_app.models.training_state import TrainingConfig
+from src.gradio_app.services.training_service import TrainingService
 
 
 def build_training_monitor(training_svc: TrainingService, log_svc: LogService):

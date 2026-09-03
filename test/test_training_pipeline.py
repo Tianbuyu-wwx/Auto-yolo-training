@@ -6,12 +6,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.training_pipeline import TrainingPipeline
 from src.config_generator import ProjectConfig, TrainingConfig
+from src.training_pipeline import TrainingPipeline
 
 
 class TestTrainingPipelineRunTraining(unittest.TestCase):

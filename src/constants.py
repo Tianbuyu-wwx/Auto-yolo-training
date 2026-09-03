@@ -3,10 +3,10 @@
 统一管理所有硬编码路径和默认值
 """
 
-from pathlib import Path
-
 # 项目根目录（默认为 src 的父目录，可通过环境变量覆盖）
 import os
+from pathlib import Path
+
 PROJECT_ROOT = Path(os.environ.get("YOLO_PROJECT_ROOT", Path(__file__).parent.parent))
 
 # 目录结构

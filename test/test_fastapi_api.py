@@ -4,17 +4,17 @@ FastAPI 服务 API 测试
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import io
 import base64
+import io
 import unittest
 from unittest.mock import MagicMock
 
 from PIL import Image
 
-from src.inference_service import create_app, InferenceService, HAS_FASTAPI
-
+from src.inference_service import HAS_FASTAPI, InferenceService, create_app
 
 if HAS_FASTAPI:
     from fastapi.testclient import TestClient

@@ -3,14 +3,13 @@
 自动将训练好的模型导出为多种部署格式
 """
 
-import os
-import sys
 import json
 import shutil
-from pathlib import Path
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from pathlib import Path
+from typing import Any
 
 
 @dataclass
@@ -18,12 +17,12 @@ class ExportResult:
     """导出结果"""
     format: str
     success: bool
-    output_path: Optional[str] = None
+    output_path: str | None = None
     file_size: int = 0
     message: str = ""
     duration: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "format": self.format,
             "success": self.success,
@@ -39,7 +38,7 @@ class ExportReport:
     """导出报告"""
     model_path: str
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
-    results: List[ExportResult] = field(default_factory=list)
+    results: list[ExportResult] = field(default_factory=list)
 
     @property
     def success_count(self) -> int:
@@ -49,7 +48,7 @@ class ExportReport:
     def total_count(self) -> int:
         return len(self.results)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "model_path": self.model_path,
             "timestamp": self.timestamp,
@@ -78,7 +77,7 @@ class ModelExporter:
         "ncnn": {"ext": "_ncnn_model", "desc": "NCNN"},
     }
 
-    def __init__(self, base_dir: Optional[str] = None):
+    def __init__(self, base_dir: str | None = None):
         self.base_dir = Path(base_dir) if base_dir else Path(__file__).parent.parent
         self.exports_dir = self.base_dir / "exports"
         self.exports_dir.mkdir(exist_ok=True)
@@ -86,7 +85,7 @@ class ModelExporter:
     def export(
         self,
         model_path: str,
-        formats: Optional[List[str]] = None,
+        formats: list[str] | None = None,
         imgsz: int = 640,
         half: bool = False,
         int8: bool = False,
@@ -157,7 +156,7 @@ class ModelExporter:
     def export_best(
         self,
         run_dir: str,
-        formats: Optional[List[str]] = None,
+        formats: list[str] | None = None,
         **kwargs,
     ) -> ExportReport:
         """
@@ -183,7 +182,7 @@ class ModelExporter:
             **kwargs,
         )
 
-    def get_export_info(self, format: str) -> Dict[str, Any]:
+    def get_export_info(self, format: str) -> dict[str, Any]:
         """获取导出格式的信息"""
         if format not in self.SUPPORTED_FORMATS:
             return {"supported": False, "message": "不支持的格式"}
@@ -194,26 +193,26 @@ class ModelExporter:
         # 检查依赖
         if format == "onnx":
             try:
-                import onnx
+                __import__("onnx")
                 info["dependency"] = "已安装"
             except ImportError:
                 info["dependency"] = "未安装 (pip install onnx)"
         elif format == "engine":
             try:
-                import tensorrt
+                __import__("tensorrt")
                 info["dependency"] = "已安装"
             except ImportError:
                 info["dependency"] = "未安装 (需要TensorRT)"
         elif format == "openvino":
             try:
-                import openvino
+                __import__("openvino")
                 info["dependency"] = "已安装"
             except ImportError:
                 info["dependency"] = "未安装 (pip install openvino)"
 
         return info
 
-    def list_supported_formats(self) -> List[Dict[str, Any]]:
+    def list_supported_formats(self) -> list[dict[str, Any]]:
         """列出所有支持的导出格式"""
         return [
             {
@@ -302,8 +301,8 @@ class ModelExporter:
 
 def quick_export(
     model_path: str,
-    formats: Optional[List[str]] = None,
-    base_dir: Optional[str] = None,
+    formats: list[str] | None = None,
+    base_dir: str | None = None,
     **kwargs,
 ) -> ExportReport:
     """

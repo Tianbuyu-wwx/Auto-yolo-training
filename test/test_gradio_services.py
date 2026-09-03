@@ -3,16 +3,16 @@ Gradio 应用服务层测试
 覆盖 TrainingState、LogService、DatasetService 和 TrainingService 生命周期
 """
 import sys
-import time
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.gradio_app.models.training_state import TrainingState, TrainingConfig
-from src.gradio_app.services.log_service import LogService
+from src.gradio_app.models.training_state import TrainingConfig, TrainingState
 from src.gradio_app.services.dataset_service import DatasetService
+from src.gradio_app.services.log_service import LogService
 from src.gradio_app.services.training_service import TrainingService
 
 

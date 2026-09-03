@@ -3,15 +3,11 @@
 自动在测试集上评估模型性能，生成标准化报告
 """
 
-import os
 import json
-import csv
-import shutil
-from pathlib import Path
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any, List
-import numpy as np
+from pathlib import Path
+from typing import Any
 
 
 @dataclass
@@ -22,9 +18,9 @@ class EvaluationMetrics:
     precision: float = 0.0
     recall: float = 0.0
     fitness: float = 0.0
-    class_metrics: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    class_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "mAP50": round(self.mAP50, 4),
             "mAP50_95": round(self.mAP50_95, 4),
@@ -43,10 +39,10 @@ class EvaluationReport:
     data_yaml: str
     metrics: EvaluationMetrics
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
-    comparison: Optional[Dict[str, Any]] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    comparison: dict[str, Any] | None = None
+    details: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "model_path": self.model_path,
             "dataset_name": self.dataset_name,
@@ -61,7 +57,7 @@ class EvaluationReport:
 class ModelEvaluator:
     """YOLO模型评估器"""
 
-    def __init__(self, base_dir: Optional[str] = None):
+    def __init__(self, base_dir: str | None = None):
         self.base_dir = Path(base_dir).resolve() if base_dir else Path(__file__).parent.parent.resolve()
         self.reports_dir = self.base_dir / "reports"
         self.reports_dir.mkdir(exist_ok=True)
@@ -77,7 +73,7 @@ class ModelEvaluator:
         iou: float = 0.6,
         save_json: bool = True,
         save_plots: bool = True,
-        compare_with: Optional[str] = None,
+        compare_with: str | None = None,
     ) -> EvaluationReport:
         """
         评估模型性能
@@ -99,8 +95,8 @@ class ModelEvaluator:
         """
         try:
             from ultralytics import YOLO
-        except ImportError:
-            raise ImportError("未安装ultralytics，无法执行评估")
+        except ImportError as e:
+            raise ImportError("未安装ultralytics，无法执行评估") from e
 
         model_path = Path(model_path).resolve()
         if not model_path.exists():
@@ -180,11 +176,11 @@ class ModelEvaluator:
 
     def batch_evaluate(
         self,
-        model_paths: List[str],
+        model_paths: list[str],
         data_yaml: str,
         dataset_name: str,
         **kwargs,
-    ) -> List[EvaluationReport]:
+    ) -> list[EvaluationReport]:
         """
         批量评估多个模型
 
@@ -214,8 +210,8 @@ class ModelEvaluator:
 
     def generate_comparison_report(
         self,
-        reports: List[EvaluationReport],
-        output_path: Optional[str] = None,
+        reports: list[EvaluationReport],
+        output_path: str | None = None,
     ) -> str:
         """
         生成模型对比报告
@@ -303,7 +299,7 @@ class ModelEvaluator:
         current_metrics: EvaluationMetrics,
         history_dir: str,
         dataset_name: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """与历史结果对比"""
         history_dir = Path(history_dir)
         if not history_dir.exists():
@@ -312,7 +308,7 @@ class ModelEvaluator:
         historical_maps = []
         for report_file in history_dir.glob("*_eval_report.json"):
             try:
-                with open(report_file, "r", encoding="utf-8") as f:
+                with open(report_file, encoding="utf-8") as f:
                     data = json.load(f)
                 if data.get("dataset_name") == dataset_name:
                     historical_maps.append(data["metrics"]["mAP50"])
@@ -347,7 +343,7 @@ def quick_evaluate(
     model_path: str,
     data_yaml: str,
     dataset_name: str,
-    base_dir: Optional[str] = None,
+    base_dir: str | None = None,
     **kwargs,
 ) -> EvaluationReport:
     """

@@ -1,0 +1,6 @@
+train: images/train
+val: images/val
+test:
+
+nc: 2
+names: ['Normal', 'Defect']

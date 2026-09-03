@@ -3,10 +3,12 @@
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import unittest
-from src.hyperparameter_tuning import SearchSpace, TuningResult
+
+from src.hyperparameter_tuning import SearchSpace, TuningResult, _float
 
 
 class TestHyperparameterTuning(unittest.TestCase):
@@ -32,6 +34,30 @@ class TestHyperparameterTuning(unittest.TestCase):
         self.assertEqual(space.model_candidates, ["yolov8n.pt"])
         self.assertEqual(space.batch_min, 2)
         self.assertEqual(space.batch_max, 8)
+
+    def test_search_space_ranges_defaults(self):
+        """阶段 B8：ranges 默认值"""
+        space = SearchSpace()
+        self.assertIn("imgsz", space.ranges)
+        self.assertIn("lr0", space.ranges)
+
+    def test_search_space_add_and_get_range(self):
+        """阶段 B8：add_range + get_range"""
+        space = SearchSpace()
+        space.add_range("custom", _float(0.0, 1.0))
+        r = space.get_range("custom")
+        self.assertEqual(r.min, 0.0)
+        self.assertEqual(r.max, 1.0)
+
+    def test_search_space_to_from_ranges_roundtrip(self):
+        """阶段 B8：序列化往返"""
+        space = SearchSpace()
+        d = space.to_ranges_dict()
+        self.assertIn("imgsz", d)
+        self.assertEqual(d["imgsz"]["step"], 640)
+        reconstructed = SearchSpace.from_ranges_dict(d)
+        for name in ("imgsz", "lr0", "batch"):
+            self.assertEqual(type(space.get_range(name)), type(reconstructed.get_range(name)))
 
     def test_tuning_result(self):
         """测试结果数据结构"""

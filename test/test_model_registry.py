@@ -3,12 +3,14 @@
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import unittest
-import tempfile
 import shutil
-from src.model_registry import ModelVersion, ModelRegistry
+import tempfile
+import unittest
+
+from src.model_registry import ModelRegistry, ModelVersion
 
 
 class TestModelRegistry(unittest.TestCase):

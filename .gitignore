@@ -101,3 +101,12 @@ dataset/**/*.rar
 # 通用化分析/规划文档（不入版本库，仅项目根本地参考）
 full-analysis-*.md
 generalization-plan-*.md
+
+# Ultralytics 运行期生成（与 YOLO_CONFIG_DIR 配置无关的 fallback 目录）
+Ultralytics/
+
+# ModelRegistry 运行产物（每次训练后生成）
+model_registry/
+
+# TrainingService 训练后移动出来的 best.pt 副本（exports/ 已有类似规则）
+exports/*.pt

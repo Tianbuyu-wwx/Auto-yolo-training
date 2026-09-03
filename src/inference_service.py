@@ -3,32 +3,34 @@ FastAPI推理服务
 提供模型推理API，支持单图/批量推理
 """
 
+import base64
 import io
 import os
 import sys
-import json
-import base64
-import ipaddress
-import tempfile
 import threading
-from pathlib import Path
-from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Union
-from enum import Enum
-from urllib.parse import urlparse
+from pathlib import Path
+from typing import Any
+
 import numpy as np
 from PIL import Image
 
-from src.utils import is_path_allowed
 from src.branding import get_api_metadata, get_brand
+from src.utils import is_path_allowed
 
 try:
-    from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks, Depends, Security
-    from fastapi.responses import JSONResponse
+    import uvicorn
+    from fastapi import (
+        Depends,
+        FastAPI,
+        File,
+        Form,
+        HTTPException,
+        Security,
+        UploadFile,
+    )
     from fastapi.security import APIKeyHeader
     from pydantic import BaseModel, Field
-    import uvicorn
     HAS_FASTAPI = True
 except ImportError:
     HAS_FASTAPI = False
@@ -41,7 +43,7 @@ class DetectionResult(BaseModel):
     class_id: int
     class_name: str
     confidence: float = Field(..., ge=0.0, le=1.0)
-    bbox: List[float] = Field(..., description="[x1, y1, x2, y2] in pixels")
+    bbox: list[float] = Field(..., description="[x1, y1, x2, y2] in pixels")
 
 
 class InferenceResponse(BaseModel):
@@ -51,7 +53,7 @@ class InferenceResponse(BaseModel):
     success: bool
     image_width: int
     image_height: int
-    detections: List[DetectionResult]
+    detections: list[DetectionResult]
     inference_time: float
     model_name: str
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
@@ -62,7 +64,7 @@ class BatchInferenceResponse(BaseModel):
     model_config = {"protected_namespaces": ()}
 
     success: bool
-    results: List[InferenceResponse]
+    results: list[InferenceResponse]
     total_images: int
     total_detections: int
     total_time: float
@@ -76,28 +78,39 @@ class ModelInfo(BaseModel):
     path: str
     exists: bool
     file_size_mb: float
-    created_at: Optional[str] = None
+    created_at: str | None = None
 
 
 class InferenceService:
     """YOLO推理服务"""
 
-    # 允许访问的目录白名单
+    # 允许访问的目录白名单（默认值；阶段 B6 后实际从 src.settings.get_settings().api 读取）
     ALLOWED_IMAGE_DIRS = ["dataset", "test_images"]
     ALLOWED_MODEL_DIRS = ["runs", "basemodels"]
 
-    def __init__(self, model_path: Optional[str] = None, base_dir: Optional[str] = None):
+    def __init__(self, model_path: str | None = None, base_dir: str | None = None):
         self.base_dir = Path(base_dir) if base_dir else Path(__file__).parent.parent
         self.model_path = model_path
         self.model = None
         self.class_names = {}
         self._model_lock = threading.Lock()
 
+        # 阶段 B6：从 Pydantic Settings 加载白名单（允许环境变量覆盖）
+        try:
+            from src.settings import get_settings
+
+            settings = get_settings()
+            self.allowed_image_dirs = list(settings.api.allowed_image_dirs)
+            self.allowed_model_dirs = list(settings.api.allowed_model_dirs)
+        except Exception:
+            self.allowed_image_dirs = self.ALLOWED_IMAGE_DIRS
+            self.allowed_model_dirs = self.ALLOWED_MODEL_DIRS
+
         if model_path and Path(model_path).exists():
             self._load_model(model_path)
 
     @staticmethod
-    def _is_path_allowed(path: str, allowed_dirs: List[str], base_dir: Path) -> bool:
+    def _is_path_allowed(path: str, allowed_dirs: list[str], base_dir: Path) -> bool:
         """检查路径是否在允许的目录范围内（使用统一路径校验工具）"""
         return is_path_allowed(path, allowed_dirs, base_dir)
 
@@ -109,16 +122,16 @@ class InferenceService:
             self.model_path = model_path
             self.class_names = self.model.names if hasattr(self.model, 'names') else {}
         except Exception as e:
-            raise RuntimeError(f"Failed to load model: {e}")
+            raise RuntimeError(f"Failed to load model: {e}") from e
 
     def predict(
         self,
-        image: Union[str, np.ndarray, Image.Image],
+        image: str | np.ndarray | Image.Image,
         conf: float = 0.25,
         iou: float = 0.45,
         imgsz: int = 640,
         save: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         对单张图像进行推理
 
@@ -183,11 +196,11 @@ class InferenceService:
 
     def predict_batch(
         self,
-        images: List[Union[str, np.ndarray, Image.Image]],
+        images: list[str | np.ndarray | Image.Image],
         conf: float = 0.25,
         iou: float = 0.45,
         imgsz: int = 640,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         批量推理
 
@@ -254,7 +267,7 @@ class InferenceService:
 
         return results
 
-    def get_available_models(self) -> List[ModelInfo]:
+    def get_available_models(self) -> list[ModelInfo]:
         """获取可用的模型列表"""
         models = []
         runs_dir = self.base_dir / "runs" / "detect"
@@ -279,7 +292,7 @@ class InferenceService:
         """切换模型"""
         if not Path(model_path).exists():
             return False
-        if not self._is_path_allowed(model_path, self.ALLOWED_MODEL_DIRS, self.base_dir):
+        if not self._is_path_allowed(model_path, self.allowed_model_dirs, self.base_dir):
             return False
         with self._model_lock:
             self._load_model(model_path)
@@ -288,10 +301,10 @@ class InferenceService:
 
 # FastAPI应用
 def create_app(
-    model_path: Optional[str] = None,
-    base_dir: Optional[str] = None,
-    api_key: Optional[str] = None,
-    service: Optional[InferenceService] = None,
+    model_path: str | None = None,
+    base_dir: str | None = None,
+    api_key: str | None = None,
+    service: InferenceService | None = None,
 ) -> FastAPI:
     """创建FastAPI应用"""
     if not HAS_FASTAPI:
@@ -304,7 +317,7 @@ def create_app(
     # API Key认证（可选）
     api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-    async def verify_api_key(key: Optional[str] = Security(api_key_header)):
+    async def verify_api_key(key: str | None = Security(api_key_header)):
         """验证API Key（如果配置了的话）"""
         if not api_key:
             return True  # 未配置API Key时不需要认证
@@ -331,7 +344,7 @@ def create_app(
             "timestamp": datetime.now().isoformat(),
         }
 
-    @app.get("/models", response_model=List[ModelInfo])
+    @app.get("/models", response_model=list[ModelInfo])
     async def list_models(authenticated: bool = Depends(verify_api_key)):
         """列出所有可用模型"""
         return service.get_available_models()
@@ -388,7 +401,7 @@ def create_app(
 
     @app.post("/predict_batch", response_model=BatchInferenceResponse)
     async def predict_batch(
-        files: List[UploadFile] = File(...),
+        files: list[UploadFile] = File(...),
         conf: float = Form(0.25),
         iou: float = Form(0.45),
         imgsz: int = Form(640),
@@ -432,7 +445,9 @@ def create_app(
         if not Path(image_path).exists():
             raise HTTPException(status_code=404, detail="Image not found")
 
-        if not InferenceService._is_path_allowed(image_path, InferenceService.ALLOWED_IMAGE_DIRS, service.base_dir):
+        if not InferenceService._is_path_allowed(
+            image_path, service.allowed_image_dirs, service.base_dir
+        ):
             raise HTTPException(status_code=403, detail="Access denied: path outside allowed directories")
 
         result = service.predict(image_path, conf=conf, iou=iou, imgsz=imgsz)
@@ -443,11 +458,11 @@ def create_app(
 
 
 def run_server(
-    model_path: Optional[str] = None,
+    model_path: str | None = None,
     host: str = "127.0.0.1",
     port: int = 8000,
-    base_dir: Optional[str] = None,
-    api_key: Optional[str] = None,
+    base_dir: str | None = None,
+    api_key: str | None = None,
 ):
     """启动推理服务"""
     if not HAS_FASTAPI:
@@ -455,7 +470,17 @@ def run_server(
         sys.exit(1)
 
     # 支持环境变量读取 API Key
-    effective_api_key = api_key if api_key is not None else os.environ.get("YOLO_API_KEY")
+    # 阶段 B6：优先从 settings 读，回落到环境变量
+    if api_key is not None:
+        effective_api_key = api_key
+    else:
+        try:
+            from src.settings import get_settings
+
+            settings = get_settings()
+            effective_api_key = settings.api.api_key or os.environ.get("YOLO_API_KEY", "")
+        except Exception:
+            effective_api_key = os.environ.get("YOLO_API_KEY", "")
     app = create_app(model_path, base_dir, effective_api_key)
 
     brand = get_brand()

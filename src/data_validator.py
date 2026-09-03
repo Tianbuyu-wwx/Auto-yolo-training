@@ -3,13 +3,11 @@
 负责在训练前对数据集进行全面质量检查
 """
 
-import os
-import cv2
-import numpy as np
-from pathlib import Path
 from dataclasses import dataclass, field
-from typing import List, Dict, Tuple, Optional
 from enum import Enum
+from pathlib import Path
+
+import cv2
 import yaml
 
 from src.utils import imread_unicode
@@ -28,8 +26,8 @@ class ValidationIssue:
     severity: Severity
     category: str
     message: str
-    file_path: Optional[str] = None
-    details: Optional[Dict] = None
+    file_path: str | None = None
+    details: dict | None = None
 
 
 @dataclass
@@ -38,21 +36,21 @@ class ValidationReport:
     dataset_name: str
     dataset_path: str
     is_valid: bool = True
-    issues: List[ValidationIssue] = field(default_factory=list)
-    stats: Dict = field(default_factory=dict)
+    issues: list[ValidationIssue] = field(default_factory=list)
+    stats: dict = field(default_factory=dict)
 
     def add_issue(self, issue: ValidationIssue):
         self.issues.append(issue)
         if issue.severity == Severity.ERROR:
             self.is_valid = False
 
-    def get_errors(self) -> List[ValidationIssue]:
+    def get_errors(self) -> list[ValidationIssue]:
         return [i for i in self.issues if i.severity == Severity.ERROR]
 
-    def get_warnings(self) -> List[ValidationIssue]:
+    def get_warnings(self) -> list[ValidationIssue]:
         return [i for i in self.issues if i.severity == Severity.WARNING]
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "dataset_name": self.dataset_name,
             "dataset_path": self.dataset_path,
@@ -127,24 +125,24 @@ class DataValidator:
                     file_path=str(full_path)
                 ))
 
-    def _find_images_in_split(self, split: str) -> List[Path]:
+    def _find_images_in_split(self, split: str) -> list[Path]:
         """查找指定split的所有图像文件（支持类别子目录）"""
         img_dir = self.dataset_path / "images" / split
         if not img_dir.exists():
             return []
-        
+
         images = []
         for img_file in img_dir.rglob("*"):
             if img_file.is_file() and img_file.suffix.lower() in self.SUPPORTED_IMAGE_EXTS:
                 images.append(img_file)
         return images
 
-    def _find_labels_in_split(self, split: str) -> List[Path]:
+    def _find_labels_in_split(self, split: str) -> list[Path]:
         """查找指定split的所有标注文件（支持类别子目录）"""
         label_dir = self.dataset_path / "labels" / split
         if not label_dir.exists():
             return []
-        
+
         labels = []
         for label_file in label_dir.rglob("*.txt"):
             if label_file.is_file():
@@ -155,7 +153,7 @@ class DataValidator:
         """验证图像文件（支持类别子目录）"""
         for split in ["train", "val", "test"]:
             images = self._find_images_in_split(split)
-            
+
             for img_file in images:
                 if img_file.suffix.lower() not in self.SUPPORTED_IMAGE_EXTS:
                     self.report.add_issue(ValidationIssue(
@@ -212,7 +210,7 @@ class DataValidator:
             labels = self._find_labels_in_split(split)
 
             for label_file in labels:
-                with open(label_file, "r", encoding="utf-8") as f:
+                with open(label_file, encoding="utf-8") as f:
                     lines = f.readlines()
 
                 for line_no, line in enumerate(lines, 1):
@@ -232,7 +230,7 @@ class DataValidator:
                         continue
 
                     try:
-                        cls_id = int(parts[0])
+                        _cls_id = int(parts[0])
                         x, y, w, h = map(float, parts[1:])
                     except ValueError:
                         self.report.add_issue(ValidationIssue(
@@ -280,7 +278,7 @@ class DataValidator:
                 self.report.add_issue(ValidationIssue(
                     severity=Severity.WARNING,
                     category="missing_label",
-                    message=f"图像缺少对应标注文件",
+                    message="图像缺少对应标注文件",
                     file_path=str(img_dir / f"{stem}.*")
                 ))
 
@@ -289,7 +287,7 @@ class DataValidator:
                 self.report.add_issue(ValidationIssue(
                     severity=Severity.WARNING,
                     category="orphan_label",
-                    message=f"标注文件缺少对应图像",
+                    message="标注文件缺少对应图像",
                     file_path=str(label_dir / f"{stem}.txt")
                 ))
 
@@ -299,7 +297,7 @@ class DataValidator:
         data_yaml = self.dataset_path / "data.yaml"
         if data_yaml.exists():
             try:
-                with open(data_yaml, "r", encoding="utf-8") as f:
+                with open(data_yaml, encoding="utf-8") as f:
                     config = yaml.safe_load(f)
                 expected_classes = config.get("nc", 0)
                 expected_names = config.get("names", [])
@@ -312,7 +310,7 @@ class DataValidator:
                     for label_file in label_dir.rglob("*.txt"):
                         if not label_file.is_file():
                             continue
-                        with open(label_file, "r", encoding="utf-8") as f:
+                        with open(label_file, encoding="utf-8") as f:
                             for line in f:
                                 line = line.strip()
                                 if line:
@@ -366,7 +364,7 @@ class DataValidator:
                     if not label_file.is_file():
                         continue
                     label_count += 1
-                    with open(label_file, "r", encoding="utf-8") as f:
+                    with open(label_file, encoding="utf-8") as f:
                         for line in f:
                             line = line.strip()
                             if line:
@@ -389,7 +387,7 @@ class DataValidator:
 
         stats["total_images"] = total_images
         stats["total_labels"] = total_labels
-        stats["unique_classes"] = sorted(list(all_class_ids))
+        stats["unique_classes"] = sorted(all_class_ids)
         self.report.stats.update(stats)
 
     def _check_dataset_size(self):

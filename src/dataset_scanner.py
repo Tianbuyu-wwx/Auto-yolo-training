@@ -3,14 +3,13 @@
 支持多种目录结构和组织方式的数据集自动识别与加载
 """
 
-import os
-import cv2
-import numpy as np
-from pathlib import Path
-from dataclasses import dataclass, field
-from typing import List, Dict, Tuple, Optional, Set, Iterator
-from enum import Enum
 import logging
+from collections.abc import Iterator
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+
+import numpy as np
 
 from src.utils import imread_unicode
 
@@ -31,8 +30,8 @@ class ImageInfo:
     """图像文件信息"""
     path: Path
     split: str
-    class_name: Optional[str] = None
-    label_path: Optional[Path] = None
+    class_name: str | None = None
+    label_path: Path | None = None
     width: int = 0
     height: int = 0
     channels: int = 0
@@ -44,21 +43,21 @@ class DatasetProfile:
     name: str
     path: Path
     structure: DatasetStructure
-    splits: Dict[str, Dict] = field(default_factory=dict)
-    classes: List[str] = field(default_factory=list)
+    splits: dict[str, dict] = field(default_factory=dict)
+    classes: list[str] = field(default_factory=list)
     image_count: int = 0
     label_count: int = 0
-    issues: List[str] = field(default_factory=list)
+    issues: list[str] = field(default_factory=list)
 
 
 class DatasetScanner:
     """自适应数据集扫描器"""
 
-    SUPPORTED_IMAGE_EXTS: Set[str] = {
+    SUPPORTED_IMAGE_EXTS: set[str] = {
         ".jpg", ".jpeg", ".png", ".bmp", ".webp",
         ".gif", ".tiff", ".tif", ".jfif", ".jpe"
     }
-    SUPPORTED_LABEL_EXTS: Set[str] = {".txt", ".xml", ".json", ".csv"}
+    SUPPORTED_LABEL_EXTS: set[str] = {".txt", ".xml", ".json", ".csv"}
 
     def __init__(self, dataset_path: str):
         self.dataset_path = Path(dataset_path).resolve()
@@ -108,7 +107,6 @@ class DatasetScanner:
     def _detect_structure(self) -> DatasetStructure:
         """检测数据集目录结构类型"""
         has_images = (self.dataset_path / "images").exists()
-        has_labels = (self.dataset_path / "labels").exists()
 
         standard_splits = []
         if has_images:
@@ -122,7 +120,7 @@ class DatasetScanner:
                 has_class_subdirs = False
                 for split in standard_splits:
                     split_dir = images_dir / split
-                    subdirs = [d for d in split_dir.iterdir() 
+                    subdirs = [d for d in split_dir.iterdir()
                                if d.is_dir() and not d.name.startswith(".") and d.name != "__pycache__"]
                     if subdirs:
                         has_class_subdirs = True
@@ -153,9 +151,7 @@ class DatasetScanner:
             if has_images and has_split:
                 return True
             # 如果同时有images和labels目录，也认为是标准结构
-            if has_images and has_labels:
-                return True
-            return False
+            return bool(has_images and has_labels)
 
         # 对于嵌套结构，我们需要找到实际的图像文件并检查它们所在的路径
         all_images = list(self._find_image_files(self.dataset_path, max_depth=10))
@@ -163,7 +159,7 @@ class DatasetScanner:
             p for p in all_images
             if not is_standard_yolo_subdir(p)
         ]
-        
+
         # 如果所有图像都在标准YOLO子目录中，但根目录没有images/train结构
         # 说明这是一个多层嵌套的YOLO结构（如 dataset/v1/train/images/）
         if all_images:
@@ -172,7 +168,7 @@ class DatasetScanner:
                 if is_standard_yolo_subdir(img_path):
                     # 这是嵌套的YOLO结构
                     return DatasetStructure.NESTED
-        
+
         if nested_images:
             return DatasetStructure.NESTED
 
@@ -269,7 +265,7 @@ class DatasetScanner:
                     "classes": classes
                 }
                 self.profile.image_count += len(images)
-                self.profile.classes = sorted(list(set(self.profile.classes) | classes))
+                self.profile.classes = sorted(set(self.profile.classes) | classes)
 
     def _scan_nested(self):
         """扫描嵌套结构，尝试按目录名推断split"""
@@ -280,7 +276,7 @@ class DatasetScanner:
         }
 
         # 尝试按目录名分组
-        split_dirs: Dict[str, List[Path]] = {"train": [], "val": [], "test": []}
+        split_dirs: dict[str, list[Path]] = {"train": [], "val": [], "test": []}
         unclassified = []
 
         for img_path in self._find_image_files(self.dataset_path):
@@ -370,7 +366,7 @@ class DatasetScanner:
                         self.profile.label_count += 1
                         self._match_label_to_image(label_file, split, class_dir.name)
 
-    def _match_label_to_image(self, label_path: Path, split: str, class_name: Optional[str] = None):
+    def _match_label_to_image(self, label_path: Path, split: str, class_name: str | None = None):
         """将标注文件匹配到对应的图像（使用字典索引优化）"""
         base_name = label_path.stem
 
@@ -409,12 +405,12 @@ class DatasetScanner:
             return
 
         # 从标注文件中提取类别
-        class_ids: Set[int] = set()
-        for split, data in self.profile.splits.items():
+        class_ids: set[int] = set()
+        for _split, data in self.profile.splits.items():
             for img_info in data["images"]:
                 if img_info.label_path and img_info.label_path.exists():
                     try:
-                        with open(img_info.label_path, "r", encoding="utf-8") as f:
+                        with open(img_info.label_path, encoding="utf-8") as f:
                             for line in f:
                                 line = line.strip()
                                 if line:
@@ -439,7 +435,7 @@ class DatasetScanner:
 
         # 检查图像尺寸（使用PIL仅读头部，避免全量解码）
         from PIL import Image as PILImage
-        for split, data in self.profile.splits.items():
+        for _split, data in self.profile.splits.items():
             for img_info in data["images"]:
                 try:
                     with PILImage.open(str(img_info.path)) as pil_img:
@@ -451,17 +447,17 @@ class DatasetScanner:
                     self.profile.issues.append(f"无法读取图像 {img_info.path}: {e}")
 
     @staticmethod
-    def _safe_imread(path: str) -> Optional[np.ndarray]:
+    def _safe_imread(path: str) -> np.ndarray | None:
         """安全读取图像，支持中文路径"""
         return imread_unicode(path)
 
-    def get_split_images(self, split: str) -> List[ImageInfo]:
+    def get_split_images(self, split: str) -> list[ImageInfo]:
         """获取指定split的所有图像"""
         if split in self.profile.splits:
             return self.profile.splits[split]["images"]
         return []
 
-    def get_all_images(self) -> List[ImageInfo]:
+    def get_all_images(self) -> list[ImageInfo]:
         """获取所有图像"""
         all_images = []
         for data in self.profile.splits.values():
@@ -475,7 +471,7 @@ def scan_dataset(dataset_path: str) -> DatasetProfile:
     return scanner.scan()
 
 
-def discover_datasets(base_dir: str) -> List[DatasetProfile]:
+def discover_datasets(base_dir: str) -> list[DatasetProfile]:
     """发现目录下的所有数据集"""
     base_path = Path(base_dir)
     datasets = []

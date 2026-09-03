@@ -3,19 +3,16 @@
 根据数据集自动生成YOLO训练所需的data.yaml和训练配置
 """
 
-import os
 import logging
-import yaml
-from pathlib import Path
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Any
+import os
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
-from src.utils import resolve_model_path, count_images
-from src.constants import (
-    DATASET_DIR, BASEMODELS_DIR, CONFIGS_DIR, RUNS_DIR,
-    MODELS_CONFIG_DIR, TRAIN_CONFIG_DIR, SUPPORTED_IMAGE_EXTS,
-)
+import yaml
+
+from src.utils import resolve_model_path
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +35,9 @@ class DatasetConfig:
     path: str
     train: str
     val: str
-    test: Optional[str] = None
+    test: str | None = None
     nc: int = 0
-    names: List[str] = field(default_factory=list)
+    names: list[str] = field(default_factory=list)
 
     def to_yaml(self) -> str:
         data = {}
@@ -82,7 +79,7 @@ class TrainingConfig:
     amp: bool = True
     fraction: float = 1.0
     profile: bool = False
-    freeze: Optional[int] = None
+    freeze: int | None = None
     lr0: float = 0.001
     lrf: float = 0.01
     momentum: float = 0.937
@@ -123,7 +120,7 @@ class TrainingConfig:
     erasing: float = 0.4
     crop_fraction: float = 1.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in asdict(self).items() if v is not None}
 
 
@@ -139,7 +136,7 @@ class ProjectConfig:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     description: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "project_name": self.project_name,
             "dataset_name": self.dataset_name,
@@ -159,7 +156,7 @@ class ConfigGenerator:
     # 注意：项目已通用化，不绑定任何具体业务场景；如需自定义类别名，
     # 请在数据集 data.yaml 中显式声明 nc + names，或在调用 ConfigGenerator
     # 时通过 class_names 参数传入。
-    DEFAULT_CLASS_NAMES: Optional[List[str]] = None
+    DEFAULT_CLASS_NAMES: list[str] | None = None
 
     def __init__(self, base_dir: str = None):
         self.base_dir = (
@@ -188,7 +185,7 @@ class ConfigGenerator:
             # External datasets/models cannot be made project-relative without copying them.
             return resolved.as_posix()
 
-    def discover_datasets(self) -> List[str]:
+    def discover_datasets(self) -> list[str]:
         """发现dataset目录下的所有数据集"""
         datasets = []
         if self.dataset_base.exists():
@@ -200,8 +197,8 @@ class ConfigGenerator:
     def generate_data_yaml(
         self,
         dataset_name: str,
-        class_names: Optional[List[str]] = None,
-        output_path: Optional[str] = None,
+        class_names: list[str] | None = None,
+        output_path: str | None = None,
     ) -> str:
         """
         生成data.yaml配置文件
@@ -264,7 +261,7 @@ class ConfigGenerator:
         imgsz: int = 640,
         batch: int = 16,
         epochs: int = 150,
-        overrides: Optional[Dict[str, Any]] = None,
+        overrides: dict[str, Any] | None = None,
     ) -> TrainingConfig:
         """
         生成训练配置
@@ -335,9 +332,9 @@ class ConfigGenerator:
         imgsz: int = 640,
         batch: int = 16,
         epochs: int = 150,
-        class_names: Optional[List[str]] = None,
+        class_names: list[str] | None = None,
         description: str = "",
-        overrides: Optional[Dict[str, Any]] = None,
+        overrides: dict[str, Any] | None = None,
     ) -> ProjectConfig:
         """
         生成完整的项目配置
@@ -384,7 +381,7 @@ class ConfigGenerator:
 
         return project_config
 
-    def save_project_config(self, config: ProjectConfig, output_path: Optional[str] = None) -> str:
+    def save_project_config(self, config: ProjectConfig, output_path: str | None = None) -> str:
         """保存项目配置到文件"""
         if output_path is None:
             self.train_config_dir.mkdir(parents=True, exist_ok=True)
@@ -412,7 +409,7 @@ class ConfigGenerator:
         data_yaml = dataset_path / "data.yaml"
         if data_yaml.exists():
             try:
-                with open(data_yaml, "r", encoding="utf-8") as f:
+                with open(data_yaml, encoding="utf-8") as f:
                     yaml_data = yaml.safe_load(f)
                 if yaml_data and "names" in yaml_data and "nc" in yaml_data:
                     return yaml_data["nc"], yaml_data["names"]
@@ -429,7 +426,7 @@ class ConfigGenerator:
             # 递归遍历所有子目录（支持类别子目录结构）
             for label_file in label_dir.rglob("*.txt"):
                 if label_file.is_file():
-                    with open(label_file, "r", encoding="utf-8") as f:
+                    with open(label_file, encoding="utf-8") as f:
                         for line in f:
                             line = line.strip()
                             if line:
@@ -461,15 +458,15 @@ class ConfigGenerator:
         img_dir = dataset_path / "images" / split
         if not img_dir.exists():
             return 0
-        
+
         count = 0
         supported_exts = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
-        
+
         # 递归遍历所有子目录（支持类别子目录结构）
         for img_file in img_dir.rglob("*"):
             if img_file.is_file() and img_file.suffix.lower() in supported_exts:
                 count += 1
-        
+
         return count
 
 
@@ -479,8 +476,8 @@ def quick_setup(
     imgsz: int = 640,
     batch: int = 16,
     epochs: int = 150,
-    class_names: Optional[List[str]] = None,
-    base_dir: Optional[str] = None,
+    class_names: list[str] | None = None,
+    base_dir: str | None = None,
 ) -> ProjectConfig:
     """
     快速设置：一键生成所有配置
@@ -530,7 +527,7 @@ if __name__ == "__main__":
 
     config = quick_setup(dataset_name, model, imgsz, batch, epochs)
 
-    print(f"配置生成完成!")
+    print("配置生成完成!")
     print(f"  数据集: {config.dataset_name}")
     print(f"  data.yaml: {config.data_yaml_path}")
     print(f"  输出目录: {config.output_dir}")

@@ -2,17 +2,17 @@
 训练任务管理服务
 """
 
-import sys
-import shutil
 import logging
+import shutil
+import sys
 import threading
-from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from pathlib import Path
+from typing import Any
 
-from src.gradio_app.models.training_state import TrainingState, TrainingConfig
-from src.gradio_app.services.log_service import LogService, StreamToQueue
 from src.constants import ProjectPaths
+from src.gradio_app.models.training_state import TrainingConfig, TrainingState
+from src.gradio_app.services.log_service import LogService, StreamToQueue
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class TrainingService:
 
         self.state = TrainingState()
         self.stop_event = threading.Event()
-        self.training_thread: Optional[threading.Thread] = None
+        self.training_thread: threading.Thread | None = None
 
     def start(self, config: TrainingConfig) -> bool:
         """启动训练"""
@@ -61,14 +61,14 @@ class TrainingService:
         self.stop_event.set()
         return True
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """获取训练状态"""
         self._update_from_results()
         status = self.state.to_dict()
         status["logs"] = self.log_service.get_messages()
         return status
 
-    def get_available_models(self) -> List[Dict[str, Any]]:
+    def get_available_models(self) -> list[dict[str, Any]]:
         """获取可用模型列表"""
         models = []
         if self.runs_dir.exists():
@@ -86,7 +86,7 @@ class TrainingService:
                         })
         return models
 
-    def get_training_results(self, run_name: Optional[str] = None) -> Dict[str, Any]:
+    def get_training_results(self, run_name: str | None = None) -> dict[str, Any]:
         """获取训练结果"""
         if run_name:
             run_dir = self.runs_dir / run_name
@@ -291,7 +291,7 @@ class TrainingService:
             if not csv_path.exists():
                 return
 
-            with open(csv_path, "r", encoding="utf-8") as f:
+            with open(csv_path, encoding="utf-8") as f:
                 header = f.readline()
                 if not header:
                     return
@@ -307,7 +307,7 @@ class TrainingService:
                 headers = header.strip().split(',')
                 values = last_line.strip().split(',')
                 if len(values) == len(headers):
-                    last_row = dict(zip(headers, values))
+                    last_row = dict(zip(headers, values, strict=True))
                     if "epoch" in last_row:
                         epoch = int(float(last_row["epoch"])) + 1
                         if epoch > self.state.current_epoch:

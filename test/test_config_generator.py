@@ -3,16 +3,19 @@
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import unittest
 import tempfile
+import unittest
+
 import yaml
+
 from src.config_generator import (
     ConfigGenerator,
     DatasetConfig,
-    TrainingConfig,
     ProjectConfig,
+    TrainingConfig,
     quick_setup,
 )
 
@@ -84,7 +87,7 @@ class TestConfigGenerator(unittest.TestCase):
         generator = ConfigGenerator()
         path = generator.generate_data_yaml(self.dataset_name)
         self.assertTrue(Path(path).exists())
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         self.assertIn("train", data)
         self.assertIn("val", data)

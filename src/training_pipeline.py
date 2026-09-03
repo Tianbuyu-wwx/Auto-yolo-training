@@ -3,29 +3,27 @@
 整合数据验证、配置生成、超参搜索、训练执行、评估、导出、通知
 """
 
-import os
-import sys
-import json
-import time
 import gc
+import json
 import logging
+import sys
+import time
 import traceback
-from pathlib import Path
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any, Callable
+from pathlib import Path
+from typing import Any
 
-from src.data_validator import validate_dataset, ValidationReport, Severity
-from src.config_generator import ConfigGenerator, ProjectConfig, quick_setup
+from src.config_generator import ConfigGenerator, ProjectConfig
+from src.data_validator import validate_dataset
+from src.evaluator import ModelEvaluator
 from src.hyperparameter_tuning import (
-    YOLOHyperparameterTuner,
     SearchSpace,
-    TuningResult,
+    YOLOHyperparameterTuner,
 )
-from src.evaluator import ModelEvaluator, EvaluationReport
-from src.model_exporter import ModelExporter, ExportReport
-from src.notifier import NotifierManager, NotificationLevel, create_notifier
-
+from src.model_exporter import ModelExporter
+from src.notifier import NotifierManager, create_notifier
 
 # 配置日志
 logger = logging.getLogger("TrainingPipeline")
@@ -50,8 +48,8 @@ class PipelineResult:
     stage: str
     message: str
     duration: float
-    details: Dict[str, Any] = field(default_factory=dict)
-    error: Optional[str] = None
+    details: dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
 
 
 @dataclass
@@ -59,7 +57,7 @@ class PipelineReport:
     """完整流水线报告"""
     dataset_name: str
     start_time: str
-    end_time: Optional[str] = None
+    end_time: str | None = None
     total_duration: float = 0.0
     stages: list = field(default_factory=list)
     success: bool = False
@@ -74,7 +72,7 @@ class PipelineReport:
             "error": result.error,
         })
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "dataset_name": self.dataset_name,
             "start_time": self.start_time,
@@ -86,7 +84,7 @@ class PipelineReport:
 
     @staticmethod
     def _serialize_value(value: Any) -> Any:
-        from dataclasses import is_dataclass, asdict
+        from dataclasses import asdict, is_dataclass
         if is_dataclass(value):
             return asdict(value)
         if isinstance(value, dict):
@@ -101,14 +99,14 @@ class TrainingPipeline:
 
     def __init__(
         self,
-        base_dir: Optional[str] = None,
-        webhook_url: Optional[str] = None,
+        base_dir: str | None = None,
+        webhook_url: str | None = None,
         webhook_type: str = "generic",
         max_backup_runs: int = 2,
-        config_generator: Optional[ConfigGenerator] = None,
-        evaluator: Optional[ModelEvaluator] = None,
-        exporter: Optional[ModelExporter] = None,
-        notifier: Optional[NotifierManager] = None,
+        config_generator: ConfigGenerator | None = None,
+        evaluator: ModelEvaluator | None = None,
+        exporter: ModelExporter | None = None,
+        notifier: NotifierManager | None = None,
     ):
         self.base_dir = Path(base_dir).resolve() if base_dir else Path(__file__).parent.parent.resolve()
         self.config_generator = config_generator or ConfigGenerator(str(self.base_dir))
@@ -126,18 +124,18 @@ class TrainingPipeline:
         imgsz: int = 640,
         batch: int = 16,
         epochs: int = 150,
-        class_names: Optional[list] = None,
+        class_names: list | None = None,
         skip_validation: bool = False,
-        training_overrides: Optional[Dict[str, Any]] = None,
-        progress_callback: Optional[Callable[[str, float], None]] = None,
-        should_stop: Optional[Callable[[], bool]] = None,
+        training_overrides: dict[str, Any] | None = None,
+        progress_callback: Callable[[str, float], None] | None = None,
+        should_stop: Callable[[], bool] | None = None,
         enable_tuning: bool = False,
         n_trials: int = 20,
         tuning_metric: str = "metrics/mAP50(B)",
-        search_space: Optional[SearchSpace] = None,
+        search_space: SearchSpace | None = None,
         enable_evaluation: bool = True,
         enable_export: bool = False,
-        export_formats: Optional[list] = None,
+        export_formats: list | None = None,
         auto_cleanup: bool = True,
         enable_registry: bool = True,
     ) -> PipelineReport:
@@ -428,8 +426,8 @@ class TrainingPipeline:
             # 注册到 ModelRegistry（默认启用）
             if enable_registry and best_model_path:
                 try:
+
                     from src.model_registry import ModelRegistry
-                    from dataclasses import asdict
                     registry = ModelRegistry(str(self.base_dir))
                     train_cfg = project_config.training_config
                     # 优先用评估指标（Stage 4），否则用训练指标（Stage 3）
@@ -527,7 +525,7 @@ class TrainingPipeline:
                 )
 
             warnings = report.get_warnings()
-            msg = f"数据验证通过"
+            msg = "数据验证通过"
             if warnings:
                 msg += f"，发现 {len(warnings)} 个警告"
                 logger.warning("  -> Validation found %d warnings", len(warnings))
@@ -563,8 +561,8 @@ class TrainingPipeline:
         imgsz: int,
         batch: int,
         epochs: int,
-        class_names: Optional[list],
-        overrides: Optional[Dict[str, Any]],
+        class_names: list | None,
+        overrides: dict[str, Any] | None,
     ) -> PipelineResult:
         """执行配置生成阶段"""
         start = time.time()
@@ -621,7 +619,7 @@ class TrainingPipeline:
         dataset_name: str,
         n_trials: int,
         metric: str,
-        search_space: Optional[SearchSpace],
+        search_space: SearchSpace | None,
     ) -> PipelineResult:
         """执行超参数搜索阶段"""
         start = time.time()
@@ -684,7 +682,7 @@ class TrainingPipeline:
     def _apply_tuned_params(
         self,
         project_config: ProjectConfig,
-        best_params: Dict[str, Any],
+        best_params: dict[str, Any],
         full_epochs: int,
     ) -> ProjectConfig:
         """将搜索到的最优参数应用到配置中"""
@@ -730,7 +728,7 @@ class TrainingPipeline:
     def _run_training(
         self,
         project_config: ProjectConfig,
-        should_stop: Optional[Callable[[], bool]] = None,
+        should_stop: Callable[[], bool] | None = None,
     ) -> PipelineResult:
         """执行训练阶段（封装Ultralytics API）"""
         start = time.time()
@@ -909,7 +907,7 @@ class TrainingPipeline:
     def _run_export(
         self,
         model_path: str,
-        formats: Optional[list],
+        formats: list | None,
         imgsz: int,
     ) -> PipelineResult:
         """执行模型导出阶段"""
@@ -960,8 +958,8 @@ class TrainingPipeline:
 
     def _cleanup_old_runs(self, dataset_name: str):
         """清理旧的训练运行目录，仅保留最新的 max_backup_runs 轮"""
-        import shutil
         import re
+        import shutil
 
         runs_dir = self.base_dir / "runs" / "detect"
         if not runs_dir.exists():
@@ -1054,16 +1052,16 @@ def run_training(
     batch: int = 16,
     epochs: int = 150,
     skip_validation: bool = False,
-    base_dir: Optional[str] = None,
+    base_dir: str | None = None,
     enable_tuning: bool = False,
     n_trials: int = 20,
     tuning_metric: str = "metrics/mAP50(B)",
     enable_evaluation: bool = True,
     enable_export: bool = False,
-    export_formats: Optional[list] = None,
+    export_formats: list | None = None,
     auto_cleanup: bool = True,
     max_backup_runs: int = 2,
-    training_overrides: Optional[Dict[str, Any]] = None,
+    training_overrides: dict[str, Any] | None = None,
 ) -> PipelineReport:
     """
     便捷函数：一键执行训练流水线
@@ -1120,7 +1118,7 @@ if __name__ == "__main__":
     batch = int(sys.argv[4]) if len(sys.argv) > 4 else 16
     epochs = int(sys.argv[5]) if len(sys.argv) > 5 else 150
 
-    print(f"启动训练流水线...")
+    print("启动训练流水线...")
     print(f"  数据集: {dataset_name}")
     print(f"  模型: {model}")
     print(f"  图像尺寸: {imgsz}")
@@ -1133,10 +1131,10 @@ if __name__ == "__main__":
     print("-" * 50)
     print(f"流水线执行结果: {'成功' if report.success else '失败'}")
     print(f"总耗时: {report.total_duration:.2f}秒")
-    print(f"阶段详情:")
+    print("阶段详情:")
     for stage in report.stages:
         status = "OK" if stage["success"] else "FAIL"
         print(f"  [{status}] {stage['stage']}: {stage['message']} ({stage['duration']:.2f}s)")
 
     # 保存报告路径
-    print(f"\n详细报告已保存")
+    print("\n详细报告已保存")

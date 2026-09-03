@@ -1,0 +1,7 @@
+# 自动生成的YOLO数据集配置
+train: images/train
+val: images/val
+test: images/test
+
+nc: 6
+names: ['bend', 'deformation', 'good', 'heat damage', 'missing material', 'missing part']

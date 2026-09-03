@@ -10,8 +10,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import argparse
 import json
-from src.data_validator import validate_dataset
+
 from src.branding import get_cli_banner
+from src.data_validator import validate_dataset
 
 
 def main():

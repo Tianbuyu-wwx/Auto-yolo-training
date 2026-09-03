@@ -2,8 +2,8 @@
 训练结果查看器组件
 """
 
+
 import gradio as gr
-from typing import Dict, Any
 
 from src.gradio_app.services.training_service import TrainingService
 

@@ -15,6 +15,7 @@ from pathlib import Path
 # 确保 src/ 在 path 上
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.__version__ import __version__ as SRC_VERSION
 from src.branding import (
     DEFAULT_BRAND,
     ENV_OVERRIDE_KEYS,
@@ -22,7 +23,6 @@ from src.branding import (
     get_brand,
     get_cli_banner,
 )
-from src.__version__ import __version__ as SRC_VERSION
 
 
 class TestDefaultBranding(unittest.TestCase):

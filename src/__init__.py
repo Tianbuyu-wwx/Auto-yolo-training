@@ -3,7 +3,6 @@
 import os
 from pathlib import Path
 
-
 # Ultralytics writes settings/cache files on import. Keep those files inside
 # the project so tests and restricted environments do not depend on a
 # writable user profile directory.

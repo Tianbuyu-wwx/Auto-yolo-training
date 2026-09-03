@@ -1,8 +1,9 @@
 import time
 from pathlib import Path
+
+from src.gradio_app.models.training_state import TrainingConfig
 from src.gradio_app.services.log_service import LogService
 from src.gradio_app.services.training_service import TrainingService
-from src.gradio_app.models.training_state import TrainingConfig
 
 
 def main():

@@ -1,0 +1,7 @@
+# 自动生成的YOLO数据集配置
+train: images/train
+val: images/val
+test: images/test
+
+nc: 2
+names: ['good', 'missing material']

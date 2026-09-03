@@ -3,15 +3,19 @@
 消除各模块间的重复代码
 """
 
+from pathlib import Path
+
 import cv2
 import numpy as np
-from pathlib import Path
-from typing import Optional, List
 
-from src.constants import BASEMODELS_DIR, SUPPORTED_IMAGE_EXTS, ALLOWED_IMAGE_DIRS, ALLOWED_MODEL_DIRS, PROJECT_ROOT
+from src.constants import (
+    BASEMODELS_DIR,
+    PROJECT_ROOT,
+    SUPPORTED_IMAGE_EXTS,
+)
 
 
-def imread_unicode(path: str, flags: int = cv2.IMREAD_UNCHANGED) -> Optional[np.ndarray]:
+def imread_unicode(path: str, flags: int = cv2.IMREAD_UNCHANGED) -> np.ndarray | None:
     """
     支持中文路径的图像读取函数
     OpenCV的cv2.imread在Windows上不支持中文路径，使用np.fromfile绕过此限制
@@ -57,7 +61,7 @@ def resolve_model_path(model: str, basemodels_dir: Path = BASEMODELS_DIR) -> str
 
 def is_path_allowed(
     path: str,
-    allowed_dirs: List[str],
+    allowed_dirs: list[str],
     base_dir: Path = PROJECT_ROOT,
 ) -> bool:
     """
@@ -95,7 +99,7 @@ def count_images(directory: Path, recursive: bool = True) -> int:
     return sum(1 for f in glob_fn("*") if f.suffix.lower() in SUPPORTED_IMAGE_EXTS and f.is_file())
 
 
-def find_images(directory: Path, recursive: bool = True) -> List[Path]:
+def find_images(directory: Path, recursive: bool = True) -> list[Path]:
     """查找目录中的所有图像文件"""
     if not directory.exists():
         return []

@@ -3,21 +3,20 @@ Optuna超参数自动搜索模块
 基于验证集mAP自动寻找最优训练超参数
 """
 
-import os
-import sys
 import json
-import time
 import shutil
-import traceback
 import tempfile
-from pathlib import Path
+import time
+import traceback
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Callable, Tuple
+from pathlib import Path
+from typing import Any
 
 import optuna
-from optuna.samplers import TPESampler
 from optuna.pruners import MedianPruner
+from optuna.samplers import TPESampler
 
 from src.utils import resolve_model_path
 
@@ -44,7 +43,7 @@ class FloatRange:
 @dataclass
 class CategoryRange:
     """分类选项列表。"""
-    choices: List[Any]
+    choices: list[Any]
 
 
 def _int(default_min: int, default_max: int, default_step: int = 1) -> IntRange:
@@ -66,7 +65,7 @@ class SearchSpace:
     旧字段。
     """
     # 模型选择
-    model_candidates: List[str] = field(default_factory=lambda: ["yolov8s.pt", "yolov8m.pt"])
+    model_candidates: list[str] = field(default_factory=lambda: ["yolov8s.pt", "yolov8m.pt"])
 
     # 图像尺寸
     imgsz_min: int = 640
@@ -84,10 +83,10 @@ class SearchSpace:
     lr0_log: bool = True
 
     # 优化器
-    optimizer_candidates: List[str] = field(default_factory=lambda: ["AdamW", "SGD", "NAdam", "RAdam"])
+    optimizer_candidates: list[str] = field(default_factory=lambda: ["AdamW", "SGD", "NAdam", "RAdam"])
 
     # 学习率调度
-    cos_lr_candidates: List[bool] = field(default_factory=lambda: [True, False])
+    cos_lr_candidates: list[bool] = field(default_factory=lambda: [True, False])
 
     # 数据增强
     mosaic_min: float = 0.5
@@ -154,12 +153,12 @@ class SearchSpace:
     dfl_max: float = 2.0
 
     # 固定参数（不参与搜索）
-    fixed_params: Dict[str, Any] = field(default_factory=dict)
+    fixed_params: dict[str, Any] = field(default_factory=dict)
 
     # ------------------------------------------------------------------
-    # 嵌套 dataclass 字段（阶段 A11 新增；阶段 B 取代上述扁平字段）
+    # 嵌套 dataclass 字段（阶段 A11 新增；阶段 B8 提供完整 API）
     # ------------------------------------------------------------------
-    ranges: Dict[str, Any] = field(default_factory=lambda: {
+    ranges: dict[str, Any] = field(default_factory=lambda: {
         "imgsz": _int(640, 1280, 640),
         "batch": _int(4, 16, 4),
         "lr0": _float(1e-4, 1e-2, log=True),
@@ -185,7 +184,56 @@ class SearchSpace:
         "dfl": _float(1.0, 2.0),
     })
 
-    def to_dict(self) -> Dict[str, Any]:
+    def add_range(self, name: str, range_obj: Any) -> None:
+        """添加或覆盖一个嵌套范围。
+
+        Args:
+            name: 参数名（如 ``"lr0"``、``"imgsz"``）
+            range_obj: IntRange / FloatRange / CategoryRange 实例
+        """
+        self.ranges[name] = range_obj
+
+    def get_range(self, name: str) -> Any:
+        """获取一个嵌套范围，不存在时返回 ``None``。"""
+        return self.ranges.get(name)
+
+    def to_ranges_dict(self) -> dict[str, dict[str, Any]]:
+        """以 dict 形式导出所有 ranges（用于序列化为 YAML/JSON）。
+
+        Returns:
+            ``{name: {"min": ..., "max": ..., "step"?: ..., "log"?: ..., "choices"?: ...}}``
+        """
+        out: dict[str, dict[str, Any]] = {}
+        for name, r in self.ranges.items():
+            if isinstance(r, IntRange):
+                out[name] = {"min": r.min, "max": r.max, "step": r.step}
+            elif isinstance(r, FloatRange):
+                out[name] = {"min": r.min, "max": r.max, "log": r.log}
+            elif isinstance(r, CategoryRange):
+                out[name] = {"choices": list(r.choices)}
+        return out
+
+    @classmethod
+    def from_ranges_dict(cls, data: dict[str, dict[str, Any]]) -> "SearchSpace":
+        """从 ranges dict 反序列化构造 SearchSpace（阶段 B8 用例）。
+
+        未知字段保留 SearchSpace 默认值。
+        """
+        space = cls()
+        for name, cfg in data.items():
+            if "choices" in cfg:
+                space.ranges[name] = CategoryRange(choices=tuple(cfg["choices"]))
+            elif "step" in cfg:
+                space.ranges[name] = IntRange(
+                    min=cfg["min"], max=cfg["max"], step=cfg.get("step", 1)
+                )
+            elif "log" in cfg:
+                space.ranges[name] = FloatRange(
+                    min=cfg["min"], max=cfg["max"], log=cfg.get("log", False)
+                )
+        return space
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "model_candidates": self.model_candidates,
             "imgsz_range": [self.imgsz_min, self.imgsz_max, self.imgsz_step],
@@ -220,15 +268,15 @@ class SearchSpace:
 @dataclass
 class TuningResult:
     """超参搜索结果"""
-    best_params: Dict[str, Any]
+    best_params: dict[str, Any]
     best_value: float
     n_trials: int
     study_name: str
     duration: float
-    all_trials: List[Dict[str, Any]] = field(default_factory=list)
+    all_trials: list[dict[str, Any]] = field(default_factory=list)
     optimization_direction: str = "maximize"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "best_params": self.best_params,
             "best_value": self.best_value,
@@ -246,9 +294,9 @@ class YOLOHyperparameterTuner:
     def __init__(
         self,
         data_yaml_path: str,
-        base_dir: Optional[str] = None,
-        study_name: Optional[str] = None,
-        storage: Optional[str] = None,
+        base_dir: str | None = None,
+        study_name: str | None = None,
+        storage: str | None = None,
     ):
         self.data_yaml_path = Path(data_yaml_path)
         self.base_dir = Path(base_dir) if base_dir else Path(__file__).parent.parent
@@ -279,11 +327,11 @@ class YOLOHyperparameterTuner:
     def tune(
         self,
         n_trials: int = 20,
-        search_space: Optional[SearchSpace] = None,
+        search_space: SearchSpace | None = None,
         metric: str = "metrics/mAP50(B)",
         direction: str = "maximize",
-        timeout: Optional[int] = None,
-        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        timeout: int | None = None,
+        progress_callback: Callable[[int, int, float], None] | None = None,
     ) -> TuningResult:
         """
         执行超参数搜索
@@ -430,7 +478,7 @@ class YOLOHyperparameterTuner:
                 csv_path = Path(train_kwargs.get("project", ".")) / train_kwargs.get("name", "") / "results.csv"
                 if csv_path.exists():
                     import csv as csv_mod
-                    with open(csv_path, "r", encoding="utf-8") as f:
+                    with open(csv_path, encoding="utf-8") as f:
                         reader = csv_mod.DictReader(f)
                         for step, row in enumerate(reader):
                             # 尝试匹配指标列
@@ -476,7 +524,7 @@ class YOLOHyperparameterTuner:
             if trial_output is not None and trial_output.exists():
                 shutil.rmtree(trial_output, ignore_errors=True)
 
-    def _sample_params(self, trial: optuna.Trial) -> Dict[str, Any]:
+    def _sample_params(self, trial: optuna.Trial) -> dict[str, Any]:
         """从搜索空间采样参数"""
         ss = self.search_space
 
@@ -545,7 +593,7 @@ class YOLOHyperparameterTuner:
 
         return params
 
-    def _extract_metric(self, results: Any, metric: str) -> Optional[float]:
+    def _extract_metric(self, results: Any, metric: str) -> float | None:
         """从训练结果中提取指标"""
         try:
             if hasattr(results, "results_dict"):
@@ -558,7 +606,7 @@ class YOLOHyperparameterTuner:
         except Exception:
             return 0.0
 
-    def _extract_metric_from_dict(self, metrics: Any, metric: str) -> Optional[float]:
+    def _extract_metric_from_dict(self, metrics: Any, metric: str) -> float | None:
         """从指标字典中提取值"""
         try:
             if isinstance(metrics, dict):
@@ -604,7 +652,7 @@ def quick_tune(
     dataset_name: str,
     n_trials: int = 20,
     metric: str = "metrics/mAP50(B)",
-    base_dir: Optional[str] = None,
+    base_dir: str | None = None,
 ) -> TuningResult:
     """
     快速超参数搜索便捷函数
@@ -671,7 +719,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("搜索完成!")
     print(f"最优值: {result.best_value:.4f}")
-    print(f"最优参数:")
+    print("最优参数:")
     for key, value in result.best_params.items():
         print(f"  {key}: {value}")
     print(f"总耗时: {result.duration:.2f}秒")

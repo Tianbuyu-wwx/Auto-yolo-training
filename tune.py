@@ -9,9 +9,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import argparse
-from src.hyperparameter_tuning import YOLOHyperparameterTuner, SearchSpace
-from src.config_generator import ConfigGenerator
+
 from src.branding import get_cli_banner
+from src.config_generator import ConfigGenerator
+from src.hyperparameter_tuning import SearchSpace, YOLOHyperparameterTuner
 
 
 def build_search_space_from_args(args) -> SearchSpace:

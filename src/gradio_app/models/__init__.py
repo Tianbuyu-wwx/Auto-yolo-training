@@ -1,1 +1,1 @@
-from src.gradio_app.models.training_state import TrainingState, TrainingConfig
+from src.gradio_app.models.training_state import TrainingConfig, TrainingState

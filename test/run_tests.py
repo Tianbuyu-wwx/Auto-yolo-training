@@ -2,8 +2,8 @@
 测试运行入口
 统一运行所有测试
 """
-import sys
 import os
+import sys
 from pathlib import Path
 
 # 添加项目根目录到路径
@@ -11,8 +11,8 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 os.chdir(project_root)
 
-import unittest
 import argparse
+import unittest
 
 
 def discover_tests(pattern="test_*.py"):
@@ -67,9 +67,9 @@ def main():
         suite = discover_tests(args.pattern)
 
     total = suite.countTestCases()
-    print(f"=" * 60)
+    print("=" * 60)
     print(f"发现 {total} 个测试用例")
-    print(f"=" * 60)
+    print("=" * 60)
 
     verbosity = 2 if args.verbose else 1
     success = run_tests(suite, verbosity)

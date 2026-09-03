@@ -3,16 +3,18 @@
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import unittest
-import tempfile
 import os
+import tempfile
+import unittest
+
 from src.notifier import (
-    NotificationLevel,
-    NotificationMessage,
     ConsoleNotifier,
     FileNotifier,
+    NotificationLevel,
+    NotificationMessage,
     NotifierManager,
 )
 

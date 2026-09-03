@@ -3,19 +3,19 @@
 验证对不同目录结构数据集的兼容性和稳定性
 """
 
-import unittest
-import tempfile
 import shutil
-from pathlib import Path
 import sys
+import tempfile
+import unittest
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.dataset_scanner import (
     DatasetScanner,
     DatasetStructure,
-    scan_dataset,
     discover_datasets,
+    scan_dataset,
 )
 
 
