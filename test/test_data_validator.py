@@ -24,14 +24,15 @@ class TestDataValidator(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.dataset_path = Path("dataset/cabel-damage-mini")
-        cls.test_image = cls.dataset_path / "images" / "val" / "IMG_6278_MOV-5_jpg.rf.ab8fcf694519e850ed70329ec295541e.jpg"
+        # 使用 dummy_dataset fixture（CI 与本地共享，~3 KB 体积）
+        cls.dataset_path = Path(__file__).parent.parent / "dataset" / "dummy_dataset"
+        cls.test_image = None  # dummy_dataset 是合成图，不再用真实测试图像
 
     def test_validate_dataset_returns_report(self):
         """测试验证返回报告对象"""
         report = validate_dataset(str(self.dataset_path))
         self.assertIsInstance(report, ValidationReport)
-        self.assertEqual(report.dataset_name, "cabel-damage-mini")
+        self.assertEqual(report.dataset_name, "dummy_dataset")
 
     def test_validation_report_issues(self):
         """测试报告问题记录"""
