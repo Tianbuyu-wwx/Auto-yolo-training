@@ -29,7 +29,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12.13"
+          # 用 3.12 而不是 3.12.13 —— 后者在 Windows 2025 runner 上不可用
+          # actions/setup-python 会自动选最新 3.12.x patch 版本
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: |
             requirements.txt
