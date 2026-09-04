@@ -1,0 +1,168 @@
+# Auto YOLO Training · docker-compose
+#
+# 用法：
+#   # CPU 版（默认 profile）
+#   docker compose --profile cpu up ayt-cpu
+#
+#   # GPU 版（需要 NVIDIA Container Toolkit + nvidia-docker2）
+#   docker compose --profile gpu up ayt-gpu
+#
+#   # 启动 Gradio 界面
+#   docker compose --profile gradio up ayt-gradio-cpu
+#
+#   # 启动 FastAPI 推理服务
+#   docker compose --profile serve up ayt-serve-cpu
+#
+#   # 在容器里跑训练
+#   docker compose --profile cpu run --rm ayt-cpu \
+#     ayt-train my_dataset --model yolov8s.pt --epochs 100
+#
+# 数据/产物挂载：容器内 /as/dataset 等映射到宿主机 ./dataset 等
+# 修改宿主机文件后容器内立即可见
+
+services:
+  # ----------------------------------------------------------------------
+  # CPU 服务（默认）
+  # ----------------------------------------------------------------------
+  ayt-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        TORCH_VARIANT: cpu
+    image: ayt:cpu
+    container_name: ayt-cpu
+    profiles: ["cpu", "default"]
+    stdin_open: true
+    tty: true
+    working_dir: /as
+    environment:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      MPLBACKEND: Agg
+      YOLO_CONFIG_DIR: /as/.ci/Ultralytics
+      MPLCONFIGDIR: /as/.ci/matplotlib
+      # 用户可覆盖：
+      # YOLO_BRAND__API_TITLE: "MyFactory Detection API"
+      # YOLO_API__API_KEY: "your-secret"
+    volumes:
+      - ./dataset:/as/dataset
+      - ./basemodels:/as/basemodels
+      - ./runs:/as/runs
+      - ./exports:/as/exports
+      - ./logs:/as/logs
+      - ./reports:/as/reports
+      - ./tuning:/as/tuning
+    command: ["bash"]
+    restart: "no"
+
+  # ----------------------------------------------------------------------
+  # GPU 服务（NVIDIA cu128）
+  # ----------------------------------------------------------------------
+  ayt-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        TORCH_VARIANT: cu128
+    image: ayt:cu128
+    container_name: ayt-gpu
+    profiles: ["gpu"]
+    stdin_open: true
+    tty: true
+    working_dir: /as
+    environment:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      MPLBACKEND: Agg
+      YOLO_CONFIG_DIR: /as/.ci/Ultralytics
+      MPLCONFIGDIR: /as/.ci/matplotlib
+    volumes:
+      - ./dataset:/as/dataset
+      - ./basemodels:/as/basemodels
+      - ./runs:/as/runs
+      - ./exports:/as/exports
+      - ./logs:/as/logs
+      - ./reports:/as/reports
+      - ./tuning:/as/tuning
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: ["bash"]
+    restart: "no"
+
+  # ----------------------------------------------------------------------
+  # 预配置：Gradio 界面（CPU）
+  # ----------------------------------------------------------------------
+  ayt-gradio-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        TORCH_VARIANT: cpu
+    image: ayt:cpu
+    container_name: ayt-gradio
+    profiles: ["gradio"]
+    stdin_open: false
+    tty: false
+    working_dir: /as
+    environment:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      MPLBACKEND: Agg
+      YOLO_CONFIG_DIR: /as/.ci/Ultralytics
+      MPLCONFIGDIR: /as/.ci/matplotlib
+    volumes:
+      - ./dataset:/as/dataset
+      - ./basemodels:/as/basemodels
+      - ./runs:/as/runs
+      - ./exports:/as/exports
+      - ./logs:/as/logs
+      - ./reports:/as/reports
+      - ./tuning:/as/tuning
+    ports:
+      - "7860:7860"
+    command: ["ayt-gradio", "--host", "0.0.0.0"]
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------
+  # 预配置：FastAPI 推理服务（CPU）
+  # ----------------------------------------------------------------------
+  ayt-serve-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        TORCH_VARIANT: cpu
+    image: ayt:cpu
+    container_name: ayt-serve
+    profiles: ["serve"]
+    stdin_open: false
+    tty: false
+    working_dir: /as
+    environment:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      MPLBACKEND: Agg
+      YOLO_CONFIG_DIR: /as/.ci/Ultralytics
+      MPLCONFIGDIR: /as/.ci/matplotlib
+    volumes:
+      - ./dataset:/as/dataset
+      - ./basemodels:/as/basemodels
+      - ./runs:/as/runs
+      - ./exports:/as/exports
+      - ./logs:/as/logs
+      - ./reports:/as/reports
+      - ./tuning:/as/tuning
+    ports:
+      - "8000:8000"
+    command: ["ayt-serve", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped

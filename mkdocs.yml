@@ -1,0 +1,99 @@
+# MkDocs 配置
+# https://www.mkdocs.org/user-guide/configuration/
+#
+# 文档源：docs/*.md + 项目根 README.md
+# 构建产物：site/（由 mkdocs gh-deploy 推送到 gh-pages 分支）
+# 本地预览：mkdocs serve → http://127.0.0.1:8000
+
+site_name: Auto YOLO Training
+site_description: 通用 YOLO 模型自动训练平台 · 数据校验 / 训练 / 评估 / 导出 / 推理
+site_author: Auto YOLO Training Contributors
+
+# 仓库地址（用于 "Edit on GitHub" 链接）
+repo_url: https://github.com/Tianbuyu/auto-yolo-training
+repo_name: Tianbuyu/auto-yolo-training
+
+# 仅包含显式列出的页面（避免 docs/ 下散落文件意外被包含）
+docs_dir: docs
+site_dir: ../site
+use_directory_urls: true
+
+# theme
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.indexes
+    - toc.follow
+    - content.code.copy
+    - search.highlight
+    - search.share
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: 切换到深色模式
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: 切换到浅色模式
+  font:
+    text: Noto Sans SC
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+
+# Markdown 扩展
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+# 导航结构
+nav:
+  - 首页: README.md
+  - 快速开始: quickstart.md
+  - 数据集: datasets.md
+  - API 推理服务: api.md
+  - 项目演进:
+      - 可信基线记录: 第一阶段可信基线实施记录与后续方案.md
+  - 关于:
+      - 项目索引: about.md
+
+# 不在站点中包含的分析文件 / 报告（用户文档保留在仓库但不渲染）
+exclude_docs: |
+  full-analysis-*.md
+  generalization-plan-*.md
+
+# 版权页脚
+copyright: Copyright &copy; 2026 Auto YOLO Training Contributors
+
+# 严格模式（缺失文件 / 链接会构建失败）
+strict: true

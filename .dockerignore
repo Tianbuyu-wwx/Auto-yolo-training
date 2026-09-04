@@ -1,0 +1,90 @@
+# Docker 构建上下文排除（与 .gitignore 不完全相同——避免破坏 docker build 缓存）
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# GitHub
+.github/
+
+# 大文件 / 数据集 / 模型
+dataset/*/images/
+dataset/*/labels/
+dataset/**/*.jpg
+dataset/**/*.jpeg
+dataset/**/*.png
+dataset/**/*.txt
+dataset/**/*.cache
+basemodels/*.pt
+exports/*.pt
+runs/
+logs/
+reports/
+tuning/
+model_registry/
+Ultralytics/
+
+# CI 缓存
+.ci/ultralytics/
+.ci/matplotlib/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+
+# Venv
+.venv/
+venv/
+env/
+
+# 构建产物
+build/
+dist/
+*.egg-info/
+
+# 编辑器 / OS
+.idea/
+.vscode/
+*.code-workspace
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.swp
+*~$
+*.log
+
+# 文档（本地报告，不入 docker 上下文）
+full-analysis-*.md
+generalization-plan-*.md
+
+# 测试与文档
+docs/
+test/
+README.md
+scripts/
+*.md
+!Dockerfile
+!pyproject.toml
+!constraints.txt
+!requirements.txt
+!requirements-dev.txt

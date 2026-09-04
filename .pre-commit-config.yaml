@@ -1,0 +1,70 @@
+# pre-commit 配置：本地 git hook（commit 前自动跑）
+#
+# 安装：
+#   pip install pre-commit
+#   pre-commit install
+#
+# 跳过一次：git commit --no-verify -m "..."
+# 手动跑全部：pre-commit run --all-files
+#
+# CI 工作流（.github/workflows/tests.yml）也会跑 ruff + pytest，本地 hook
+# 是更快的本地反馈层。
+
+repos:
+  # ----------------------------------------------------------------------
+  # ruff 全量规则 + 格式
+  # ----------------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.14
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+        types_or: [python, pyi]
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  # ----------------------------------------------------------------------
+  # 通用检查
+  # ----------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$|\.ya?ml$'
+      - id: end-of-file-fixer
+      - id: check-yaml
+        # pyproject.toml 是合法 TOML，但 yaml 解析器吃
+        exclude: '^pyproject\.toml$'
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=5120"]  # 5 MB 上限（防止 .pt 等被误提交）
+
+  # ----------------------------------------------------------------------
+  # 项目级检查（本地钩子，跨平台）
+  # ----------------------------------------------------------------------
+  - repo: local
+    hooks:
+      # 防止敏感文件被提交（Windows / Linux 都覆盖）
+      - id: no-secrets
+        name: prevent committing secrets
+        entry: powershell -ExecutionPolicy Bypass -File scripts/pre_commit_no_secrets.ps1
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      # 防止 fix_encoding.py 复活（历史包袱）
+      - id: no-fix-encoding
+        name: prevent re-introducing fix_encoding.py
+        entry: powershell -ExecutionPolicy Bypass -File scripts/pre_commit_no_fix_encoding.ps1
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      # 防止 .pt / .onnx 等模型文件被误提交
+      - id: no-model-files
+        name: prevent committing model files
+        entry: powershell -ExecutionPolicy Bypass -File scripts/pre_commit_no_models.ps1
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

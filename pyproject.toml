@@ -52,6 +52,8 @@ dev = [
     "pytest-cov>=7.0",
     "httpx>=0.28",
     "ruff>=0.14",
+    "pre-commit>=3.0",
+    "mypy>=1.10",
 ]
 # 文档构建（阶段 B 末）
 docs = ["mkdocs>=1.5", "mkdocs-material>=9"]
