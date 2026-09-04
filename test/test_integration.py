@@ -22,8 +22,10 @@ class TestIntegration(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.dataset_name = "cabel-damage-mini"
-        cls.dataset_path = str(Path("dataset/cabel-damage-mini").resolve())
+        # 使用 dataset/dummy_dataset（CI 与本地共享，~3 KB fixture）
+        cls.dataset_name = "dummy_dataset"
+        cls.project_root = Path(__file__).parent.parent
+        cls.dataset_path = str(cls.project_root / "dataset" / "dummy_dataset")
 
     def test_validate_then_generate_config(self):
         """测试：先验证数据集，再生成配置"""

@@ -91,6 +91,12 @@ dataset/**/*.tgz
 dataset/**/*.7z
 dataset/**/*.rar
 
+# 强制包含（git ignore 顺序敏感——必须放在所有 dataset 排除规则之后，
+# 才能覆盖前面的 *.jpg/*.txt 等规则）：
+# 测试用 dummy + smoke 数据集（CI 与本地共享）
+!dataset/dummy_dataset/**
+!dataset/_smoke_test/**
+
 # Temporary files
 *.tmp
 *.temp
@@ -110,3 +116,8 @@ model_registry/
 
 # TrainingService 训练后移动出来的 best.pt 副本（exports/ 已有类似规则）
 exports/*.pt
+
+# 配置生成器运行产物（用真实数据集名时自动生成；dummy_dataset_*
+# 是 dummy fixture 的产物，不入库）
+configs/**/data_dummy_dataset.yaml
+configs/**/dummy_dataset_*.yaml

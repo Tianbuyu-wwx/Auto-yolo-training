@@ -25,7 +25,10 @@ class TestConfigGenerator(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.dataset_name = "cabel-damage-mini"
+        # 使用 dataset/dummy_dataset（CI 与本地共享，~3 KB fixture）
+        cls.dataset_name = "dummy_dataset"
+        cls.project_root = Path(__file__).parent.parent
+        cls.dataset_path = str(cls.project_root / "dataset" / "dummy_dataset")
 
     def test_dataset_config_to_yaml(self):
         """测试数据集配置转YAML"""
