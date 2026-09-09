@@ -61,7 +61,8 @@ class TrainingConfig:
     imgsz: int = 640
     batch: int = 16
     workers: int = 8
-    device: str = "0"
+    # 空字符串 = Ultralytics 自动检测 GPU/CPU（"0" 会强制使用第一块 GPU，CPU 机器直接报错）
+    device: str = ""
     patience: int = 30
     save: bool = True
     save_period: int = 10
@@ -284,6 +285,11 @@ class ConfigGenerator:
             batch=batch,
             epochs=epochs,
         )
+
+        # 设备默认跟随全局设置（YOLO_RUNTIME__DEVICE，空 = 自动检测），用户 overrides 仍可覆盖
+        from src.settings import get_settings
+
+        config.device = get_settings().runtime.device
 
         # 根据数据集大小自动调整
         dataset_path = self.dataset_base / dataset_name

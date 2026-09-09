@@ -53,6 +53,12 @@ def build_result_viewer(training_svc: TrainingService):
     with gr.Row():
         refresh_result_btn = gr.Button("刷新结果", variant="secondary")
 
+    # 结果输出组件（供训练完成联动复用）
+    result_outputs = [
+        final_map50, final_map95, final_epoch, final_model,
+        result_gallery, model_path_text,
+    ]
+
     # --- 事件处理 ---
 
     def on_refresh():
@@ -68,8 +74,14 @@ def build_result_viewer(training_svc: TrainingService):
             )
 
         metrics = results.get("final_metrics", {})
-        map50_val = f"{metrics.get('mAP50', 0):.4f}" if metrics else "--"
-        map95_val = f"{metrics.get('mAP50-95', 0):.4f}" if metrics else "--"
+        # 标签跟随任务（detect→mAP@50，classify→Accuracy@1 等）
+        labels = results.get("metric_labels") or ["mAP@50", "mAP@50-95"]
+        primary = metrics.get("primary", {}) if metrics else {}
+        map50_val = f"{primary.get(labels[0], metrics.get('mAP50', 0)):.4f}" if metrics else "--"
+        map95_val = (
+            f"{primary.get(labels[1], metrics.get('mAP50_95', 0)):.4f}"
+            if metrics and len(labels) > 1 else "--"
+        )
         epoch_val = str(metrics.get("epoch", "--")) if metrics else "--"
 
         # 模型大小
@@ -82,8 +94,8 @@ def build_result_viewer(training_svc: TrainingService):
                 model_size = f"{p.stat().st_size / (1024*1024):.1f} MB"
 
         return (
-            _metric_card("mAP@50", map50_val, "green"),
-            _metric_card("mAP@50-95", map95_val, "green"),
+            _metric_card(labels[0], map50_val, "green"),
+            _metric_card(labels[1], map95_val, "green"),
             _metric_card("Best Epoch", epoch_val, "amber"),
             _metric_card("模型大小", model_size, "blue"),
             results.get("result_images", []),
@@ -92,14 +104,13 @@ def build_result_viewer(training_svc: TrainingService):
 
     refresh_result_btn.click(
         fn=on_refresh,
-        outputs=[
-            final_map50, final_map95, final_epoch, final_model,
-            result_gallery, model_path_text,
-        ],
+        outputs=result_outputs,
     )
 
     return {
         "refresh_btn": refresh_result_btn,
+        "refresh_fn": on_refresh,
+        "outputs": result_outputs,
     }
 
 

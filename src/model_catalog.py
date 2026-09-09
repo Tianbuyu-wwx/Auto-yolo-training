@@ -59,6 +59,27 @@ def resolve_model_family(filename: str | Path) -> ModelFamily:
     return ModelFamily.UNKNOWN
 
 
+def resolve_model_task(filename: str | Path) -> str:
+    """根据文件名推断训练任务（detect/segment/pose/classify/obb）。
+
+    优先查 MODEL_CATALOG；不在清单中的自定义权重按文件名后缀推断，
+    无法识别时回退 "detect"。
+    """
+    name = Path(filename).name.lower()
+    entry = MODEL_CATALOG.get(name)
+    if entry:
+        return entry.task
+    if "-seg" in name:
+        return "segment"
+    if "-pose" in name:
+        return "pose"
+    if "-cls" in name:
+        return "classify"
+    if "-obb" in name:
+        return "obb"
+    return "detect"
+
+
 @dataclass(frozen=True)
 class ModelEntry:
     """预训练模型条目。"""

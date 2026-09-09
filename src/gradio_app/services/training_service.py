@@ -6,6 +6,7 @@ import logging
 import shutil
 import sys
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,13 @@ from typing import Any
 from src.constants import ProjectPaths
 from src.gradio_app.models.training_state import TrainingConfig, TrainingState
 from src.gradio_app.services.log_service import LogService, StreamToQueue
+from src.model_catalog import resolve_model_task
+from src.task_metrics import (
+    infer_task_from_csv_headers,
+    primary_loss_from_row,
+    primary_metric_labels,
+    primary_metrics_from_row,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +39,8 @@ class TrainingService:
         self.state = TrainingState()
         self.stop_event = threading.Event()
         self.training_thread: threading.Thread | None = None
+        # 监控页渲染签名（用于空闲时跳过重量级刷新）
+        self.last_rendered_signature: tuple | None = None
 
     def start(self, config: TrainingConfig) -> bool:
         """启动训练"""
@@ -38,10 +48,14 @@ class TrainingService:
             return False
 
         self.state = TrainingState()
+        # 任务感知：按模型文件名推断任务，指标标签随任务变化（segment→(M)，classify→Accuracy）
+        task = config.task if config.task and config.task != "detect" else resolve_model_task(config.model)
         self.state.update(
             is_running=True,
             start_time=datetime.now().isoformat(),
             total_epochs=config.epochs,
+            task=task,
+            metric_labels=primary_metric_labels(task),
         )
         self.stop_event.clear()
 
@@ -117,18 +131,26 @@ class TrainingService:
                 result_images.append(str(img_path))
         results["result_images"] = result_images
 
-        # 读取最终指标
+        # 读取最终指标（任务感知：按 csv 列名推断任务）
         csv_path = run_dir / "results.csv"
         if csv_path.exists():
             try:
                 import pandas as pd
                 df = pd.read_csv(csv_path)
+                df.columns = [c.strip() for c in df.columns]
                 if not df.empty:
                     last_row = df.iloc[-1]
+                    task = infer_task_from_csv_headers(list(df.columns))
+                    row = {str(k): str(v) for k, v in last_row.items()}
+                    primary = primary_metrics_from_row(row, task)
+                    labels = list(primary.keys())
+                    results["task"] = task.value if hasattr(task, "value") else str(task)
+                    results["metric_labels"] = primary_metric_labels(task)
                     results["final_metrics"] = {
-                        "epoch": int(last_row.get("epoch", 0)),
-                        "mAP50": round(float(last_row.get("metrics/mAP50(B)", 0)), 4),
-                        "mAP50_95": round(float(last_row.get("metrics/mAP50-95(B)", 0)), 4),
+                        "epoch": int(float(last_row.get("epoch", 0))),
+                        "mAP50": round(primary.get(labels[0], 0.0), 4) if labels else 0.0,
+                        "mAP50_95": round(primary.get(labels[1], 0.0), 4) if len(labels) > 1 else 0.0,
+                        "primary": {k: round(v, 4) for k, v in primary.items()},
                     }
             except Exception as e:
                 logger.debug("[RESULTS] 读取训练指标失败: %s", e)
@@ -194,16 +216,20 @@ class TrainingService:
                         error_message=error_msg,
                     )
 
-            # 查找最佳模型路径和指标
+            # 查找最佳模型路径和指标（任务感知解析）
             for stage in report.stages:
                 if stage["stage"] == "training" and stage["success"]:
                     self.state.update(
                         best_model_path=stage["details"].get("best_model"),
                     )
                     metrics = stage["details"].get("metrics", {})
+                    primary = primary_metrics_from_row(
+                        {k: str(v) for k, v in metrics.items()}, self.state.task
+                    )
+                    labels = list(primary.keys())
                     self.state.update(
-                        current_map50=metrics.get("metrics/mAP50(B)", 0.0),
-                        current_map50_95=metrics.get("metrics/mAP50-95(B)", 0.0),
+                        current_map50=primary.get(labels[0], 0.0) if labels else 0.0,
+                        current_map50_95=primary.get(labels[1], 0.0) if len(labels) > 1 else 0.0,
                     )
                     break
 
@@ -311,14 +337,20 @@ class TrainingService:
                     if "epoch" in last_row:
                         epoch = int(float(last_row["epoch"])) + 1
                         if epoch > self.state.current_epoch:
-                            current_loss = float(last_row.get("train/box_loss", 0))
-                            current_map50 = float(last_row.get("metrics/mAP50(B)", 0))
-                            current_map50_95 = float(last_row.get("metrics/mAP50-95(B)", 0))
+                            current_map50 = current_map50_95 = 0.0
+                            primary = primary_metrics_from_row(last_row, self.state.task)
+                            labels = list(primary.keys())
+                            if labels:
+                                current_map50 = primary.get(labels[0], 0.0)
+                                current_map50_95 = primary.get(labels[1], 0.0) if len(labels) > 1 else 0.0
+                            current_loss = primary_loss_from_row(last_row)
+                            now = time.time()
                             self.state.update(
                                 current_epoch=min(epoch, self.state.total_epochs),
                                 current_map50=current_map50,
                                 current_map50_95=current_map50_95,
                                 current_loss=current_loss,
+                                eta_seconds=self._estimate_eta(now),
                             )
                             # 阶段 A14：追加曲线历史（设计变更，原 loss_history/map_history
                             # 字段定义了但 worker 从不写入，导致 Gradio LinePlot 永远空）
@@ -341,3 +373,25 @@ class TrainingService:
 
         except Exception as e:
             logger.debug("[PROGRESS] 增量读取训练进度失败: %s", e)
+
+    def _estimate_eta(self, now: float) -> float | None:
+        """按最近 epoch 完成节奏估算剩余时间（秒）。
+
+        依据 state.epoch_timestamps 中最近若干个 epoch 间隔的平均值；
+        样本不足（<2）或已到最后一个 epoch 时返回 None。
+        """
+        remaining = self.state.total_epochs - self.state.current_epoch
+        if remaining <= 0:
+            return 0.0
+        stamps = self.state.epoch_timestamps
+        if stamps and now - stamps[-1] > 3600 * 6:
+            # 上次记录过久（如训练已中断重启），历史节奏不可信
+            stamps.clear()
+        stamps.append(now)
+        if len(stamps) > 20:
+            del stamps[:-20]
+        if len(stamps) < 2:
+            return None
+        deltas = [b - a for a, b in zip(stamps, stamps[1:], strict=False)]
+        avg = sum(deltas) / len(deltas)
+        return round(avg * remaining, 1)

@@ -92,8 +92,15 @@ class DatasetService:
         info["sample_images"] = sample_images
         return info
 
-    def extract(self, zip_path: str, dataset_name: str | None = None) -> dict[str, str]:
-        """解压数据集ZIP"""
+    def extract(self, zip_path: str, dataset_name: str | None = None,
+                overwrite: bool = False) -> dict[str, str]:
+        """解压数据集ZIP
+
+        Args:
+            zip_path: ZIP 文件路径
+            dataset_name: 目标数据集名称，None 时取 ZIP 文件名
+            overwrite: 同名数据集已存在时是否覆盖（False 时拒绝，防误删）
+        """
         zip_path = Path(zip_path)
         if not zip_path.exists():
             return {"status": "error", "message": f"文件不存在: {zip_path}"}
@@ -102,6 +109,14 @@ class DatasetService:
             dataset_name = zip_path.stem
 
         target_dir = self.dataset_dir / dataset_name
+
+        if target_dir.exists() and not overwrite:
+            return {
+                "status": "exists",
+                "message": f"数据集 '{dataset_name}' 已存在。"
+                           "请勾选「覆盖同名数据集」后重新上传，或改用其他名称。",
+                "dataset_name": dataset_name,
+            }
 
         try:
             if target_dir.exists():
@@ -181,6 +196,46 @@ class DatasetService:
         except Exception as e:
             sys.stderr = old_stderr
             return {"status": "error", "message": f"验证失败: {str(e)}"}
+
+    def convert(self, dataset_name: str, delete_original: bool = False) -> dict[str, Any]:
+        """分类格式 → YOLO 格式转换（显式触发，不在启动时自动执行）
+
+        Args:
+            dataset_name: 待转换数据集名称
+            delete_original: 转换成功后是否删除原始数据集（默认保留）
+
+        Returns:
+            ``{"status": "success"/"error", "message": ..., 转换详情...}``
+        """
+        try:
+            result = self.manager.convert_dataset(dataset_name, delete_original=delete_original)
+        except ValueError as e:
+            return {"status": "error", "message": str(e)}
+        except Exception as e:
+            logger.exception("[CONVERT] 转换异常: %s", e)
+            return {"status": "error", "message": f"转换失败: {e}"}
+
+        if not result.get("success"):
+            return {"status": "error", "message": result.get("message", "无需转换")}
+
+        stats = result.get("stats", {})
+        stat_line = "、".join(f"{split} {count} 张" for split, count in stats.items())
+        message = (
+            f"{result.get('message', '转换成功')} → 「{result.get('converted_name', '')}」"
+            + (f"（{stat_line}）" if stat_line else "")
+        )
+        if delete_original:
+            message += "。原始数据集已删除。"
+        return {
+            "status": "success",
+            "message": message,
+            "converted_name": result.get("converted_name"),
+            "stats": stats,
+        }
+
+    def get_pending_conversion(self) -> list[str]:
+        """列出需要分类→YOLO 转换的数据集名称"""
+        return [ds.name for ds in self.manager.scan_all_datasets() if ds.needs_conversion]
 
     def _flatten_nested_dir(self, target_dir: Path) -> bool:
         """处理嵌套目录"""

@@ -16,8 +16,11 @@ class TrainingState:
     current_epoch: int = 0
     total_epochs: int = 0
     current_loss: float = 0.0
+    # 泛化指标槽：detect → mAP@50/mAP@50-95，classify → Accuracy@1/@5（标签见 metric_labels）
     current_map50: float = 0.0
     current_map50_95: float = 0.0
+    task: str = "detect"
+    metric_labels: tuple[str, str] = ("mAP@50", "mAP@50-95")
     log_messages: list[str] = field(default_factory=list)
     start_time: str | None = None
     end_time: str | None = None
@@ -28,6 +31,10 @@ class TrainingState:
     # 训练曲线数据
     loss_history: list[dict[str, Any]] = field(default_factory=list)
     map_history: list[dict[str, Any]] = field(default_factory=list)
+
+    # ETA 估算：每完成一个 epoch 记录一次 wall-clock 时间戳
+    epoch_timestamps: list[float] = field(default_factory=list)
+    eta_seconds: float | None = None
 
     def __post_init__(self):
         self._lock = threading.Lock()
@@ -50,6 +57,9 @@ class TrainingState:
                 "current_loss": self.current_loss,
                 "current_map50": self.current_map50,
                 "current_map50_95": self.current_map50_95,
+                "task": self.task,
+                "metric_labels": list(self.metric_labels),
+                "eta_seconds": self.eta_seconds,
                 "start_time": self.start_time,
                 "end_time": self.end_time,
                 "error_message": self.error_message,

@@ -34,11 +34,19 @@ def build_config_panel(dataset_svc: DatasetService = None):
         with gr.Column(scale=2):
             gr.Markdown("### 基础参数")
 
+            task_radio = gr.Radio(
+                choices=["detect", "segment", "pose", "classify"],
+                value="detect",
+                label="任务类型",
+                info="选择后自动过滤对应任务的预训练模型",
+            )
+
             with gr.Row():
                 model_dropdown = gr.Dropdown(
-                    choices=_get_model_choices(),
-                    value=_get_model_choices()[0] if _get_model_choices() else "yolov8s.pt",
+                    choices=_model_choices_for_task("detect"),
+                    value=_default_model_value(_model_choices_for_task("detect")),
                     label="预训练模型",
+                    allow_custom_value=True,
                 )
                 refresh_models_btn = gr.Button("🔄 检查模型", size="sm", scale=1)
 
@@ -249,6 +257,21 @@ def build_config_panel(dataset_svc: DatasetService = None):
                  patience_slider, lr0_slider],
     )
 
+    # --- 任务切换：按任务过滤模型清单 ---
+
+    def on_task_changed(task: str):
+        choices = _model_choices_for_task(task)
+        return (
+            gr.update(choices=choices, value=_default_model_value(choices)),
+            _model_catalog_status_markdown(),
+        )
+
+    task_radio.change(
+        fn=on_task_changed,
+        inputs=[task_radio],
+        outputs=[model_dropdown, model_status],
+    )
+
     # 模型状态刷新按钮（阶段 C3）
     def on_refresh_models():
         from src.model_catalog import check_local_models, suggest_download
@@ -274,6 +297,7 @@ def build_config_panel(dataset_svc: DatasetService = None):
     refresh_models_btn.click(fn=on_refresh_models, outputs=[model_status])
 
     return {
+        "task": task_radio,
         "model": model_dropdown,
         "device": device_dropdown,
         "epochs": epochs_slider,
@@ -313,36 +337,55 @@ def build_config_panel(dataset_svc: DatasetService = None):
     }
 
 
-def _get_model_choices():
-    """获取本地模型列表"""
-    base_dir = Path(__file__).parent.parent.parent.parent / "basemodels"
-    models = []
-    if base_dir.exists():
-        models = sorted([f.name for f in base_dir.glob("*.pt")])
-    if not models:
-        models = [
-            "yolov8n.pt",
-            "yolov8s.pt",
-            "yolov8m.pt",
-            "yolov8l.pt",
-            "yolov8x.pt",
-        ]
-    return models
+def _basemodels_dir() -> Path:
+    return Path(__file__).parent.parent.parent.parent / "basemodels"
 
 
-def _get_model_choices_with_family() -> list[tuple[str, str]]:
-    """返回 ``[(filename, "family - task"), ...]`` 用于 UI 显示家族信息。
-    注意：阶段 C2 通过 ``resolve_model_family`` + MODEL_CATALOG 自动判断。
+def _model_choices_for_task(task: str = "detect") -> list[tuple[str, str]]:
+    """返回 ``[(filename, label), ...]``：本地已下载的排前面（✅ 标记），
+    之后是清单中该任务缺失的模型（提示需下载）。
     """
-    from src.model_catalog import MODEL_CATALOG, resolve_model_family
+    from src.model_catalog import MODEL_CATALOG, list_available_models
+
+    base_dir = _basemodels_dir()
+    local = {f.name for f in base_dir.glob("*.pt")} if base_dir.exists() else set()
 
     choices: list[tuple[str, str]] = []
-    for fname in _get_model_choices():
-        family = resolve_model_family(fname).value
-        entry = MODEL_CATALOG.get(fname)
-        task = entry.task if entry else "detect"
-        choices.append((fname, f"{family} - {task}"))
+    seen: set[str] = set()
+
+    # 本地已有且任务匹配的模型（清单外的自定义权重也纳入 detect）
+    for fname in sorted(local):
+        from src.model_catalog import resolve_model_task
+
+        if resolve_model_task(fname) == task:
+            choices.append((fname, f"✅ {fname}"))
+            seen.add(fname)
+
+    # 清单中该任务缺失的模型
+    for entry in list_available_models(task=task):
+        if entry.filename in seen:
+            continue
+        label = f"{entry.filename}（未下载 · {entry.display_name}）"
+        choices.append((entry.filename, label))
+        seen.add(entry.filename)
+
+    # 兜底：本地文件但任务不匹配时也保留可见（用户可能想微调非对应任务权重）
+    if not choices and task == "detect":
+        for fname in sorted(MODEL_CATALOG):
+            if not fname.endswith(("-seg.pt", "-pose.pt", "-cls.pt", "-obb.pt")):
+                choices.append((fname, fname))
     return choices
+
+
+def _default_model_value(choices: list[tuple[str, str]]) -> str:
+    """默认选中第一个 ✅ 本地模型，否则 yolov8s.pt，否则第一项。"""
+    for value, label in choices:
+        if label.startswith("✅"):
+            return value
+    for value, _label in choices:
+        if value == "yolov8s.pt":
+            return value
+    return choices[0][0] if choices else "yolov8s.pt"
 
 
 def _model_catalog_status_markdown() -> str:

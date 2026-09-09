@@ -67,6 +67,12 @@ def main():
     )
 
     parser.add_argument(
+        "--device",
+        default=None,
+        help="训练设备: 空为自动检测 / cpu / 0 / 0,1 (默认: 跟随 YOLO_RUNTIME__DEVICE，空为自动)"
+    )
+
+    parser.add_argument(
         "--skip-validation",
         action="store_true",
         help="跳过数据验证阶段"
@@ -99,6 +105,9 @@ def main():
                         value = False
             overrides[key] = value
 
+    if args.device is not None:
+        overrides["device"] = args.device
+
     print(get_cli_banner())
     print("=" * 60)
     print(f"数据集: {args.dataset_name}")
@@ -106,6 +115,8 @@ def main():
     print(f"图像尺寸: {args.imgsz}")
     print(f"批次: {args.batch}")
     print(f"轮数: {args.epochs}")
+    if args.device is not None:
+        print(f"设备: {args.device or '自动检测'}")
     if overrides:
         print(f"参数覆盖: {overrides}")
     print("=" * 60)

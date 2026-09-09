@@ -107,6 +107,16 @@ def create_app(css: str = ""):
                     value=f'<div class="status-indicator"><span class="status-dot error"></span>{e}</div>'
                 ), gr.update(interactive=True), gr.update(interactive=False)
 
+            # 清单中的模型若未下载，先下载到 basemodels/
+            # （否则 Ultralytics 会把权重下到 CWD，绕过统一管理）
+            try:
+                model_path = _ensure_model_available(model_path, base_dir)
+            except Exception as e:
+                logger.warning("[APP] 模型下载失败: %s", e)
+                return gr.update(
+                    value=f'<div class="status-indicator"><span class="status-dot error"></span>模型下载失败: {e}</div>'
+                ), gr.update(interactive=True), gr.update(interactive=False)
+
             # cache 下拉框特殊处理："None" -> None
             cache_value = None if cache == "None" else cache
             # device UI 翻译："auto (recommended)" / "cpu" / "0" / "1" → Ultralytics 接受的字符串
@@ -224,6 +234,19 @@ def create_app(css: str = ""):
             ],
         )
 
+        # 训练结束联动：timer 检测到完成信号后自动刷新结果页
+        def _refresh_results_if_finished(finished_signal):
+            outputs = _result_components["outputs"]
+            if not finished_signal:
+                return [gr.update()] * len(outputs)
+            return list(_result_components["refresh_fn"]())
+
+        monitor_components["tick_event"].then(
+            fn=_refresh_results_if_finished,
+            inputs=[monitor_components["finished_signal"]],
+            outputs=_result_components["outputs"],
+        )
+
     return demo
 
 
@@ -243,6 +266,24 @@ def _resolve_model_path(model_name: str, base_dir: Path) -> str:
     if model_path.exists():
         return str(model_path)
     return model_name
+
+
+def _ensure_model_available(model_path: str, base_dir: Path) -> str:
+    """清单内的模型若未下载则先下载到 basemodels/，返回可用路径。
+
+    非 bare 文件名（如完整路径）或下载失败时原样返回/抛错。
+    """
+    from src.model_catalog import MODEL_CATALOG
+    from src.model_downloader import ensure_model, is_model_downloaded
+
+    name = Path(model_path).name
+    if name not in MODEL_CATALOG:
+        return model_path
+    if is_model_downloaded(name, base_dir):
+        return str(base_dir / "basemodels" / name)
+    logger.info("[APP] 模型未下载，开始下载: %s", name)
+    downloaded = ensure_model(name, base_dir)
+    return str(downloaded)
 
 
 def _startup_dataset_management():

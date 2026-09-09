@@ -77,20 +77,88 @@ def task_metric_label(key: str) -> str:
     return _METRIC_LABELS.get(key, key)
 
 
+def infer_task_from_csv_headers(headers: list[str]) -> TaskType:
+    """从 results.csv 的列名推断训练任务。
+
+    Ultralytics 各任务的结果列名后缀不同（(B)/(M)/(P) 或 accuracy_top1），
+    据此反推任务；无法识别时回退 detect。
+    """
+    joined = ",".join(headers)
+    if "accuracy_top1" in joined:
+        return TaskType.CLASSIFY
+    if "(M)" in joined:
+        return TaskType.SEGMENT
+    if "(P)" in joined:
+        return TaskType.POSE
+    return TaskType.DETECT
+
+
+def primary_metrics_from_row(row: dict[str, str], task: TaskType | str) -> dict[str, float]:
+    """从 results.csv 单行（``{列名: 值}``）提取该任务的两个主指标。
+
+    返回 ``{label: float}``（如 ``{"mAP@50": 0.85, "mAP@50-95": 0.42}``）；
+    classify 任务为 ``{"Accuracy@1": ..., "Accuracy@5": ...}``。
+    找不到任务对应的列时，扫描任意 mAP50/accuracy 列作为回退。
+    """
+    out: dict[str, float] = {}
+    for key in task_metrics_keys(task)[:2]:
+        if key in row:
+            try:
+                out[task_metric_label(key)] = float(row[key])
+            except (TypeError, ValueError):
+                continue
+
+    if not out:
+        for key, value in row.items():
+            is_primary = (key == "metrics/accuracy_top1") or (
+                "mAP50" in key and "mAP50-95" not in key
+            )
+            if is_primary:
+                try:
+                    out[task_metric_label(key)] = float(value)
+                    break
+                except (TypeError, ValueError):
+                    continue
+    return out
+
+
+def primary_loss_from_row(row: dict[str, str]) -> float:
+    """从 results.csv 单行提取训练损失（detect 用 box_loss，classify 只有 loss）。"""
+    for key in ("train/box_loss", "train/loss"):
+        if key in row:
+            try:
+                return float(row[key])
+            except (TypeError, ValueError):
+                continue
+    return 0.0
+
+
+def primary_metric_labels(task: TaskType | str) -> tuple[str, str]:
+    """返回该任务前两个主指标的展示标签（如 ``("mAP@50", "mAP@50-95")``）。"""
+    keys = task_metrics_keys(task)
+    if len(keys) >= 2:
+        return task_metric_label(keys[0]), task_metric_label(keys[1])
+    if len(keys) == 1:
+        return task_metric_label(keys[0]), task_metric_label(keys[0])
+    return "mAP@50", "mAP@50-95"
+
+
 def extract_task_metrics(results: Any, task: TaskType | str) -> dict[str, float]:
     """从 Ultralytics val 结果提取该任务的指标。
 
-    支持 results.results_dict / results.metrics（dict 形式）。
+    支持 results.results_dict / results.metrics（dict 形式），或直接传 dict。
 
     Args:
-        results: Ultralytics YOLO.val() 返回值
+        results: Ultralytics YOLO.val() 返回值或指标 dict
         task: 任务类型
 
     Returns:
         ``{label: float}`` 字典（如 ``{"mAP@50": 0.85, "mAP@50-95": 0.42}``）
     """
     raw: dict[str, Any] = {}
-    if hasattr(results, "results_dict"):
+    if isinstance(results, dict):
+        raw = results
+    elif hasattr(results, "results_dict"):
         raw = dict(results.results_dict or {})
     elif hasattr(results, "metrics"):
         m = results.metrics
@@ -110,6 +178,10 @@ def extract_task_metrics(results: Any, task: TaskType | str) -> dict[str, float]
 __all__ = [
     "TASK_METRICS",
     "extract_task_metrics",
+    "infer_task_from_csv_headers",
+    "primary_loss_from_row",
+    "primary_metric_labels",
+    "primary_metrics_from_row",
     "task_metric_label",
     "task_metrics_keys",
 ]
