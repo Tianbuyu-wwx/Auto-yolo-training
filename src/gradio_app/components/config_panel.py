@@ -58,8 +58,14 @@ def build_config_panel(dataset_svc: DatasetService = None):
             )
 
             device_dropdown = gr.Dropdown(
-                choices=["auto (recommended)", "cpu", "0", "1"],
-                value="auto (recommended)",  # 通用化：让 Ultralytics 自动检测；UI 翻译为 device=""
+                choices=[
+                    ("", "auto（自动检测，推荐）"),
+                    ("cpu", "cpu"),
+                    ("0", "GPU 0"),
+                    ("1", "GPU 1"),
+                    ("0,1", "GPU 0,1（DDP 多卡）"),
+                ],
+                value="",  # 通用化：让 Ultralytics 自动检测；空字符串 = 自动
                 label="训练设备",
             )
 
@@ -76,9 +82,14 @@ def build_config_panel(dataset_svc: DatasetService = None):
 
             with gr.Row():
                 batch_dropdown = gr.Dropdown(
-                    choices=[2, 4, 8, 16, 32, 64],
-                    value=16,
+                    choices=[
+                        ("-1", "-1（AutoBatch 按显存自动）"),
+                        ("2", "2"), ("4", "4"), ("8", "8"),
+                        ("16", "16"), ("32", "32"), ("64", "64"),
+                    ],
+                    value="16",
                     label="批次大小 (Batch)",
+                    allow_custom_value=True,
                 )
                 workers_slider = gr.Slider(
                     minimum=0, maximum=16, value=8, step=1,
@@ -245,7 +256,7 @@ def build_config_panel(dataset_svc: DatasetService = None):
         preset = PRESETS.get(preset_name, {})
         return (
             gr.update(value=preset.get("epochs", 150)),
-            gr.update(value=preset.get("batch", 16)),
+            gr.update(value=str(preset.get("batch", 16))),  # batch 下拉为字符串值（含 -1 AutoBatch）
             gr.update(value=preset.get("imgsz", 640)),
             gr.update(value=preset.get("patience", 30)),
             gr.update(value=preset.get("lr0", 0.001)),

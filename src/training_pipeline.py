@@ -132,8 +132,10 @@ class TrainingPipeline:
         enable_tuning: bool = False,
         n_trials: int = 20,
         tuning_metric: str = "metrics/mAP50(B)",
+        tuning_proxy_epochs: int = 30,
         search_space: SearchSpace | None = None,
         enable_evaluation: bool = True,
+        eval_split: str = "auto",
         enable_export: bool = False,
         export_formats: list | None = None,
         auto_cleanup: bool = True,
@@ -294,6 +296,7 @@ class TrainingPipeline:
                     n_trials=n_trials,
                     metric=tuning_metric,
                     search_space=search_space,
+                    proxy_epochs=tuning_proxy_epochs,
                 )
                 self.report.add_stage(result)
 
@@ -373,6 +376,7 @@ class TrainingPipeline:
                     dataset_name=dataset_name,
                     imgsz=project_config.training_config.imgsz,
                     batch=project_config.training_config.batch,
+                    split=eval_split,
                 )
                 self.report.add_stage(result)
 
@@ -603,18 +607,20 @@ class TrainingPipeline:
         n_trials: int,
         metric: str,
         search_space: SearchSpace | None,
+        proxy_epochs: int = 30,
     ) -> PipelineResult:
         """执行超参数搜索阶段"""
         start = time.time()
         logger.info("  -> Starting hyperparameter tuning")
         logger.info("     data_yaml: %s", data_yaml_path)
-        logger.info("     n_trials: %d, metric: %s", n_trials, metric)
+        logger.info("     n_trials: %d, metric: %s, proxy_epochs: %d", n_trials, metric, proxy_epochs)
 
         try:
             tuner = YOLOHyperparameterTuner(
                 data_yaml_path=data_yaml_path,
                 base_dir=str(self.base_dir),
                 study_name=f"{dataset_name}_tuning",
+                proxy_epochs=proxy_epochs,
             )
 
             result = tuner.tune(
@@ -741,6 +747,14 @@ class TrainingPipeline:
             except Exception as e:
                 logger.debug("     GPU info collection failed: %s", e)
 
+            # P3-3：TensorBoard 可用提示（Ultralytics 检测到包后自动记录曲线）
+            from src.utils import is_tensorboard_available
+
+            if is_tensorboard_available():
+                logger.info("     TensorBoard: available (run `make tensorboard` or `tensorboard --logdir runs`)")
+            else:
+                logger.debug("     TensorBoard: not installed (pip install tensorboard)")
+
             model = YOLO(model_path)
             logger.info("     Model loaded successfully")
 
@@ -843,12 +857,23 @@ class TrainingPipeline:
         dataset_name: str,
         imgsz: int,
         batch: int,
+        split: str = "auto",
     ) -> PipelineResult:
-        """执行评估阶段"""
+        """执行评估阶段
+
+        split="auto"（P3）：数据集存在 test 划分时优先用 test 评估，
+        避免 val 上的选型过拟合；否则回落 val。
+        """
         start = time.time()
         logger.info("  -> Starting model evaluation")
         logger.info("     Model: %s", model_path)
         logger.info("     data_yaml: %s", data_yaml)
+
+        eval_split = split
+        if eval_split == "auto":
+            has_test = (self.base_dir / "dataset" / dataset_name / "images" / "test").exists()
+            eval_split = "test" if has_test else "val"
+        logger.info("     split: %s", eval_split)
 
         try:
             report = self.evaluator.evaluate(
@@ -857,6 +882,7 @@ class TrainingPipeline:
                 dataset_name=dataset_name,
                 imgsz=imgsz,
                 batch=batch,
+                split=eval_split,
             )
 
             duration = time.time() - start
@@ -1027,6 +1053,7 @@ def run_training(
     enable_tuning: bool = False,
     n_trials: int = 20,
     tuning_metric: str = "metrics/mAP50(B)",
+    tuning_proxy_epochs: int = 30,
     enable_evaluation: bool = True,
     enable_export: bool = False,
     export_formats: list | None = None,
@@ -1069,6 +1096,7 @@ def run_training(
         enable_tuning=enable_tuning,
         n_trials=n_trials,
         tuning_metric=tuning_metric,
+        tuning_proxy_epochs=tuning_proxy_epochs,
         enable_evaluation=enable_evaluation,
         enable_export=enable_export,
         export_formats=export_formats,

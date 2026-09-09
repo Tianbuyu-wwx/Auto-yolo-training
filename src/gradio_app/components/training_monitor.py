@@ -28,6 +28,9 @@ def build_training_monitor(training_svc: TrainingService, log_svc: LogService):
         with gr.Row():
             start_btn = gr.Button("开始训练", variant="primary", size="lg")
             stop_btn = gr.Button("停止训练", variant="stop", size="lg", interactive=False)
+            queue_btn = gr.Button("加入队列", variant="secondary", size="lg")
+
+    queue_status_md = gr.Markdown(visible=False)
 
     # 进度条（含 ETA）
     progress_html = gr.HTML(
@@ -219,6 +222,8 @@ def build_training_monitor(training_svc: TrainingService, log_svc: LogService):
     return {
         "start_btn": start_btn,
         "stop_btn": stop_btn,
+        "queue_btn": queue_btn,
+        "queue_status_md": queue_status_md,
         "timer": timer,
         "tick_event": tick_event,
         "finished_signal": finished_signal,

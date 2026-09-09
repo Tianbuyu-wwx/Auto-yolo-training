@@ -26,9 +26,11 @@ try:
         File,
         Form,
         HTTPException,
+        Response,
         Security,
         UploadFile,
     )
+    from fastapi.concurrency import run_in_threadpool
     from fastapi.security import APIKeyHeader
     from pydantic import BaseModel, Field
     HAS_FASTAPI = True
@@ -193,6 +195,37 @@ class InferenceService:
             "inference_time": round(inference_time, 4),
             "model_name": Path(self.model_path).name if self.model_path else "unknown",
         }
+
+    def predict_annotated(
+        self,
+        image: str | np.ndarray | Image.Image,
+        conf: float = 0.25,
+        iou: float = 0.45,
+        imgsz: int = 640,
+    ) -> bytes:
+        """推理并返回画好检测框的 JPEG 字节（P3-4 可视化端点）
+
+        Returns:
+            JPEG 图像字节流
+        """
+        if self.model is None:
+            raise RuntimeError("Model not loaded")
+
+        with self._model_lock:
+            results = self.model.predict(
+                source=image, conf=conf, iou=iou, imgsz=imgsz,
+                save=False, verbose=False,
+            )
+            result = results[0] if results else None
+            if result is None:
+                raise RuntimeError("Inference returned no result")
+            # Ultralytics plot() 返回 BGR numpy 数组 → 转 RGB 后编码 JPEG
+            plotted_bgr = result.plot()
+
+        rgb = Image.fromarray(np.asarray(plotted_bgr)[..., ::-1])
+        buf = io.BytesIO()
+        rgb.save(buf, format="JPEG", quality=90)
+        return buf.getvalue()
 
     def predict_batch(
         self,
@@ -365,7 +398,7 @@ def create_app(
         imgsz: int = Form(640),
         authenticated: bool = Depends(verify_api_key),
     ):
-        """单图推理"""
+        """单图推理（阻塞推理在线程池执行，不阻塞事件循环）"""
         if service.model is None:
             raise HTTPException(status_code=503, detail="Model not loaded")
 
@@ -374,9 +407,28 @@ def create_app(
         image = Image.open(io.BytesIO(contents))
 
         # 推理
-        result = service.predict(image, conf=conf, iou=iou, imgsz=imgsz)
+        result = await run_in_threadpool(service.predict, image, conf=conf, iou=iou, imgsz=imgsz)
 
         return InferenceResponse(**result)
+
+    @app.post("/predict_image")
+    async def predict_image(
+        file: UploadFile = File(...),
+        conf: float = Form(0.25),
+        iou: float = Form(0.45),
+        imgsz: int = Form(640),
+        authenticated: bool = Depends(verify_api_key),
+    ):
+        """单图推理并返回画框后的 JPEG（可视化调试）"""
+        if service.model is None:
+            raise HTTPException(status_code=503, detail="Model not loaded")
+
+        contents = await file.read()
+        image = Image.open(io.BytesIO(contents))
+        jpeg_bytes = await run_in_threadpool(
+            service.predict_annotated, image, conf=conf, iou=iou, imgsz=imgsz,
+        )
+        return Response(content=jpeg_bytes, media_type="image/jpeg")
 
     @app.post("/predict_base64", response_model=InferenceResponse)
     async def predict_base64(
@@ -395,7 +447,7 @@ def create_app(
         image = Image.open(io.BytesIO(image_data))
 
         # 推理
-        result = service.predict(image, conf=conf, iou=iou, imgsz=imgsz)
+        result = await run_in_threadpool(service.predict, image, conf=conf, iou=iou, imgsz=imgsz)
 
         return InferenceResponse(**result)
 
@@ -417,7 +469,7 @@ def create_app(
         for file in files:
             contents = await file.read()
             image = Image.open(io.BytesIO(contents))
-            result = service.predict(image, conf=conf, iou=iou, imgsz=imgsz)
+            result = await run_in_threadpool(service.predict, image, conf=conf, iou=iou, imgsz=imgsz)
             results.append(InferenceResponse(**result))
 
         total_time = (datetime.now() - start).total_seconds()
@@ -450,7 +502,7 @@ def create_app(
         ):
             raise HTTPException(status_code=403, detail="Access denied: path outside allowed directories")
 
-        result = service.predict(image_path, conf=conf, iou=iou, imgsz=imgsz)
+        result = await run_in_threadpool(service.predict, image_path, conf=conf, iou=iou, imgsz=imgsz)
 
         return InferenceResponse(**result)
 

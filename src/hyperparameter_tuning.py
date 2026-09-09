@@ -297,11 +297,14 @@ class YOLOHyperparameterTuner:
         base_dir: str | None = None,
         study_name: str | None = None,
         storage: str | None = None,
+        proxy_epochs: int = 30,
     ):
         self.data_yaml_path = Path(data_yaml_path)
         self.base_dir = Path(base_dir) if base_dir else Path(__file__).parent.parent
         self.study_name = study_name or f"yolo_tuning_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.storage = storage
+        # 代理搜索：每个 trial 只跑 proxy_epochs 轮（最优参数随后由调用方全量复训）
+        self.proxy_epochs = max(1, int(proxy_epochs))
 
         # 创建调优结果目录
         self.tuning_dir = self.base_dir / "tuning"
@@ -429,7 +432,7 @@ class YOLOHyperparameterTuner:
             # 构建训练参数
             train_kwargs = {
                 "data": str(self.data_yaml_path),
-                "epochs": params.get("epochs", 30),  # 搜索时使用较少轮数
+                "epochs": params.get("epochs", self.proxy_epochs),  # 代理搜索：少量轮数
                 "imgsz": params["imgsz"],
                 "batch": params["batch"],
                 "optimizer": params["optimizer"],
@@ -632,9 +635,13 @@ class YOLOHyperparameterTuner:
 
     def cleanup(self):
         """清理临时文件"""
-        if self._temp_dir_created and self.temp_dir.exists():
-            shutil.rmtree(self.temp_dir, ignore_errors=True)
-            self._temp_dir_created = False
+        try:
+            if self._temp_dir_created and self.temp_dir.exists():
+                shutil.rmtree(self.temp_dir, ignore_errors=True)
+                self._temp_dir_created = False
+        except (AttributeError, TypeError):
+            # 解释器关闭阶段模块属性可能已被卸载，静默跳过
+            pass
 
     def __enter__(self):
         return self

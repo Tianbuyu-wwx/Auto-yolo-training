@@ -273,6 +273,33 @@ class TrainingService:
                     checkpoints.append(str(last_pt))
         return sorted(checkpoints, reverse=True)
 
+    def compare_runs_markdown(self, run_names: list[str] | None = None) -> str:
+        """横向对比多个 run 的最终指标（P3-3 训练对比，直接读 results.csv）"""
+        if not run_names:
+            run_names = self.list_runs()[:10]
+
+        lines = [
+            "| Run | Epoch | 主要指标 |",
+            "|-----|-------|----------|",
+        ]
+        found = False
+        for run_name in run_names:
+            results = self.get_training_results(run_name)
+            metrics = results.get("final_metrics") if "error" not in results else None
+            if not metrics:
+                continue
+            found = True
+            primary = metrics.get("primary", {})
+            parts = [f"{lb}: {v:.4f}" for lb, v in primary.items()] or ["无指标"]
+            lines.append(f"| `{run_name}` | {metrics.get('epoch', '--')} | {'，'.join(parts)} |")
+
+        if not found:
+            return "暂无可对比的训练 run"
+
+        lines.append("")
+        lines.append("按 `list_runs` 顺序（新 → 旧）；完整版本管理见 ModelRegistry。")
+        return "\n".join(lines)
+
     def get_training_results(self, run_name: str | None = None) -> dict[str, Any]:
         """获取训练结果"""
         if run_name:

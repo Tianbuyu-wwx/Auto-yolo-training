@@ -150,13 +150,13 @@ def main():
         "--fix-epochs",
         type=int,
         default=30,
-        help="搜索时固定训练轮数 (默认: 30)"
+        help="代理搜索：每个 trial 的训练轮数 (默认: 30)"
     )
 
     parser.add_argument(
         "--fix-device",
-        default="0",
-        help="固定GPU设备 (默认: 0)"
+        default="",
+        help="固定训练设备: 空为自动检测 / cpu / 0 / 0,1 (默认: 自动)"
     )
 
     # 完整流水线模式
@@ -218,6 +218,7 @@ def main():
         data_yaml_path=data_yaml_path,
         base_dir=str(base_dir),
         study_name=args.study_name or f"{args.dataset_name}_tuning",
+        proxy_epochs=args.fix_epochs,
     )
 
     # 执行搜索

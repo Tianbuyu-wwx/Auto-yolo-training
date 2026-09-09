@@ -99,6 +99,10 @@ smoke smoke:  ## 跑烟雾训练（_smoke_test 数据集，CPU 1 epoch）
 smoke-validate smoke-validate:  ## 烟雾数据校验
 	$(PYTHON) validate_data.py _smoke_test
 
+.PHONY: tensorboard
+tensorboard tensorboard:  ## 启动 TensorBoard 查看训练曲线（runs/ 目录）
+	$(PYTHON) -m tensorboard.main --logdir runs
+
 # ---------- 文档 ----------
 .PHONY: docs-install
 docs-install docs-install:  ## 安装 MkDocs

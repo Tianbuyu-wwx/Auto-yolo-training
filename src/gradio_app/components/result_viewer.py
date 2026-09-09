@@ -89,6 +89,16 @@ def build_result_viewer(training_svc: TrainingService):
     with gr.Accordion("ModelRegistry 版本记录", open=False):
         registry_md = gr.Markdown("暂无注册版本")
 
+    # 训练对比（P3-3）
+    with gr.Accordion("训练对比（历史 run 指标横向对比）", open=False):
+        compare_btn = gr.Button("生成对比", variant="secondary", size="sm")
+        compare_md = gr.Markdown("点击「生成对比」查看最近 10 个 run 的最终指标。")
+
+    compare_btn.click(
+        fn=lambda: training_svc.compare_runs_markdown(),
+        outputs=[compare_md],
+    )
+
     # 结果输出组件（供训练完成联动复用）
     result_outputs = [
         final_map50, final_map95, final_epoch, final_model,

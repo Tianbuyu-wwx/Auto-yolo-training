@@ -4,10 +4,13 @@
 """
 
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -71,9 +74,10 @@ class ModelEvaluator:
         batch: int = 16,
         conf: float = 0.001,
         iou: float = 0.6,
-        save_json: bool = True,
+        save_json: bool | None = None,
         save_plots: bool = True,
         compare_with: str | None = None,
+        split: str = "val",
     ) -> EvaluationReport:
         """
         评估模型性能
@@ -86,9 +90,12 @@ class ModelEvaluator:
             batch: 批次大小
             conf: 置信度阈值
             iou: IoU阈值
-            save_json: 是否保存JSON报告
+            save_json: 是否保存 COCO JSON 报告。None（默认）时仅当 pycocotools
+                已安装才启用——Ultralytics 在缺包时会尝试自动 pip 安装，
+                离线/受限网络环境下会永久阻塞（冒烟测试发现的真实事故）
             save_plots: 是否保存可视化图表
             compare_with: 与历史结果对比的路径
+            split: 评估划分 ("val"/"test"，P3：test 划分防 val 过拟合选型)
 
         Returns:
             EvaluationReport对象
@@ -102,6 +109,15 @@ class ModelEvaluator:
         if not model_path.exists():
             raise FileNotFoundError(f"模型文件不存在: {model_path}")
 
+        if save_json is None:
+            try:
+                import pycocotools  # noqa: F401
+                save_json = True
+            except ImportError:
+                save_json = False
+                logger.info("[EVAL] pycocotools 未安装，跳过 COCO JSON 评估"
+                            "（如需启用请先 `pip install pycocotools`）")
+
         # 加载模型
         model = YOLO(str(model_path))
 
@@ -114,6 +130,7 @@ class ModelEvaluator:
             iou=iou,
             save_json=save_json,
             plots=save_plots,
+            split=split,
             project=str(self.base_dir / "runs" / "detect"),
             name=f"{dataset_name}_eval",
             exist_ok=True,

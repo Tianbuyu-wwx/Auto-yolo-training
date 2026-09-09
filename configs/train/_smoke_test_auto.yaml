@@ -10,7 +10,7 @@ training_config:
   imgsz: 64
   batch: 2
   workers: 8
-  device: ''
+  device: cpu
   patience: 5
   save: true
   save_period: 10
@@ -67,5 +67,5 @@ training_config:
   auto_augment: randaugment
   erasing: 0.4
   crop_fraction: 1.0
-created_at: '2026-09-03T20:17:18.965959'
+created_at: '2026-09-10T02:06:48.998314'
 description: Auto-generated training for _smoke_test

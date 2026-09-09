@@ -86,6 +86,16 @@ class NotifierSettings(BaseModel):
     )
 
 
+class GradioSettings(BaseModel):
+    """Gradio Web 界面配置（P3-5 多用户认证）。"""
+
+    # 认证凭据，格式 "user:pass,user2:pass2"；空 = 无认证（仅本机使用时合理）
+    # 公网部署务必设置：YOLO_GRADIO__AUTH="admin:s3cret,viewer:viewer123"
+    auth: str = ""
+    # 会话是否允许公网分享链接（--share）
+    allow_share: bool = True
+
+
 # ----------------------------------------------------------------------
 # 顶层 settings
 # ----------------------------------------------------------------------
@@ -120,6 +130,22 @@ class AySettings(BaseSettings):
     api: ApiSettings = Field(default_factory=ApiSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
     notifier: NotifierSettings = Field(default_factory=NotifierSettings)
+    gradio: GradioSettings = Field(default_factory=GradioSettings)
+
+    def gradio_auth_credentials(self) -> list[tuple[str, str]] | None:
+        """解析 Gradio 认证凭据（"user:pass,user2:pass2" → [(u,p), ...]）；未配置返回 None。"""
+        raw = (self.gradio.auth or "").strip()
+        if not raw:
+            return None
+        creds: list[tuple[str, str]] = []
+        for pair in raw.split(","):
+            pair = pair.strip()
+            if ":" not in pair:
+                continue
+            user, _, password = pair.partition(":")
+            if user and password:
+                creds.append((user.strip(), password))
+        return creds or None
 
     def effective_api_auth_required(self) -> bool:
         """API Key 认证是否实际启用（api_key 非空 OR require_auth 显式开启）。"""

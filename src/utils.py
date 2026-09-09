@@ -105,3 +105,15 @@ def find_images(directory: Path, recursive: bool = True) -> list[Path]:
         return []
     glob_fn = directory.rglob if recursive else directory.glob
     return sorted([f for f in glob_fn("*") if f.suffix.lower() in SUPPORTED_IMAGE_EXTS and f.is_file()])
+
+
+def is_tensorboard_available() -> bool:
+    """检测 TensorBoard 是否可用（P3-3：Ultralytics 检测到后自动记录训练曲线）
+
+    可用后运行 `tensorboard --logdir runs` 即可查看所有训练的可视化。
+    """
+    try:
+        import tensorboard  # noqa: F401
+        return True
+    except ImportError:
+        return False

@@ -15,6 +15,7 @@ import gradio as gr
 from src.dataset_manager import AutoDatasetManager, DatasetFormat
 from src.gradio_app.components.config_panel import build_config_panel
 from src.gradio_app.components.dataset_panel import build_dataset_panel
+from src.gradio_app.components.queue_panel import build_queue_panel
 from src.gradio_app.components.result_viewer import build_result_viewer
 from src.gradio_app.components.training_monitor import build_training_monitor
 from src.gradio_app.models.training_state import TrainingConfig
@@ -22,6 +23,7 @@ from src.gradio_app.services.dataset_service import DatasetService
 from src.gradio_app.services.log_service import LogService
 from src.gradio_app.services.training_service import TrainingService
 from src.gradio_app.theme import create_theme
+from src.task_queue import QueueRunner, TaskQueue
 from src.utils import is_path_allowed
 
 logger = logging.getLogger(__name__)
@@ -44,6 +46,10 @@ def create_app(css: str = ""):
     log_svc = LogService()
     dataset_svc = DatasetService(base_dir)
     training_svc = TrainingService(base_dir, log_svc)
+    # 任务队列（P3-2）：SQLite 持久化 + 后台 runner（子进程执行任务）
+    task_queue = TaskQueue(base_dir / "logs" / "task_queue.db")
+    queue_runner = QueueRunner(task_queue, base_dir)
+    queue_runner.start()
 
     with gr.Blocks(
         title="YOLO 自动训练平台",
@@ -77,6 +83,9 @@ def create_app(css: str = ""):
 
             with gr.Tab("④ 结果"):
                 _result_components = build_result_viewer(training_svc)
+
+            with gr.Tab("⑤ 队列"):
+                _queue_components = build_queue_panel(task_queue, queue_runner)
 
         # ====== 全局事件绑定 ======
 
@@ -146,16 +155,58 @@ def create_app(css: str = ""):
                     value='<div class="status-indicator"><span class="status-dot error"></span>训练已在运行中</div>'
                 ), gr.update(), gr.update()
 
+        train_inputs = (
+            [dataset_dropdown]
+            + [cfg_components[k] for k in _CONFIG_PARAM_ORDER]
+            + [monitor_components["resume_checkbox"], monitor_components["resume_dropdown"]]
+        )
+
         monitor_components["start_btn"].click(
             fn=on_start_training,
-            inputs=[dataset_dropdown]
-                   + [cfg_components[k] for k in _CONFIG_PARAM_ORDER]
-                   + [monitor_components["resume_checkbox"], monitor_components["resume_dropdown"]],
+            inputs=train_inputs,
             outputs=[
                 monitor_components.get("status_html", gr.HTML()),
                 monitor_components["start_btn"],
                 monitor_components["stop_btn"],
             ],
+        )
+
+        # 加入队列（P3-2）：不立即执行，交给 SQLite 队列按顺序跑
+        def on_enqueue_training(dataset_name, *param_values):
+            resume_enabled, resume_ckpt = param_values[-2:]
+            param_values = param_values[:-2]
+
+            if not dataset_name or dataset_name.startswith("--"):
+                return gr.update(value="❌ 请先在顶部选择数据集", visible=True)
+
+            values = dict(zip(_CONFIG_PARAM_ORDER, param_values, strict=True))
+            if resume_enabled and resume_ckpt:
+                values["model"] = resume_ckpt
+
+            try:
+                model_path = _ensure_model_available(
+                    _resolve_model_path(values.get("model", ""), base_dir), base_dir,
+                )
+            except Exception as e:
+                return gr.update(value=f"❌ 模型不可用: {e}", visible=True)
+
+            values["model"] = model_path
+            config = TrainingConfig.from_ui({**values, "dataset_name": dataset_name})
+            if resume_enabled and resume_ckpt:
+                config.resume_from = str(resume_ckpt)
+
+            from dataclasses import asdict
+
+            task_id = task_queue.enqueue(dataset_name, asdict(config))
+            return gr.update(
+                value=f"✅ 已加入队列（任务 #{task_id}）。进度见「⑤ 队列」页。",
+                visible=True,
+            )
+
+        monitor_components["queue_btn"].click(
+            fn=on_enqueue_training,
+            inputs=train_inputs,
+            outputs=[monitor_components["queue_status_md"]],
         )
 
         # 停止训练
@@ -267,10 +318,31 @@ def main():
     parser.add_argument("--host", default="127.0.0.1", help="监听地址")
     parser.add_argument("--port", type=int, default=7860, help="端口")
     parser.add_argument("--share", action="store_true", help="生成公网分享链接")
+    parser.add_argument(
+        "--auth",
+        default=None,
+        help='登录凭据 "user:pass"（多用户逗号分隔）；默认读取 YOLO_GRADIO__AUTH，未配置则无认证',
+    )
 
     args = parser.parse_args()
 
     _startup_dataset_management()
+
+    # P3-5：认证（settings 优先，CLI 覆盖）。公网/多用户部署务必配置。
+    from src.settings import get_settings
+
+    settings = get_settings()
+    credentials = settings.gradio_auth_credentials()
+    if args.auth is not None:
+        settings.gradio.auth = args.auth
+        credentials = settings.gradio_auth_credentials()
+    if credentials:
+        logger.info("[AUTH] Gradio 认证已启用（%d 个用户）", len(credentials))
+    elif args.host in ("0.0.0.0", "::") or args.share:
+        logger.warning(
+            "[AUTH] 服务暴露到公网但未配置认证！"
+            "建议设置 YOLO_GRADIO__AUTH=\"user:pass\" 或使用 --auth user:pass"
+        )
 
     css_path = Path(__file__).parent / "styles.css"
     css = css_path.read_text(encoding="utf-8") if css_path.exists() else ""
@@ -284,6 +356,7 @@ def main():
         show_api=False,
         quiet=True,
         inbrowser=False,
+        auth=credentials,
     )
 
 
