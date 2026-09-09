@@ -26,6 +26,16 @@ from src.utils import is_path_allowed
 
 logger = logging.getLogger(__name__)
 
+# 开始训练按钮的 inputs 顺序（cfg_components 的键）；与 on_start_training 的 *param_values 一一对应
+_CONFIG_PARAM_ORDER = [
+    "task", "model", "epochs", "imgsz", "batch", "lr0", "optimizer",
+    "cos_lr", "lrf", "warmup_epochs", "patience", "cache", "rect",
+    "deterministic", "freeze", "dropout", "label_smoothing", "weight_decay",
+    "box", "cls", "dfl", "copy_paste", "close_mosaic", "mosaic", "mixup",
+    "degrees", "scale", "translate", "shear", "perspective", "flipud",
+    "hsv_h", "hsv_s", "hsv_v", "device", "workers", "skip_validation",
+]
+
 
 def create_app(css: str = ""):
     """创建Gradio应用"""
@@ -81,26 +91,30 @@ def create_app(css: str = ""):
         # 页面加载时刷新
         demo.load(fn=on_refresh_datasets, outputs=[dataset_dropdown])
 
-        # 开始训练（使用TrainingConfig替代15个参数）
-        def on_start_training(
-            dataset_name, model, epochs, imgsz, batch, lr0, optimizer,
-            cos_lr, lrf, warmup_epochs, patience,
-            cache, rect, deterministic, freeze,
-            dropout, label_smoothing, weight_decay,
-            box, cls, dfl, copy_paste, close_mosaic,
-            mosaic, mixup, degrees, scale, translate,
-            shear, perspective, flipud,
-            hsv_h, hsv_s, hsv_v,
-            device, workers, skip_validation,
-        ):
+        # 开始训练：inputs 顺序由 _CONFIG_PARAM_ORDER 定义，
+        # 参数值打包成 dict 后经 TrainingConfig.from_ui 构造（类型自动转换）
+        # 末尾两个 inputs 是断点续训组件（P2-4）
+        def on_start_training(dataset_name, *param_values):
+            resume_enabled, resume_ckpt = param_values[-2:]
+            param_values = param_values[:-2]
+
             if not dataset_name or dataset_name.startswith("--"):
                 return gr.update(
                     value='<div class="status-indicator"><span class="status-dot error"></span>请先选择数据集</div>'
                 ), gr.update(interactive=True), gr.update(interactive=False)
 
+            values = dict(zip(_CONFIG_PARAM_ORDER, param_values, strict=True))
+
+            # 断点续训：模型换成 last.pt，跳过重复校验
+            if resume_enabled and resume_ckpt:
+                values["model"] = resume_ckpt
+                values["skip_validation"] = True
+            else:
+                values["skip_validation"] = bool(values.get("skip_validation"))
+
             # 解析模型路径
             try:
-                model_path = _resolve_model_path(model, base_dir)
+                model_path = _resolve_model_path(values["model"], base_dir)
             except ValueError as e:
                 logger.warning("[APP] 模型路径校验失败: %s", e)
                 return gr.update(
@@ -117,51 +131,10 @@ def create_app(css: str = ""):
                     value=f'<div class="status-indicator"><span class="status-dot error"></span>模型下载失败: {e}</div>'
                 ), gr.update(interactive=True), gr.update(interactive=False)
 
-            # cache 下拉框特殊处理："None" -> None
-            cache_value = None if cache == "None" else cache
-            # device UI 翻译："auto (recommended)" / "cpu" / "0" / "1" → Ultralytics 接受的字符串
-            # Ultralytics 不接受 "auto"——空字符串才是自动检测
-            device_value = "" if device and device.startswith("auto") else device
-
-            config = TrainingConfig(
-                dataset_name=dataset_name,
-                model=model_path,
-                epochs=int(epochs),
-                imgsz=int(imgsz),
-                batch=int(batch),
-                device=device_value,
-                workers=int(workers),
-                lr0=float(lr0),
-                optimizer=optimizer,
-                cos_lr=bool(cos_lr),
-                lrf=float(lrf),
-                warmup_epochs=float(warmup_epochs),
-                patience=int(patience),
-                dropout=float(dropout),
-                mosaic=float(mosaic),
-                mixup=float(mixup),
-                degrees=float(degrees),
-                scale=float(scale),
-                translate=float(translate),
-                shear=float(shear),
-                perspective=float(perspective),
-                flipud=float(flipud),
-                hsv_h=float(hsv_h),
-                hsv_s=float(hsv_s),
-                hsv_v=float(hsv_v),
-                cache=cache_value,
-                rect=bool(rect),
-                deterministic=bool(deterministic),
-                freeze=int(freeze),
-                label_smoothing=float(label_smoothing),
-                weight_decay=float(weight_decay),
-                box=float(box),
-                cls=float(cls),
-                dfl=float(dfl),
-                copy_paste=float(copy_paste),
-                close_mosaic=int(close_mosaic),
-                skip_validation=bool(skip_validation),
-            )
+            values["model"] = model_path
+            config = TrainingConfig.from_ui({**values, "dataset_name": dataset_name})
+            if resume_enabled and resume_ckpt:
+                config.resume_from = str(resume_ckpt)
 
             success = training_svc.start(config)
             if success:
@@ -175,45 +148,9 @@ def create_app(css: str = ""):
 
         monitor_components["start_btn"].click(
             fn=on_start_training,
-            inputs=[
-                dataset_dropdown,
-                cfg_components["model"],
-                cfg_components["epochs"],
-                cfg_components["imgsz"],
-                cfg_components["batch"],
-                cfg_components["lr0"],
-                cfg_components["optimizer"],
-                cfg_components["cos_lr"],
-                cfg_components["lrf"],
-                cfg_components["warmup_epochs"],
-                cfg_components["patience"],
-                cfg_components["cache"],
-                cfg_components["rect"],
-                cfg_components["deterministic"],
-                cfg_components["freeze"],
-                cfg_components["dropout"],
-                cfg_components["label_smoothing"],
-                cfg_components["weight_decay"],
-                cfg_components["box"],
-                cfg_components["cls"],
-                cfg_components["dfl"],
-                cfg_components["copy_paste"],
-                cfg_components["close_mosaic"],
-                cfg_components["mosaic"],
-                cfg_components["mixup"],
-                cfg_components["degrees"],
-                cfg_components["scale"],
-                cfg_components["translate"],
-                cfg_components["shear"],
-                cfg_components["perspective"],
-                cfg_components["flipud"],
-                cfg_components["hsv_h"],
-                cfg_components["hsv_s"],
-                cfg_components["hsv_v"],
-                cfg_components["device"],
-                cfg_components["workers"],
-                cfg_components["skip_validation"],
-            ],
+            inputs=[dataset_dropdown]
+                   + [cfg_components[k] for k in _CONFIG_PARAM_ORDER]
+                   + [monitor_components["resume_checkbox"], monitor_components["resume_dropdown"]],
             outputs=[
                 monitor_components.get("status_html", gr.HTML()),
                 monitor_components["start_btn"],

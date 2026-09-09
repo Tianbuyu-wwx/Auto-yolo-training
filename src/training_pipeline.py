@@ -757,6 +757,12 @@ class TrainingPipeline:
             train_kwargs = cfg.to_dict()
             train_kwargs.pop("model", None)
 
+            # 断点续训：Ultralytics resume=True 时使用 ckpt 内保存的原始参数，
+            # 外部覆盖参数（epochs/lr 等）会被忽略，只保留 model 路径 + resume 标志
+            if getattr(cfg, "resume", False):
+                logger.info("  -> Resume mode: using checkpoint args (external overrides ignored)")
+                train_kwargs = {"resume": True, "plots": True, "verbose": True}
+
             # 使用 project_config 中已定义的项目名和运行名，确保一致性
             # 必须使用绝对路径，否则 Ultralytics 连续训练时可能因 cwd 变化而生成嵌套目录
             output_dir = Path(project_config.output_dir).resolve()

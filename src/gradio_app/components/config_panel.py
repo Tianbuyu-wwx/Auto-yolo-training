@@ -49,6 +49,7 @@ def build_config_panel(dataset_svc: DatasetService = None):
                     allow_custom_value=True,
                 )
                 refresh_models_btn = gr.Button("🔄 检查模型", size="sm", scale=1)
+                download_model_btn = gr.Button("⬇️ 下载选中模型", size="sm", scale=1)
 
             # 模型状态（阶段 C2+C3：自动推断家族 + 缺失提示）
             model_status = gr.Markdown(
@@ -295,6 +296,24 @@ def build_config_panel(dataset_svc: DatasetService = None):
         return md
 
     refresh_models_btn.click(fn=on_refresh_models, outputs=[model_status])
+
+    # 一键下载选中模型（P2-2）
+    def on_download_model(model_name: str):
+        from src.model_downloader import ensure_model
+
+        if not model_name:
+            return "请先选择模型"
+        try:
+            path = ensure_model(Path(model_name).name, _basemodels_dir().parent)
+            return f"✅ 模型已就绪：`{Path(path).name}`"
+        except Exception as e:
+            return f"❌ 下载失败：{e}\n\n可手动下载后放入 `basemodels/` 目录。"
+
+    download_model_btn.click(
+        fn=on_download_model,
+        inputs=[model_dropdown],
+        outputs=[model_status],
+    )
 
     return {
         "task": task_radio,

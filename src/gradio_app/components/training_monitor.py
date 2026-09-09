@@ -80,6 +80,27 @@ def build_training_monitor(training_svc: TrainingService, log_svc: LogService):
         interactive=False,
     )
 
+    # 断点续训（P2-4）
+    with gr.Accordion("断点续训", open=False):
+        with gr.Row():
+            resume_checkbox = gr.Checkbox(
+                value=False,
+                label="从 checkpoint 恢复训练",
+                info="使用所选 last.pt 继续，超参数以 checkpoint 保存值为准",
+            )
+            refresh_ckpt_btn = gr.Button("刷新 checkpoint 列表", size="sm")
+        resume_dropdown = gr.Dropdown(
+            choices=training_svc.list_checkpoints(),
+            value=None,
+            label="checkpoint (last.pt)",
+            interactive=True,
+        )
+
+    refresh_ckpt_btn.click(
+        fn=lambda: gr.update(choices=training_svc.list_checkpoints()),
+        outputs=[resume_dropdown],
+    )
+
     # 错误详情（完整堆栈/消息，不截断）
     with gr.Accordion("错误详情", open=False, visible=False) as error_accordion:
         error_detail_md = gr.Markdown("")
@@ -201,6 +222,8 @@ def build_training_monitor(training_svc: TrainingService, log_svc: LogService):
         "timer": timer,
         "tick_event": tick_event,
         "finished_signal": finished_signal,
+        "resume_checkbox": resume_checkbox,
+        "resume_dropdown": resume_dropdown,
     }
 
 

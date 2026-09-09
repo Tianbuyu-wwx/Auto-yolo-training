@@ -118,6 +118,8 @@ class TrainingConfig:
     hsv_s: float = 0.7
     hsv_v: float = 0.4
     skip_validation: bool = False
+    # 断点续训：last.pt 路径；非空时训练以 resume 模式启动
+    resume_from: str = ""
 
     def to_overrides(self) -> dict[str, Any]:
         """转换为 TrainingPipeline 的 overrides 字典"""
@@ -153,7 +155,40 @@ class TrainingConfig:
             "close_mosaic": self.close_mosaic,
             "device": self.device,
             "workers": self.workers,
+            "resume": bool(self.resume_from),
         }
+
+    @classmethod
+    def from_ui(cls, values: dict[str, Any]) -> "TrainingConfig":
+        """由 UI 组件值字典构造（替代 37 个位置参数的手工解包）。
+
+        按字段类型自动转换（int/float/bool/str），并处理两个特殊控件：
+        - device: "auto (recommended)" 等下拉项 → ""（Ultralytics 自动检测）
+        - cache:  下拉的 "None" 字符串 → None
+        未知键忽略；缺省键用 dataclass 默认值。
+        """
+        import dataclasses
+
+        coercers: dict[type, Any] = {
+            int: lambda v: int(float(v)),
+            float: float,
+            str: str,
+            bool: bool,
+        }
+        kwargs: dict[str, Any] = {}
+        for f in dataclasses.fields(cls):
+            if f.name not in values:
+                continue
+            raw = values[f.name]
+            coerce = coercers.get(f.type)
+            if f.name == "device":
+                raw = "" if raw and str(raw).startswith("auto") else raw
+            elif f.name == "cache" and raw == "None":
+                raw = None
+            elif f.name == "resume_from":
+                raw = str(raw or "")
+            kwargs[f.name] = coerce(raw) if coerce else raw
+        return cls(**kwargs)
 
 
 # 参数预设

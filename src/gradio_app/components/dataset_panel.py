@@ -57,6 +57,11 @@ def build_dataset_panel(dataset_svc: DatasetService, dataset_dropdown: gr.Dropdo
                 "请在顶部选择数据集",
                 elem_classes=["dataset-detail"],
             )
+            show_boxes_checkbox = gr.Checkbox(
+                value=False,
+                label="样本预览显示标注框",
+                info="将 YOLO 标签画到样本图上，便于直观检查标注质量",
+            )
             sample_gallery = gr.Gallery(
                 label="样本预览",
                 columns=4,
@@ -88,7 +93,7 @@ def build_dataset_panel(dataset_svc: DatasetService, dataset_dropdown: gr.Dropdo
             + "、".join(f"`{n}`" for n in pending)
         )
 
-    def on_dataset_selected(dataset_name: str):
+    def on_dataset_selected(dataset_name: str, show_boxes: bool = False):
         if not dataset_name or dataset_name.startswith("--"):
             return "请在顶部选择数据集", [], gr.update(visible=False)
         info = dataset_svc.get_info(dataset_name)
@@ -103,7 +108,10 @@ def build_dataset_panel(dataset_svc: DatasetService, dataset_dropdown: gr.Dropdo
             md += f"| {split} | {s.get('images', 0)} | {s.get('labels', 0)} |\n"
         md += f"\n**总计**: {info.get('total_images', 0)} 张图像"
 
-        samples = info.get("sample_images", [])
+        if show_boxes:
+            samples = dataset_svc.get_annotated_samples(dataset_name) or info.get("sample_images", [])
+        else:
+            samples = info.get("sample_images", [])
         return md, samples, gr.update(visible=False)
 
     def on_upload(file_obj, name: str, overwrite: bool):
@@ -141,10 +149,16 @@ def build_dataset_panel(dataset_svc: DatasetService, dataset_dropdown: gr.Dropdo
         outputs=[dataset_dropdown, convert_status_md],
     )
 
-    # 全局 dataset_dropdown 切换：刷新详情
+    # 全局 dataset_dropdown 切换：刷新详情（标注框开关变化也重新生成预览）
     dataset_dropdown.change(
         fn=on_dataset_selected,
-        inputs=[dataset_dropdown],
+        inputs=[dataset_dropdown, show_boxes_checkbox],
+        outputs=[dataset_info, sample_gallery, validate_result],
+    )
+
+    show_boxes_checkbox.change(
+        fn=on_dataset_selected,
+        inputs=[dataset_dropdown, show_boxes_checkbox],
         outputs=[dataset_info, sample_gallery, validate_result],
     )
 

@@ -197,6 +197,88 @@ class DatasetService:
             sys.stderr = old_stderr
             return {"status": "error", "message": f"验证失败: {str(e)}"}
 
+    def get_annotated_samples(self, dataset_name: str, count: int = 4) -> list[str]:
+        """生成画好标注框的样本图，返回缓存路径列表（P2-5 标注可视化）。
+
+        YOLO bbox 标签（cls cx cy w h，归一化）→ 画到图像上，
+        缓存到 logs/preview_cache/<dataset>/。seg/pose 标签退化为最小外接矩形。
+        """
+        dataset_path = self.dataset_dir / dataset_name
+        train_img_dir = dataset_path / "images" / "train"
+        train_lbl_dir = dataset_path / "labels" / "train"
+        if not train_img_dir.exists():
+            return []
+
+        try:
+            from PIL import Image, ImageDraw
+        except ImportError:
+            logger.debug("[PREVIEW] PIL 不可用，跳过标注可视化")
+            return []
+
+        # 类名（用于标签文本）
+        class_names: dict[int, str] = {}
+        for yaml_path in (dataset_path / "data.yaml", self.base_dir / "configs" / "models" / f"data_{dataset_name}.yaml"):
+            if yaml_path.exists():
+                try:
+                    import yaml
+                    data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
+                    class_names = dict(enumerate(data.get("names", [])))
+                    break
+                except Exception:
+                    continue
+
+        colors = ["#FF3B30", "#34C759", "#007AFF", "#FFCC00",
+                  "#AF52DE", "#FF9500", "#00C7BE", "#FF2D55"]
+
+        cache_dir = self.base_dir / "logs" / "preview_cache" / dataset_name
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        images = [f for f in sorted(train_img_dir.rglob("*"))
+                  if f.suffix.lower() in self.SUPPORTED_IMAGE_EXTS][:count]
+        out: list[str] = []
+        for img_path in images:
+            label_path = train_lbl_dir / f"{img_path.stem}.txt"
+            out_path = cache_dir / f"{img_path.stem}_boxed{img_path.suffix or '.png'}"
+            try:
+                with Image.open(img_path) as im:
+                    im = im.convert("RGB")
+                    w, h = im.size
+                    if label_path.exists():
+                        draw = ImageDraw.Draw(im)
+                        for line in label_path.read_text(encoding="utf-8").splitlines():
+                            parts = line.split()
+                            if len(parts) < 5:
+                                continue
+                            cls_id = int(float(parts[0]))
+                            try:
+                                cx, cy, bw, bh = (float(x) for x in parts[1:5])
+                            except ValueError:
+                                continue
+                            # seg/pose 多点标签：取所有坐标的最小外接矩形
+                            if len(parts) > 5:
+                                coords = [float(x) for x in parts[1:] if float(x) <= 1.0]
+                                xs, ys = coords[0::2], coords[1::2]
+                                if not xs or not ys:
+                                    continue
+                                x1, x2 = min(xs) * w, max(xs) * w
+                                y1, y2 = min(ys) * h, max(ys) * h
+                                bw, bh, cx, cy = x2 - x1, y2 - y1, (x1 + x2) / 2, (y1 + y2) / 2
+                                x1, y1 = cx - bw / 2, cy - bh / 2
+                            else:
+                                x1 = (cx - bw / 2) * w
+                                y1 = (cy - bh / 2) * h
+                                x2, y2 = (cx + bw / 2) * w, (cy + bh / 2) * h
+                            color = colors[cls_id % len(colors)]
+                            draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
+                            if class_names:
+                                draw.text((x1 + 2, max(0, y1 - 12)),
+                                          class_names.get(cls_id, str(cls_id)), fill=color)
+                    im.save(out_path)
+                out.append(str(out_path))
+            except Exception as e:
+                logger.debug("[PREVIEW] 生成标注预览失败 %s: %s", img_path.name, e)
+        return out
+
     def convert(self, dataset_name: str, delete_original: bool = False) -> dict[str, Any]:
         """分类格式 → YOLO 格式转换（显式触发，不在启动时自动执行）
 
