@@ -3,6 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- 首屏前就把画布定成暗色。tokens.css 的 :root{color-scheme:dark} 要等
+         CSS 加载完才生效，此前会先闪一帧白底 —— 暗色控制台上很刺眼。 -->
+    <meta name="color-scheme" content="dark" />
+    <!-- 与 .sidebar 的 --bg-deep 一致 -->
+    <meta name="theme-color" content="#08090f" />
+    <meta
+      name="description"
+      content="AYT · YOLO 训练控制台 —— 数据集校验、训练配置与实时监控、模型库与导出、任务队列"
+    />
+
+    <!-- Vite 会把 public/ 原样拷到产物根目录，SPAStaticFiles 挂载在 /，故可直接访问 -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
     <title>AYT · YOLO 训练控制台</title>
   </head>
   <body>
