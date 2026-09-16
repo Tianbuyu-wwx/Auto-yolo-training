@@ -215,6 +215,10 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
    不能用纯拉丁等宽族 —— 中文会逐字回退到宋体系。改用 --sans +
    tabular-nums 让时间戳与数字列仍然对齐。 */
 .log-console {
+  /* 行高单独提为变量：LogConsole.vue 按 lines × 行高算 maxHeight，
+     两处必须用同一个数，否则可见行数与 lines 语义对不上
+     （1.65 × 12px = 19.8px；沿用 21px 会让 460px 显示 23.3 行而不是 22 行）。 */
+  --log-line-height: 19.8px;
   background: var(--bg-deep); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 12px 14px;
   font-size: 12px; line-height: 1.65;

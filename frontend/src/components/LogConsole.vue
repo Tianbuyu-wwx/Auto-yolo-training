@@ -21,5 +21,10 @@ watch(() => props.text, async () => {
 </script>
 
 <template>
-  <div ref="el" class="log-console" :style="{ maxHeight: lines * 21 + 'px' }" @scroll="onScroll">{{ text }}</div>
+  <!-- 行高从 CSS 变量取（tokens.css 的 .log-console --log-line-height），
+       不要在 JS 里另写一个数 —— 原先按 lines*21px 算而实际行高 19.8px，
+       460px 高度实际显示 23.3 行，与 lines=22 的语义不符。 -->
+  <div ref="el" class="log-console"
+       :style="{ maxHeight: `calc(var(--log-line-height, 19.8px) * ${lines})` }"
+       @scroll="onScroll">{{ text }}</div>
 </template>
