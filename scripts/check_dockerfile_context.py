@@ -96,9 +96,7 @@ def _hit(target: str, pat: str) -> bool:
         return True
     # 'dir' 模式也要命中 'dir' 之下的内容 —— 由 ancestors() 覆盖，
     # 这里额外处理 'dir/**' 这类写法
-    if pat.endswith("/**") and fnmatch.fnmatchcase(target, pat[:-3].rstrip("/")):
-        return True
-    return False
+    return pat.endswith("/**") and fnmatch.fnmatchcase(target, pat[:-3].rstrip("/"))
 
 
 def is_excluded(rel: str, pats: list[str], loose: bool) -> str | None:
@@ -184,7 +182,7 @@ def main() -> int:
             print(f"  - {rel}: {why}\n      {line}")
     if at_risk:
         print("\n需要人工复核（取决于 Docker 对无斜杠模式的解释）：")
-        for rel, why, line in at_risk:
+        for rel, why, _line in at_risk:
             print(f"  - {rel}: {why}")
 
     # 反向检查：把「被忽略的文件」里有没有 Dockerfile 明确需要的目录引用（如 test/）
