@@ -35,6 +35,12 @@ COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml 
 
 # corepack 会按 package.json 的 packageManager 字段拉取指定 pnpm 版本，
 # 避免 CI/本地/镜像三处 pnpm 版本漂移导致 --frozen-lockfile 失败
+# （本仓库钉的是 pnpm@11.22.0）。
+# COREPACK_ENABLE_DOWNLOAD_PROMPT=0 是必需的：corepack >= 0.20 在首次下载
+# package manager 前会交互式问一句 Y/n，而 docker build 没有 TTY ——
+# 不同 corepack 版本对此的处理并不一致（有的跳过，有的直接 abort），
+# 显式关掉这个提示才能让构建行为确定。
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable && pnpm install --frozen-lockfile
 
 COPY frontend/ ./
