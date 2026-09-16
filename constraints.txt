@@ -10,9 +10,11 @@ torchvision==0.26.0
 ultralytics==8.4.102
 gradio==5.49.1
 fastapi==0.139.2
+starlette==0.52.1
 uvicorn==0.41.0
 python-multipart==0.0.22
 pydantic==2.11.9
+pydantic-settings==2.14.2
 optuna==4.9.0
 opencv-python==4.12.0.88
 numpy==2.2.6

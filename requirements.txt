@@ -15,9 +15,18 @@ optuna
 # Web UI and inference API
 gradio
 fastapi
+# admin.py 直接 import starlette（StaticFiles / StarletteHTTPException 子类判定，
+# 不能换成 fastapi 的再导出：SPA 回退要捕获 StaticFiles 抛出的那个异常类型）。
+# 直接用的东西就该直接声明，而不是靠 fastapi 的传递依赖。
+starlette
 uvicorn
 python-multipart
 pydantic
+# 注意是**两个**包：pydantic 提供 BaseModel，pydantic-settings 提供 BaseSettings。
+# src/settings.py 用的是后者；只声明 pydantic 时全新安装会在
+# config_generator.generate_training_config() 的 `from src.settings import get_settings`
+# 处抛 ModuleNotFoundError —— 而那是每次训练的必经阶段。
+pydantic-settings
 
 # Data and configuration
 opencv-python
