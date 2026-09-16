@@ -42,8 +42,6 @@ const statusBadge = (s) => {
 
 <template>
   <div>
-    <h1 class="page-title">总览</h1>
-
     <div class="grid c4">
       <div class="metric">
         <div class="value amber">{{ status ? `${status.current_epoch}/${status.total_epochs}` : '—' }}</div>
@@ -68,9 +66,9 @@ const statusBadge = (s) => {
         <h3>系统状态</h3>
         <table class="tbl">
           <tr><td>训练状态</td><td><span class="badge" :class="statusBadge(status)">{{ statusText(status) }}</span></td></tr>
-          <tr><td>数据集</td><td class="mono">{{ datasetCount }} 个就绪</td></tr>
-          <tr><td>队列</td><td class="mono">{{ queueCount }} 个待执行/执行中</td></tr>
-          <tr><td>本地预训练模型</td><td class="mono">{{ localModels }} 个</td></tr>
+          <tr><td>数据集</td><td><span class="mono">{{ datasetCount }}</span> 个就绪</td></tr>
+          <tr><td>队列</td><td><span class="mono">{{ queueCount }}</span> 个待执行 / 执行中</td></tr>
+          <tr><td>本地预训练模型</td><td><span class="mono">{{ localModels }}</span> 个</td></tr>
         </table>
         <p v-if="error" class="error-text">{{ error }}</p>
       </div>

@@ -111,6 +111,9 @@ dataset/**/*.rar
 *.swp
 *~$
 
+# 智能体工作区本地状态（记忆/任务缓存，按机器存在，不入版本库）
+.workbuddy/
+
 # 通用化分析/规划文档（不入版本库，仅项目根本地参考）
 full-analysis-*.md
 generalization-plan-*.md

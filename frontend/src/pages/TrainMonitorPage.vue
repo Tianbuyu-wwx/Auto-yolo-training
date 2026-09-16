@@ -69,7 +69,6 @@ onBeforeUnmount(() => closeWs && closeWs())
 <template>
   <div>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
-      <h1 class="page-title" style="margin:0">训练监控</h1>
       <span v-if="status" class="badge"
             :class="status.is_running ? 'warn' : status.success ? 'ok' : status.error_message ? 'err' : 'idle'">
         <span class="dot" :class="status.is_running ? 'run' : status.success ? 'ok' : status.error_message ? 'bad' : 'idle'"></span>

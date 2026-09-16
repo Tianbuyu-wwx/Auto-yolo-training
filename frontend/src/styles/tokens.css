@@ -1,5 +1,10 @@
 /* AYT 暗色工业控制台 — 设计 tokens（延续 styles.css 的设计基因） */
 :root {
+  /* 让浏览器按深色绘制原生控件。缺这一行，checkbox/radio/select 弹层/
+     滚动条会全部按浅色呈现 —— 实测 color-scheme 为 normal、checkbox 的
+     appearance 为 auto，深色卡片上因此散落十余处白块。 */
+  color-scheme: dark;
+
   --bg: #0c0e15;
   --bg-card: #14161f;
   --bg-input: #1a1d28;
@@ -13,8 +18,17 @@
   --blue: #3b82f6;
   --amber: #f59e0b;
   --purple: #8b5cf6;
-  --mono: 'JetBrains Mono', 'IBM Plex Mono', 'Cascadia Code', Consolas, monospace;
-  --sans: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+
+  /* 等宽：只用于纯数字与纯 ASCII（指标值 / ID / 时间戳 / 路径）。
+     ⚠️ 这一族全是纯拉丁字体、无 CJK 字形，含中文的节点一律不得引用本变量，
+     否则中文会逐字回退到宋体系，与拉丁字形割裂。
+     原声明的 JetBrains Mono / IBM Plex Mono 经字宽实测在本机未安装，是死条目，已移除。 */
+  --mono: 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', monospace;
+  /* 正文：拉丁与中文共用一条回退链，保证中英字面一致。
+     原声明的 Inter 无 @font-face 亦未安装（死条目），已移除。 */
+  --sans: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+
+  scrollbar-color: var(--border-strong) var(--bg-deep);
   --radius: 10px;
 }
 
@@ -40,17 +54,24 @@ body {
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .topbar {
   height: 52px; flex-shrink: 0;
-  display: flex; align-items: center; gap: 16px;
-  padding: 0 24px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-card);
+}
+/* 顶栏内容与 .content 同宽、同中轴。两者都居中于 .main，若顶栏仍贴左
+   padding，视口宽于 1616px 时内容区已居中而标题还在最左，左边缘会错位
+   （1920px 下 128px，2560px 下 448px）。 */
+.topbar-inner {
+  height: 100%; max-width: 1400px; margin: 0 auto;
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 24px;
 }
 .content { flex: 1; padding: 24px; max-width: 1400px; width: 100%; margin: 0 auto; }
 
 /* ---- 侧边栏 ---- */
+/* 品牌区与页脚含中文，不能走 --mono（纯拉丁），沿用 body 的 --sans */
 .brand {
   padding: 18px 20px 14px;
-  font-family: var(--mono); font-size: 16px; font-weight: 700;
+  font-size: 16px; font-weight: 700;
   letter-spacing: -0.02em;
   border-bottom: 1px solid var(--border);
 }
@@ -70,17 +91,22 @@ body {
 }
 .sidebar-foot {
   padding: 14px 20px; font-size: 11px; color: var(--text-muted);
-  border-top: 1px solid var(--border); font-family: var(--mono);
+  border-top: 1px solid var(--border);
 }
 
 /* ---- 顶栏 ---- */
-.topbar h2 { font-size: 15px; font-weight: 600; }
+/* 顶栏标题是全站唯一的页面标题。各页面原先各自再渲染一个 h1.page-title，
+   实测 6 页中有 5 页两者字面完全相同，属同屏重复，已一并移除。 */
+.topbar h1 { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
 .topbar .spacer { flex: 1; }
 .health { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-muted); font-family: var(--mono); }
-.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 .dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
 .dot.bad { background: var(--red); }
 .dot.run { background: var(--amber); animation: pulse 1.6s infinite; }
+/* TrainMonitorPage 的空闲态输出 <span class="dot idle">，此前该类没有定义，
+   渲染成 8×8px 透明方块，在徽标里留下一个无意义的空隙。 */
+.dot.idle { background: var(--text-muted); opacity: .55; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
 
 /* ---- 通用组件 ---- */
@@ -90,10 +116,27 @@ body {
 }
 .card h3 { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 14px; text-transform: uppercase; letter-spacing: .06em; }
 
+/* ---- 网格 ----
+   一律用 minmax(0,1fr) 而非裸 1fr。1fr 等价于 minmax(auto,1fr)，其
+   min-width:auto 会让列拒绝收缩到内容最小宽度以下 —— 结果是溢出而非变窄。
+   实测：390px 视口下 .grid.c4 算出 122.3px×2 塞进 174px 容器，
+   .grid.c2 直接失衡为 120.5px / 66px。 */
 .grid { display: grid; gap: 16px; }
-.grid.c4 { grid-template-columns: repeat(4, 1fr); }
-.grid.c2 { grid-template-columns: repeat(2, 1fr); }
-@media (max-width: 1100px) { .grid.c4 { grid-template-columns: repeat(2, 1fr); } }
+.grid.c4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.grid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .grid.c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .grid.c2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* 左列定宽 + 右列自适应（数据集页 / 训练配置页）。
+   必须写成类：这两处原先是内联 style，而内联样式优先级高于任何媒体查询，
+   导致 820px 起就无法降级（实测溢出 33 / 45 个元素）。 */
+.split-2 { display: grid; gap: 16px; align-items: start; }
+.split-2.side-340 { grid-template-columns: 340px minmax(0, 1fr); }
+.split-2.side-300 { grid-template-columns: 300px minmax(0, 1fr); }
+@media (max-width: 1100px) {
+  .split-2.side-340,
+  .split-2.side-300 { grid-template-columns: minmax(0, 1fr); }
+}
 
 .metric { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; }
 .metric .value { font-family: var(--mono); font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
@@ -126,11 +169,41 @@ input, select, textarea {
 input:focus, select:focus, textarea:focus { border-color: var(--blue); }
 label.field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text-muted); }
 
+/* 原生控件在深色主题下的收尾。color-scheme:dark 负责让它们变深色，
+   这里再统一强调色与文件选择按钮的外观，避免与 .btn 形成两套设计语言。 */
+input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); }
+input[type="file"] { padding: 6px 8px; font-size: 12.5px; }
+input[type="file"]::file-selector-button {
+  margin-right: 10px; padding: 5px 12px; cursor: pointer;
+  background: var(--bg-card); color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: 6px;
+  font-family: var(--sans); font-size: 12.5px;
+  transition: border-color .15s;
+}
+input[type="file"]::file-selector-button:hover { border-color: var(--blue); }
+
+/* 表格容器。窄屏给横向滚动而不是把列压成竖排文字：队列页有 8 列，
+   此前容器 overflow-x 为 visible，390px 下表头被压成 32px 宽的竖排
+   （实测 th「创建时间」「结束时间」均 w=32 / h=90）。 */
+.table-wrap { width: 100%; overflow-x: auto; }
+.table-wrap > table.tbl { min-width: 620px; }
 table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .tbl th { text-align: left; color: var(--text-muted); font-weight: 500; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; padding: 8px 10px; border-bottom: 1px solid var(--border); }
 .tbl td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
 .tbl tr:hover td { background: rgba(59,130,246,.05); }
 .tbl code, .mono { font-family: var(--mono); font-size: 12.5px; }
+
+/* 单行并排的多个 checkbox（如训练配置「基础」卡里的 rect / cosine lr /
+   deterministic）。必须允许换行：.grid.c4 在 1280px 下每列仅约 150px，
+   nowrap 会让该格 min-content 撑破列宽（实测越界 11px）。 */
+.check-row { display: flex; gap: 14px; flex-wrap: wrap; }
+
+/* 输出块（数据校验结果 / 训练对比 markdown）。内容含中文，不能走 --mono，
+   数字列用 tabular-nums 保持对齐。 */
+.data-block {
+  font-family: var(--sans); font-variant-numeric: tabular-nums;
+  font-size: 12px; line-height: 1.7; white-space: pre-wrap;
+}
 
 .badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 20px; font-size: 11.5px; font-weight: 500; }
 .badge.ok { background: rgba(34,197,94,.14); color: var(--green); }
@@ -138,12 +211,15 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .badge.err { background: rgba(239,68,68,.14); color: var(--red); }
 .badge.idle { background: var(--bg-input); color: var(--text-muted); }
 
-/* 终端风日志 */
+/* 终端风日志。日志内容为中英混排（"[16:24:38] [INFO] 检测到数据集结构"），
+   不能用纯拉丁等宽族 —— 中文会逐字回退到宋体系。改用 --sans +
+   tabular-nums 让时间戳与数字列仍然对齐。 */
 .log-console {
   background: var(--bg-deep); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 12px 14px;
-  font-family: var(--mono); font-size: 12px; line-height: 1.65;
-  color: #7dd3a8; overflow: auto; white-space: pre-wrap; word-break: break-all;
+  font-size: 12px; line-height: 1.65;
+  font-variant-numeric: tabular-nums;
+  color: #7dd3a8; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
 }
 
 /* 进度条 */
@@ -152,12 +228,12 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .progress-meta { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
 .progress-meta .eta { color: var(--amber); }
 
-.page-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; letter-spacing: -.01em; }
 .muted { color: var(--text-muted); }
 .error-text { color: var(--red); font-size: 13px; margin-top: 8px; }
 .ok-text { color: var(--green); font-size: 13px; margin-top: 8px; }
 
-.gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.gallery { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 1100px) { .gallery { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
 
 .toast {
@@ -169,3 +245,28 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 }
 .toast.success { border-left-color: var(--green); }
 .toast.error { border-left-color: var(--red); }
+
+/* ---- 窄视口守卫 ----
+   本控制台为桌面工具，不做移动/平板适配（已确认产品决策）。低于支持下限时
+   与其让布局在无声中破版，不如明确告知边界——把"坏掉"变成"说清楚了"。
+   阈值 1024px 取自实测：1024px 及以上 48 组视口探测全部零溢出。 */
+.viewport-guard { display: none; }
+
+@media (max-width: 1023px) {
+  .layout { display: none; }
+  .viewport-guard {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 32px;
+  }
+  .guard-card {
+    max-width: 460px; text-align: center;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 32px 28px;
+  }
+  .guard-card h1 { font-size: 17px; font-weight: 600; margin-bottom: 12px; }
+  .guard-card p { font-size: 13.5px; color: var(--text-muted); line-height: 1.75; }
+  .guard-card .guard-now {
+    margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border);
+    font-family: var(--mono); font-size: 12.5px; color: var(--amber);
+  }
+}

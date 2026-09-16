@@ -125,9 +125,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1 class="page-title">训练配置</h1>
-
-    <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start">
+    <div class="split-2 side-300">
       <!-- 左列：数据集/任务/模型/预设 -->
       <div style="display:flex;flex-direction:column;gap:16px">
         <div class="card">
@@ -222,7 +220,7 @@ onMounted(async () => {
             </label>
             <label style="justify-content:flex-end" class="field">
               矩形训练
-              <span style="display:flex;gap:14px">
+              <span class="check-row">
                 <label style="display:flex;gap:5px;align-items:center;cursor:pointer">
                   <input type="checkbox" v-model="cfg.rect" style="width:auto" /> rect
                 </label>

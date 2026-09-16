@@ -46,8 +46,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-      <h1 class="page-title" style="margin:0">结果 · 模型库</h1>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <select v-model="selected" style="max-width:280px" @change="loadResults">
         <option value="" disabled>— 选择 run —</option>
         <option v-for="r in runs" :key="r" :value="r">{{ r }}</option>
@@ -106,7 +105,7 @@ onMounted(async () => {
           <h3 style="margin:0">训练对比</h3>
           <button class="btn sm" @click="loadCompare">生成对比</button>
         </div>
-        <pre class="mono" style="font-size:12px;white-space:pre-wrap">{{ compareMd || '点击「生成对比」查看最近 run 的最终指标' }}</pre>
+        <pre class="data-block">{{ compareMd || '点击「生成对比」查看最近 run 的最终指标' }}</pre>
       </div>
 
       <div class="card">

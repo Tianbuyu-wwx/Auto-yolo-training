@@ -104,9 +104,7 @@ onMounted(() => refresh())
 
 <template>
   <div>
-    <h1 class="page-title">数据集管理</h1>
-
-    <div style="display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start">
+    <div class="split-2 side-340">
       <!-- 左侧：上传 / 转换 -->
       <div style="display:flex;flex-direction:column;gap:16px">
         <div class="card">
@@ -127,7 +125,7 @@ onMounted(() => refresh())
 
         <div class="card">
           <h3>格式转换（分类 → YOLO）</h3>
-          <p v-if="pendingList.length" class="mono" style="font-size:12px;color:var(--amber);margin-bottom:10px">
+          <p v-if="pendingList.length" style="font-size:12px;color:var(--amber);margin-bottom:10px">
             待转换：{{ pendingList.join('、') }}
           </p>
           <p v-else class="muted" style="font-size:12.5px;margin-bottom:10px">✅ 所有数据集均为 YOLO 格式</p>
@@ -143,21 +141,27 @@ onMounted(() => refresh())
       <!-- 右侧：列表 + 详情 -->
       <div style="display:flex;flex-direction:column;gap:16px">
         <div class="card">
-          <h3>数据集列表（{{ datasets.length }}）</h3>
-          <table class="tbl">
-            <thead><tr><th>名称</th><th>格式</th><th>图像</th><th>状态</th></tr></thead>
-            <tbody>
-              <tr v-for="s in statuses" :key="s.name" style="cursor:pointer" @click="selectDataset(s.name)">
-                <td><code :style="s.name === selected ? 'color:var(--blue)' : ''">{{ s.name }}</code></td>
-                <td>{{ s.format }}</td>
-                <td class="mono">{{ s.image_count }}</td>
-                <td>
-                  <span class="badge" :class="s.is_ready ? 'ok' : 'warn'">{{ s.is_ready ? '就绪' : '需处理' }}</span>
-                </td>
-              </tr>
-              <tr v-if="!statuses.length"><td colspan="4" class="muted">暂无数据集，请上传 ZIP</td></tr>
-            </tbody>
-          </table>
+          <!-- 计数必须取 statuses：表格渲染的是 statuses（磁盘上全部数据集），
+               而 datasets 只含可训练项（需有 data.yaml），两者口径不同。
+               原用 datasets.length 导致表头写 4 却渲染 6 行。 -->
+          <h3>数据集列表（{{ statuses.length }}）</h3>
+          <div class="table-wrap">
+            <table class="tbl">
+              <thead><tr><th>名称</th><th>格式</th><th>图像</th><th>标注</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr v-for="s in statuses" :key="s.name" style="cursor:pointer" @click="selectDataset(s.name)">
+                  <td><code :style="s.name === selected ? 'color:var(--blue)' : ''">{{ s.name }}</code></td>
+                  <td>{{ s.format }}</td>
+                  <td class="mono">{{ s.image_count }}</td>
+                  <td class="mono">{{ s.label_count }}</td>
+                  <td>
+                    <span class="badge" :class="s.is_ready ? 'ok' : 'warn'">{{ s.is_ready ? '就绪' : '需处理' }}</span>
+                  </td>
+                </tr>
+                <tr v-if="!statuses.length"><td colspan="5" class="muted">暂无数据集，请上传 ZIP</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div class="card" v-if="info">
@@ -188,7 +192,7 @@ onMounted(() => refresh())
               {{ validating ? '校验中…' : '校验数据集' }}
             </button>
           </div>
-          <pre v-if="validateMsg" class="mono" style="margin-top:10px;font-size:12px;white-space:pre-wrap;color:var(--text)">{{ validateMsg }}</pre>
+          <pre v-if="validateMsg" class="data-block" style="margin-top:10px;color:var(--text)">{{ validateMsg }}</pre>
         </div>
       </div>
     </div>

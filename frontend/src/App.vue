@@ -8,6 +8,10 @@ const apiOk = ref(null)     // null=检测中
 const running = ref(false)
 let timer = null
 
+// 窄视口提示用：显示当前实际宽度，让用户知道还差多少
+const viewportWidth = ref(typeof window === 'undefined' ? 0 : window.innerWidth)
+function syncViewport() { viewportWidth.value = window.innerWidth }
+
 const NAV = [
   { to: '/', icon: '▣', label: '总览' },
   { to: '/datasets', icon: '▤', label: '数据集' },
@@ -31,11 +35,28 @@ async function pollHealth() {
 onMounted(() => {
   pollHealth()
   timer = setInterval(pollHealth, 5000)
+  syncViewport()
+  window.addEventListener('resize', syncViewport)
 })
-onBeforeUnmount(() => clearInterval(timer))
+onBeforeUnmount(() => {
+  clearInterval(timer)
+  window.removeEventListener('resize', syncViewport)
+})
 </script>
 
 <template>
+  <!-- 低于支持下限时接管整屏：宁可说清边界，也不让布局无声破版 -->
+  <div class="viewport-guard">
+    <div class="guard-card">
+      <h1>需要更宽的窗口</h1>
+      <p>
+        AYT 训练控制台是桌面端工具，最低支持 <strong>1024px</strong> 视口宽度。<br />
+        请放大浏览器窗口或改用桌面设备访问。
+      </p>
+      <p class="guard-now">当前视口宽度 {{ viewportWidth }}px</p>
+    </div>
+  </div>
+
   <div class="layout">
     <aside class="sidebar">
       <div class="brand">▌AYT <span>训练控制台</span></div>
@@ -50,13 +71,15 @@ onBeforeUnmount(() => clearInterval(timer))
 
     <div class="main">
       <header class="topbar">
-        <h2>{{ route.meta.title || 'AYT' }}</h2>
-        <div class="spacer"></div>
-        <span v-if="running" class="badge warn"><span class="dot run"></span>训练运行中</span>
-        <span class="health">
-          <span class="dot" :class="{ ok: apiOk === true, bad: apiOk === false }"></span>
-          API {{ apiOk === null ? '…' : apiOk ? '在线' : '离线' }}
-        </span>
+        <div class="topbar-inner">
+          <h1>{{ route.meta.title || 'AYT' }}</h1>
+          <div class="spacer"></div>
+          <span v-if="running" class="badge warn"><span class="dot run"></span>训练运行中</span>
+          <span class="health">
+            <span class="dot" :class="{ ok: apiOk === true, bad: apiOk === false }"></span>
+            API {{ apiOk === null ? '…' : apiOk ? '在线' : '离线' }}
+          </span>
+        </div>
       </header>
       <main class="content">
         <router-view />
