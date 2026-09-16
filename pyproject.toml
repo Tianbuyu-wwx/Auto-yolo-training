@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "auto-yolo-training"
 version = "0.1.0"
@@ -62,6 +66,32 @@ docs = ["mkdocs>=1.5", "mkdocs-material>=9"]
 Homepage = "https://github.com/Tianbuyu/auto-yolo-training"
 Issues = "https://github.com/Tianbuyu/auto-yolo-training/issues"
 
+# ----------------------------------------------------------------------
+# 包布局（显式声明，覆盖 setuptools 的自动探测）
+#
+# 本项目根目录下同时存在 `src/` 包与根级单文件模块。setuptools 的自动探测
+# 一旦发现 `src/` 就按 src-layout 处理，把包根指向 `src/` 本身，导致：
+#   - `import src` 不可解析（代码内部统一写 `from src.xxx import ...`）
+#   - 根级模块（serve.py / train.py …）不在搜索路径上
+# 实测后果：`pip install -e .` 生成的 9 个 CLI 入口中有 5 个直接
+# ModuleNotFoundError。因此必须显式指定包根为项目根目录。
+# ----------------------------------------------------------------------
+[tool.setuptools]
+py-modules = [
+    "train",
+    "tune",
+    "eval",
+    "export",
+    "serve",
+    "validate_data",
+    "gradio_app",
+    "ayt_models",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
 [project.scripts]
 # 阶段 B3：安装后系统 PATH 可直接调用
 ayt-train = "train:main"
@@ -72,6 +102,9 @@ ayt-serve = "serve:main"
 ayt-validate = "validate_data:main"
 ayt-gradio = "gradio_app:main"
 ayt-models = "ayt_models:main"  # 阶段 C5：预训练模型清单与下载
+# 管理面 Web（FastAPI + Vue SPA）。src/api/admin.py 的 CLI 文档字符串一直宣称
+# 存在该入口，但此前从未注册，导致 pip install -e . 后 ayt-web 不可用。
+ayt-web = "src.api.admin:main"
 
 [project.gui-scripts]
 # Windows 菜单项；不影响 Unix
