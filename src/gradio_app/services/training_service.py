@@ -44,6 +44,9 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 class TrainingService:
     """训练任务管理"""
 
+    # worker 日志 tail 的反向读取块大小
+    LOG_TAIL_CHUNK = 64 * 1024
+
     def __init__(self, base_dir: Path, log_service: LogService, use_subprocess: bool = True):
         self.base_dir = base_dir
         self.paths = ProjectPaths(base_dir)
@@ -60,6 +63,9 @@ class TrainingService:
         self.worker_payload_path: Path | None = None
         # 监控页渲染签名（用于空闲时跳过重量级刷新）
         self.last_rendered_signature: tuple | None = None
+        # worker 日志 tail 缓存：文件未变化时（mtime/size/max_lines 相同）直接复用
+        self._log_tail_cache_key: tuple | None = None
+        self._log_tail_cache: str = ""
 
     # ------------------------------------------------------------------
     # 启动 / 停止
@@ -224,12 +230,57 @@ class TrainingService:
         return self.log_service.get_messages()
 
     def _read_worker_log_tail(self, max_lines: int = 100) -> str:
+        """读取 worker 日志的最后 max_lines 行
+
+        原实现是 ``f.readlines()[-max_lines:]`` —— 先把整个文件读进内存再丢掉
+        99%。本方法每秒被调用一次（WebSocket 推送 + 状态轮询），长任务日志可
+        达数 MB，等于每秒一次全量磁盘读 + 分配。
+
+        改为从文件末尾反向按块读取，凑满 max_lines 个换行即停；并缓存
+        (mtime_ns, size, max_lines) 作为键，文件未变化时直接复用上一次结果
+        （训练空闲时几乎零开销）。
+
+        Note:
+            反向读取会在 buf 头部留下一个可能被截断的多字节 UTF-8 字符。因为
+            只在 ``换行数 > max_lines`` 时才提前停止，这个残缺的首"行"必然
+            落在被丢弃的前缀里，不会进入返回值。
+        """
         log_path = self.worker_payload_path.with_suffix(".log") if self.worker_payload_path else None
         if not log_path or not log_path.exists():
             return ""
         try:
-            with open(log_path, encoding="utf-8", errors="replace") as f:
-                return "".join(f.readlines()[-max_lines:])
+            stat = log_path.stat()
+            cache_key = (stat.st_mtime_ns, stat.st_size, max_lines)
+            if cache_key == self._log_tail_cache_key:
+                return self._log_tail_cache
+
+            with open(log_path, "rb") as f:
+                pos = stat.st_size
+                buf = b""
+                while pos > 0 and buf.count(b"\n") <= max_lines:
+                    step = min(self.LOG_TAIL_CHUNK, pos)
+                    pos -= step
+                    f.seek(pos)
+                    buf = f.read(step) + buf
+
+            text = buf.decode("utf-8", errors="replace")
+            # 按「带换行符的行」切分，语义对齐 readlines()。
+            # 注意不能直接 text.split("\n") 后取 [-max_lines:] —— 文本以 \n 结尾时
+            # split 会多出一个空尾元素，它会吃掉一个名额，于是 100 行只返回 99 行、
+            # max_lines=1 时直接返回空串。
+            if text.endswith("\n"):
+                parts = text[:-1].split("\n")
+                lines = [p + "\n" for p in parts]
+            else:
+                parts = text.split("\n")
+                lines = [p + "\n" for p in parts[:-1]] + [parts[-1]]
+            if len(lines) > max_lines:
+                lines = lines[-max_lines:]
+            result = "".join(lines)
+
+            self._log_tail_cache_key = cache_key
+            self._log_tail_cache = result
+            return result
         except Exception as e:
             logger.debug("[WORKER] 读取日志失败: %s", e)
             return ""
