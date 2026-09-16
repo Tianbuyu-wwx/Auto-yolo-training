@@ -1,7 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="AYT">
-  <!-- 沿用侧栏品牌字的 ▌ 竖条 + 指标条母题；16px 下仍可辨认 -->
-  <rect width="32" height="32" rx="7" fill="#08090f" />
-  <rect x="0.5" y="0.5" width="31" height="31" rx="6.5" fill="none" stroke="#262a38" />
+  <!-- 沿用侧栏品牌字的 ▌ 竖条 + 指标条母题；16px 下仍可辨认。
+       底色/描边对齐 tokens.css 的 L0（--bg #000000）与 --border-strong
+       （rgba(255,255,255,.13) 落在纯黑上 ≈ #212121）。静态文件读不到 CSS 变量，
+       改 tokens 时需一并核对。 -->
+  <rect width="32" height="32" rx="7" fill="#000000" />
+  <rect x="0.5" y="0.5" width="31" height="31" rx="6.5" fill="none" stroke="#212121" />
   <rect x="6" y="7" width="4" height="18" rx="2" fill="#3b82f6" />
   <rect x="13" y="9" width="13" height="4" rx="2" fill="#3b82f6" />
   <rect x="13" y="18" width="8" height="4" rx="2" fill="#22c55e" />

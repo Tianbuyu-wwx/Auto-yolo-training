@@ -7,8 +7,9 @@
     <!-- 首屏前就把画布定成暗色。tokens.css 的 :root{color-scheme:dark} 要等
          CSS 加载完才生效，此前会先闪一帧白底 —— 暗色控制台上很刺眼。 -->
     <meta name="color-scheme" content="dark" />
-    <!-- 与 .sidebar 的 --bg-deep 一致 -->
-    <meta name="theme-color" content="#08090f" />
+    <!-- 与页面底色 --bg 一致。浏览器据此给地址栏/窗口边框上色，值需随
+         tokens.css 的 L0 一起变 —— 底色已从 #08090f 改为纯黑。 -->
+    <meta name="theme-color" content="#000000" />
     <meta
       name="description"
       content="AYT · YOLO 训练控制台 —— 数据集校验、训练配置与实时监控、模型库与导出、任务队列"
