@@ -301,7 +301,14 @@ def create_admin_app(
 
     @app.get("/api/trainings/runs")
     def list_runs():
-        return {"runs": training_svc.list_runs(), "checkpoints": training_svc.list_checkpoints()}
+        # checkpoints 由 details 派生，保证两处口径一致（且只扫一次目录）；
+        # 排序随之从"路径字典序倒排"变为"最近修改倒排"——后者才真的是"最近的断点在前"
+        details = training_svc.list_checkpoint_details()
+        return {
+            "runs": training_svc.list_runs(),
+            "checkpoints": [d["path"] for d in details],
+            "checkpoint_details": details,
+        }
 
     @app.get("/api/trainings/results")
     def training_results(run: str | None = None):

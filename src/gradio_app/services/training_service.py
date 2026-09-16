@@ -40,6 +40,67 @@ _STOP_GRACE_SECONDS = 60
 # 与 base_dir（数据目录，测试时可为临时目录）解耦
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
+# config_generator 生成的数据集 YAML 命名约定：data_<dataset>.yaml
+_DATA_YAML_PREFIX = "data_"
+
+
+def _read_flat_yaml(path: Path) -> dict[str, str]:
+    """读取 Ultralytics 生成的扁平 args.yaml 的顶层标量。
+
+    刻意不引入 yaml 依赖：该文件由 Ultralytics `yaml_save` 机械写出，全部是
+    `key: value` 单行标量，没有嵌套、多行标量与锚点。按**首个**冒号切分，
+    因此 Windows 路径里的盘符冒号（`E:\\项目\\…`）不会干扰取值。
+    """
+    out: dict[str, str] = {}
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return out
+    for line in text.splitlines():
+        # 跳过缩进行（嵌套/列表）、注释与空行
+        if not line or line[0] in " \t#-":
+            continue
+        key, sep, value = line.partition(":")
+        if not sep:
+            continue
+        out[key.strip()] = value.strip()
+    return out
+
+
+def _dataset_from_args(args: dict[str, str]) -> str:
+    """由 args.yaml 的 data 字段反推数据集名（约定 data_<dataset>.yaml）。
+
+    刻意不用 `Path(...).stem`：args.yaml 由 Ultralytics 在**训练所在平台**写出，
+    Windows 上是 `E:\\ds\\…\\data_my-ds.yaml`，而反斜杠在 POSIX 上不是路径分隔符，
+    `Path().stem` 会返回整串路径。这里按两种分隔符手工取末段，跨平台一致。
+    """
+    raw = (args.get("data") or "").strip().strip("\"'")
+    if not raw:
+        return ""
+    name = raw.replace("\\", "/").rsplit("/", 1)[-1]
+    if name.lower().endswith((".yaml", ".yml")):
+        name = name.rsplit(".", 1)[0]
+    if name.startswith(_DATA_YAML_PREFIX):
+        return name[len(_DATA_YAML_PREFIX):]
+    return name
+
+
+def _count_epochs_done(results_csv: Path) -> int:
+    """results.csv 行数（去表头）= 已完成轮数。
+
+    训练进行中该文件可能停在半行上，因此只统计字段数与表头一致的行，
+    否则会把写了一半的当前 epoch 记成"已完成"。
+    """
+    try:
+        with results_csv.open(encoding="utf-8", errors="replace") as f:
+            header = f.readline()
+            if not header.strip():
+                return 0
+            expected = header.count(",") + 1
+            return sum(1 for line in f if line.count(",") + 1 == expected)
+    except OSError:
+        return 0
+
 
 class TrainingService:
     """训练任务管理"""
@@ -323,6 +384,43 @@ class TrainingService:
                 if last_pt.exists():
                     checkpoints.append(str(last_pt))
         return sorted(checkpoints, reverse=True)
+
+    def list_checkpoint_details(self) -> list[dict[str, Any]]:
+        """可续训断点的详细信息，按最近修改倒序。
+
+        只给路径是不够的：续训**必须用回原数据集**——管线在 resume 模式下仍会把
+        当前 config 的 `dataset_name` 显式传给 `model.train(data=…)`，选错数据集
+        不会报错，只会在别的数据上接着练，产出无意义。因此这里把 args.yaml 的
+        `data`（→ 数据集名）、`epochs`（计划轮数）与 results.csv 行数（已完成轮数）
+        一并取出，让界面能按数据集约束断点选择。
+        """
+        details: list[dict[str, Any]] = []
+        for raw in self.list_checkpoints():
+            last_pt = Path(raw)
+            run_dir = last_pt.parent.parent
+            try:
+                stat = last_pt.stat()
+            except OSError:
+                continue
+            args = _read_flat_yaml(run_dir / "args.yaml")
+            try:
+                planned = int(float(args.get("epochs", "") or 0))
+            except ValueError:
+                planned = 0
+            details.append({
+                "path": str(last_pt),
+                "run": run_dir.name,
+                "dataset": _dataset_from_args(args),
+                "epochs_done": _count_epochs_done(run_dir / "results.csv"),
+                "epochs_planned": planned,
+                "size_mb": round(stat.st_size / (1024 * 1024), 2),
+                "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                "mtime": stat.st_mtime,
+            })
+        details.sort(key=lambda d: d["mtime"], reverse=True)
+        for d in details:
+            del d["mtime"]   # 仅用于排序，不对外暴露
+        return details
 
     def compare_runs_markdown(self, run_names: list[str] | None = None) -> str:
         """横向对比多个 run 的最终指标（P3-3 训练对比，直接读 results.csv）"""
