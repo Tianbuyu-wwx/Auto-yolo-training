@@ -4,20 +4,44 @@
 # 用法：
 #   # CPU 镜像（默认）
 #   docker build -t ayt:cpu .
-#   docker run -it --rm -p 7860:7860 -p 8000:8000 -v $(pwd)/dataset:/as/dataset ayt:cpu
+#   docker run -it --rm -p 8080:8080 -p 8000:8000 -v $(pwd)/dataset:/as/dataset ayt:cpu
 #
 #   # GPU 镜像（NVIDIA cu128）
 #   docker build --build-arg TORCH_VARIANT=cu128 -t ayt:cu128 .
-#   docker run --gpus all -it --rm -p 7860:7860 -p 8000:8000 -v $(pwd)/dataset:/as/dataset ayt:cu128
+#   docker run --gpus all -it --rm -p 8080:8080 -p 8000:8000 -v $(pwd)/dataset:/as/dataset ayt:cu128
 #
-# 默认入口是 ``bash``，用户可手动执行 ``ayt-train`` / ``ayt-gradio`` / ``ayt-serve`` 等。
+# 默认入口是 ``bash``，用户可手动执行 ``ayt-web`` / ``ayt-train`` / ``ayt-serve`` 等。
 # 容器启动后不会自动跑训练——避免容器生命周期与训练状态混淆。
+#
+# 关于前端：控制台主界面是 Vue SPA（frontend/），由 Stage 1 构建，
+# 产物 COPY 到 /as/frontend/dist —— src/api/admin.py 就是按这个路径找 dist 的，
+# 找不到会退化成一段 JSON 提示（界面上就只剩一个 JSON 文本，没有控制台）。
 
 ARG PYTHON_VERSION=3.12.13
 ARG TORCH_VARIANT=cpu
 
 # ----------------------------------------------------------------------
-# Stage 1: builder（独立 /opt/venv 便于 COPY 到 runtime）
+# Stage 1: frontend（构建 Vue SPA）
+# ----------------------------------------------------------------------
+FROM node:22-slim AS frontend
+
+WORKDIR /fe
+
+# 先只拷依赖清单：只要 lockfile 没变，pnpm install 这一层就能命中缓存，
+# 改业务代码不会触发重新安装依赖。
+# pnpm-workspace.yaml 与 .npmrc 是必需的 —— 前者登记了 esbuild 的构建白名单，
+# 后者改了 pnpm 的依赖校验行为，缺任何一个都会导致依赖树与本地不一致。
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml frontend/.npmrc ./
+
+# corepack 会按 package.json 的 packageManager 字段拉取指定 pnpm 版本，
+# 避免 CI/本地/镜像三处 pnpm 版本漂移导致 --frozen-lockfile 失败
+RUN corepack enable && pnpm install --frozen-lockfile
+
+COPY frontend/ ./
+RUN pnpm build
+
+# ----------------------------------------------------------------------
+# Stage 2: builder（独立 /opt/venv 便于 COPY 到 runtime）
 # ----------------------------------------------------------------------
 FROM python:${PYTHON_VERSION}-slim AS builder
 
@@ -53,8 +77,19 @@ RUN if [ "$TORCH_VARIANT" = "cu128" ]; then \
 COPY constraints.txt requirements.txt requirements-dev.txt ./
 RUN pip install --no-cache-dir -c constraints.txt -r requirements-dev.txt
 
+# 安装项目自身。**这一步以前完全没有**，后果是镜像里不存在 ayt-web / ayt-train /
+# ayt-gradio 等任何入口点 —— 而这些名字正写在下面的 CMD 注释与本文件的用法说明里。
+# 用 editable 安装（而非拷进 site-packages）：源码在 runtime 里是挂载/覆盖的，
+# --no-deps 避免把上面已经装好的依赖再解析一遍。
+# 路径必须是 /as，与 runtime 的 WORKDIR 一致，否则 .pth 里记录的绝对路径会失效。
+WORKDIR /as
+COPY pyproject.toml README.md ./
+COPY src/ ./src/
+COPY train.py tune.py eval.py export.py serve.py validate_data.py gradio_app.py ayt_models.py ./
+RUN pip install --no-cache-dir --no-deps -e .
+
 # ----------------------------------------------------------------------
-# Stage 2: runtime
+# Stage 3: runtime
 # ----------------------------------------------------------------------
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
@@ -92,6 +127,10 @@ COPY --chown=ayt:ayt src/ ./src/
 COPY --chown=ayt:ayt train.py tune.py eval.py export.py serve.py validate_data.py gradio_app.py ayt_models.py ./
 COPY --chown=ayt:ayt test/ ./test/
 
+# 前端产物。路径必须是 /as/frontend/dist —— src/api/admin.py 由 PROJECT_ROOT
+# 拼出 frontend/dist 作为 SPA 的静态根，放在别处等于没放。
+COPY --from=frontend --chown=ayt:ayt /fe/dist ./frontend/dist
+
 # 数据/模型/产物目录（运行时挂载）
 RUN mkdir -p /as/dataset /as/basemodels /as/runs /as/exports /as/logs /as/reports /as/tuning && \
  chown -R ayt:ayt /as
@@ -99,16 +138,18 @@ RUN mkdir -p /as/dataset /as/basemodels /as/runs /as/exports /as/logs /as/report
 USER ayt
 WORKDIR /as
 
-# 暴露 Gradio + FastAPI 默认端口
-EXPOSE 7860 8000
+# 8080 是控制台（ayt-web）的默认端口；7860 是 Gradio；8000 是推理服务
+EXPOSE 8080 7860 8000
 
-# 健康检查（FastAPI /health）
+# 健康检查（ayt-web 的 /api/health）。注意容器默认只进 bash、不自动起服务，
+# 所以未启动服务时这个检查必然失败 —— 末尾的 || exit 0 让它只作提示不杀容器。
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
- CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()" \
+ CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=3).read()" \
  || exit 0
 
 # 默认进 bash——用户可执行：
-#   ayt-gradio --host 0.0.0.0
-#   ayt-serve --host 0.0.0.0
+#   ayt-web --host 0.0.0.0 --port 8080      # 控制台（Vue SPA + 管理面 API）
+#   ayt-gradio --host 0.0.0.0               # 旧 Gradio 界面（已冻结）
+#   ayt-serve --host 0.0.0.0 --port 8000    # 模型推理服务
 #   ayt-train dataset --model yolov8s.pt --epochs 1
 CMD ["bash"]

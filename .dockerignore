@@ -73,18 +73,28 @@ Desktop.ini
 *~$
 *.log
 
-# 文档（本地报告，不入 docker 上下文）
-full-analysis-*.md
-generalization-plan-*.md
-
-# 测试与文档
+# 文档与构建脚本（Dockerfile 不需要；docs 由 MkDocs 工作流构建）
 docs/
-test/
-README.md
 scripts/
 *.md
+
+# ⚠️ 下面这批 ! 例外必须留在 *.md 之后：Docker 取「最后一条命中的模式」，
+#    放在 *.md 之前会被 *.md 重新排除，于是 COPY README.md 直接构建失败。
+#    README.md 不是可有可无的：pyproject.toml 的 readme 字段指向它，
+#    缺了它 setuptools 构建元数据会报错。
 !Dockerfile
 !pyproject.toml
+!README.md
 !constraints.txt
 !requirements.txt
 !requirements-dev.txt
+
+# 前端依赖与产物不进上下文：
+#   - node_modules 有 5500+ 文件，灌进去会让上下文膨胀且拖慢每次构建；
+#     镜像内的依赖由 Dockerfile 的 frontend stage 用 pnpm --frozen-lockfile 重装
+#   - dist 是本地陈旧产物，镜像内必须现构建，否则会发布过期的界面
+frontend/node_modules/
+frontend/dist/
+
+# 注意：test/ 不在本文件中，因为 Dockerfile 会 COPY test/ 进镜像。
+#       排除它会导致同样的 "excluded by .dockerignore" 构建失败。
