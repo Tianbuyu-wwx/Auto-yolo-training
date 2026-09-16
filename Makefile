@@ -200,7 +200,7 @@ clean clean:  ## 清理临时文件（不删 dataset/runs/basemodels/）
 	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
-	rm -rf build/ dist/ frontend/dist/ *.egg-info htmlcov/ .coverage* 2>/dev/null || true
+	rm -rf build/ dist/ frontend/dist/ site/ *.egg-info htmlcov/ .coverage* 2>/dev/null || true
 	@echo "$(GREEN)✓ 清理完成（未删 dataset/runs/basemodels/）$(RESET)"
 
 .PHONY: clean-all
