@@ -38,7 +38,8 @@ def dummy_dataset(client, tmp_path):
         Image.new("RGB", (32, 32)).save(img_dir / f"img{i}.png")
         (lbl_dir / f"img{i}.txt").write_text("0 0.5 0.5 0.5 0.5\n", encoding="utf-8")
     (base / "dataset" / "api-ds" / "data.yaml").write_text(
-        "nc: 1\nnames: [cat]\n", encoding="utf-8")
+        "nc: 1\nnames: [cat]\n", encoding="utf-8"
+    )
     return "api-ds"
 
 
@@ -83,20 +84,24 @@ class TestDatasetEndpoints:
         with zipfile.ZipFile(buf, "w") as zf:
             zf.writestr("up-ds/images/train/a.png", b"fake")
         buf.seek(0)
-        r = client.post("/api/datasets/upload",
-                        files={"file": ("up-ds.zip", buf, "application/zip")})
+        r = client.post(
+            "/api/datasets/upload", files={"file": ("up-ds.zip", buf, "application/zip")}
+        )
         assert r.status_code == 200
         assert r.json()["dataset_name"] == "up-ds"
 
         # 同名再传 → 409（覆盖保护），带 overwrite=true → 200
         buf.seek(0)
-        r = client.post("/api/datasets/upload",
-                        files={"file": ("up-ds.zip", buf, "application/zip")})
+        r = client.post(
+            "/api/datasets/upload", files={"file": ("up-ds.zip", buf, "application/zip")}
+        )
         assert r.status_code == 409
         buf.seek(0)
-        r = client.post("/api/datasets/upload",
-                        files={"file": ("up-ds.zip", buf, "application/zip")},
-                        data={"overwrite": "true"})
+        r = client.post(
+            "/api/datasets/upload",
+            files={"file": ("up-ds.zip", buf, "application/zip")},
+            data={"overwrite": "true"},
+        )
         assert r.status_code == 200
 
     def test_validate(self, client, dummy_dataset):
@@ -115,10 +120,15 @@ class TestDatasetEndpoints:
 class TestTrainingEndpoints:
     def test_start_missing_dataset_fails_gracefully(self, client):
         # model 用清单外名字（不触发下载逻辑），数据集不存在 → worker 快速失败
-        r = client.post("/api/trainings/start", json={
-            "dataset_name": "no-such-ds", "model": "custom-weights.pt",
-            "epochs": 1, "workers": 0,
-        })
+        r = client.post(
+            "/api/trainings/start",
+            json={
+                "dataset_name": "no-such-ds",
+                "model": "custom-weights.pt",
+                "epochs": 1,
+                "workers": 0,
+            },
+        )
         assert r.status_code == 200
         assert r.json()["success"] is True
 
@@ -144,8 +154,7 @@ class TestTrainingEndpoints:
 
         svc.state = TrainingState()
         svc.state.update(is_running=True)
-        r = client.post("/api/trainings/start",
-                        json={"dataset_name": "x", "model": "custom.pt"})
+        r = client.post("/api/trainings/start", json={"dataset_name": "x", "model": "custom.pt"})
         assert r.status_code == 409
 
     def test_resume_from_reaches_config(self, client, dummy_dataset):
@@ -165,11 +174,14 @@ class TestTrainingEndpoints:
 
         svc.start = fake_start
         ckpt = "runs/detect/resume_auto/weights/last.pt"
-        r = client.post("/api/trainings/start", json={
-            "dataset_name": dummy_dataset,
-            "model": ckpt,
-            "resume_from": ckpt,
-        })
+        r = client.post(
+            "/api/trainings/start",
+            json={
+                "dataset_name": dummy_dataset,
+                "model": ckpt,
+                "resume_from": ckpt,
+            },
+        )
         assert r.status_code == 200
         cfg = captured["cfg"]
         assert cfg.resume_from == ckpt
@@ -184,8 +196,9 @@ class TestTrainingEndpoints:
         run = base / "runs" / "detect" / "cmp_auto"
         run.mkdir(parents=True)
         (run / "results.csv").write_text(
-            "epoch,train/box_loss,metrics/mAP50(B),metrics/mAP50-95(B)\n"
-            "9,0.5,0.77,0.55\n", encoding="utf-8")
+            "epoch,train/box_loss,metrics/mAP50(B),metrics/mAP50-95(B)\n9,0.5,0.77,0.55\n",
+            encoding="utf-8",
+        )
 
         r = client.get("/api/trainings/runs")
         assert "cmp_auto" in r.json()["runs"]
@@ -215,12 +228,13 @@ class TestTrainingEndpoints:
             "model: yolov8n.pt\n"
             r"data: E:\ds\configs\models\data_my-ds.yaml" + "\n"
             "epochs: 150\n",
-            encoding="utf-8")
+            encoding="utf-8",
+        )
         # 3 个 epoch 行 + 表头 → 已完成 3 轮
         (run / "results.csv").write_text(
-            "epoch,train/box_loss,metrics/mAP50(B)\n"
-            "0,1.2,0.11\n1,1.0,0.22\n2,0.9,0.33\n",
-            encoding="utf-8")
+            "epoch,train/box_loss,metrics/mAP50(B)\n0,1.2,0.11\n1,1.0,0.22\n2,0.9,0.33\n",
+            encoding="utf-8",
+        )
 
         r = client.get("/api/trainings/runs")
         assert r.status_code == 200
@@ -231,7 +245,7 @@ class TestTrainingEndpoints:
         assert detail["epochs_done"] == 3
         assert detail["epochs_planned"] == 150
         assert detail["modified"]
-        assert "mtime" not in detail          # 排序用的内部字段不外泄
+        assert "mtime" not in detail  # 排序用的内部字段不外泄
         # checkpoints 是 details 的投影，两者必须一致
         assert detail["path"] in body["checkpoints"]
         assert len(body["checkpoints"]) == len(body["checkpoint_details"])
@@ -242,7 +256,8 @@ class TestTrainingEndpoints:
         run.mkdir(parents=True)
         (run / "results.csv").write_text(
             "epoch,train/box_loss,metrics/mAP50(B),metrics/mAP50-95(B)\n9,0.5,0.77,0.55\n",
-            encoding="utf-8")
+            encoding="utf-8",
+        )
         r = client.get("/api/trainings/compare")
         assert r.status_code == 200
         assert "cmp_auto" in r.json()["markdown"]
@@ -253,9 +268,14 @@ class TestTrainingEndpoints:
 # ----------------------------------------------------------------------
 class TestQueueEndpoints:
     def test_enqueue_list_cancel(self, client):
-        r = client.post("/api/queue/enqueue", json={
-            "dataset_name": "ds-a", "model": "custom-weights.pt", "epochs": 5,
-        })
+        r = client.post(
+            "/api/queue/enqueue",
+            json={
+                "dataset_name": "ds-a",
+                "model": "custom-weights.pt",
+                "epochs": 5,
+            },
+        )
         assert r.status_code == 200
         task_id = r.json()["task_id"]
 
@@ -293,8 +313,9 @@ class TestModelAndRegistry:
         weights = base / "runs" / "detect" / "reg_auto" / "weights" / "best.pt"
         weights.parent.mkdir(parents=True)
         weights.write_bytes(b"fake")
-        ModelRegistry(str(base)).register(model_path=str(weights), dataset_name="regds",
-                                          metrics={"mAP50": 0.8}, copy_model=False)
+        ModelRegistry(str(base)).register(
+            model_path=str(weights), dataset_name="regds", metrics={"mAP50": 0.8}, copy_model=False
+        )
 
         r = client.get("/api/registry")
         assert "regds" in r.json()["datasets"]
@@ -326,8 +347,9 @@ class TestRegistryEndpoints:
         return "reg_run"
 
     def _register(self, client, dataset="regds", run="reg_run", **kw):
-        r = client.post("/api/registry/register",
-                        json={"dataset_name": dataset, "run_name": run, **kw})
+        r = client.post(
+            "/api/registry/register", json={"dataset_name": dataset, "run_name": run, **kw}
+        )
         assert r.status_code == 200, r.text
         return r.json()
 
@@ -359,19 +381,23 @@ class TestRegistryEndpoints:
         assert Path(v["model_path"]).name == "last.pt"
 
     def test_register_missing_weights_404(self, client, reg_run):
-        r = client.post("/api/registry/register",
-                        json={"dataset_name": "regds", "run_name": "ghost_run"})
+        r = client.post(
+            "/api/registry/register", json={"dataset_name": "regds", "run_name": "ghost_run"}
+        )
         assert r.status_code == 404
 
     def test_register_rejects_path_traversal(self, client, reg_run):
         """run_name 来自请求体，不能借 ../ 把权重指到 runs/ 之外"""
-        r = client.post("/api/registry/register",
-                        json={"dataset_name": "regds", "run_name": "../../src"})
+        r = client.post(
+            "/api/registry/register", json={"dataset_name": "regds", "run_name": "../../src"}
+        )
         assert r.status_code == 400
 
     def test_register_rejects_outside_model_path(self, client, reg_run, tmp_path):
-        r = client.post("/api/registry/register", json={
-            "dataset_name": "regds", "model_path": str(tmp_path / "outside.pt")})
+        r = client.post(
+            "/api/registry/register",
+            json={"dataset_name": "regds", "model_path": str(tmp_path / "outside.pt")},
+        )
         assert r.status_code == 400
 
     def test_register_requires_a_source(self, client, reg_run):
@@ -379,8 +405,9 @@ class TestRegistryEndpoints:
         assert r.status_code == 400
 
     def test_register_requires_dataset_name(self, client, reg_run):
-        r = client.post("/api/registry/register",
-                        json={"dataset_name": "   ", "run_name": "reg_run"})
+        r = client.post(
+            "/api/registry/register", json={"dataset_name": "   ", "run_name": "reg_run"}
+        )
         assert r.status_code == 400
 
     def test_versions_404_for_unknown_dataset(self, client):
@@ -401,8 +428,10 @@ class TestRegistryEndpoints:
         assert self._versions(client)[0]["status"] == "archived"
 
     def test_missing_version_404(self, client, reg_run):
-        assert client.post("/api/registry/regds/nope/status",
-                           json={"status": "archived"}).status_code == 404
+        assert (
+            client.post("/api/registry/regds/nope/status", json={"status": "archived"}).status_code
+            == 404
+        )
         assert client.post("/api/registry/regds/nope/promote").status_code == 404
         assert client.delete("/api/registry/regds/nope").status_code == 404
 
@@ -426,16 +455,18 @@ class TestRegistryEndpoints:
 
     def test_add_tags_dedupes(self, client, reg_run):
         v = self._register(client, tags=["a"])["version"]
-        r = client.post(f"/api/registry/regds/{v['version_id']}/tags",
-                        json={"tags": ["a", "b", " b "]})
+        r = client.post(
+            f"/api/registry/regds/{v['version_id']}/tags", json={"tags": ["a", "b", " b "]}
+        )
         assert r.status_code == 200
         assert sorted(r.json()["tags"]) == ["a", "b"]
 
     def test_compare_versions(self, client, reg_run):
         v1 = self._register(client, metrics={"mAP50": 0.5})["version"]
         v2 = self._register(client, metrics={"mAP50": 0.8})["version"]
-        r = client.get("/api/registry/regds/compare",
-                       params={"a": v1["version_id"], "b": v2["version_id"]})
+        r = client.get(
+            "/api/registry/regds/compare", params={"a": v1["version_id"], "b": v2["version_id"]}
+        )
         assert r.status_code == 200
         diff = r.json()["metrics_diff"]["mAP50"]
         assert diff["v1"] == 0.5 and diff["v2"] == 0.8
@@ -468,8 +499,9 @@ class TestRegistryEndpoints:
         assert r.status_code == 200
         assert r.json()["deleted_registry_copy"] is True
         assert not copy_path.exists(), "注册表副本应被删除"
-        assert (client.app.state.base_dir / "runs" / "detect" / "reg_run"
-                / "weights" / "best.pt").is_file(), "原位权重被误删"
+        assert (
+            client.app.state.base_dir / "runs" / "detect" / "reg_run" / "weights" / "best.pt"
+        ).is_file(), "原位权重被误删"
 
     def test_production_version_cannot_be_deleted(self, client, reg_run):
         v = self._register(client)["version"]

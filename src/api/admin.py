@@ -52,6 +52,7 @@ def _build_models():
 
     class StartTrainingRequest(BaseModel):
         """启动训练请求：字段与 TrainingConfig 对齐，经 from_ui 做类型归一"""
+
         dataset_name: str
         model: str = "yolov8s.pt"
         task: str = "detect"
@@ -109,9 +110,10 @@ def _build_models():
         `metrics` 留空时自动从该 run 的 results.csv 取最终指标 —— 让用户手抄 mAP
         既麻烦又容易抄错。
         """
+
         dataset_name: str
         run_name: str = ""
-        weights: str = "best"          # best | last
+        weights: str = "best"  # best | last
         model_path: str = ""
         description: str = ""
         tags: list[str] = []
@@ -126,12 +128,24 @@ def _build_models():
     class VersionTagsRequest(BaseModel):
         tags: list[str]
 
-    return (StartTrainingRequest, EnqueueRequest, ExportRequest,
-            RegisterModelRequest, VersionStatusRequest, VersionTagsRequest)
+    return (
+        StartTrainingRequest,
+        EnqueueRequest,
+        ExportRequest,
+        RegisterModelRequest,
+        VersionStatusRequest,
+        VersionTagsRequest,
+    )
 
 
-(StartTrainingRequest, EnqueueRequest, ExportRequest,
- RegisterModelRequest, VersionStatusRequest, VersionTagsRequest) = _build_models()
+(
+    StartTrainingRequest,
+    EnqueueRequest,
+    ExportRequest,
+    RegisterModelRequest,
+    VersionStatusRequest,
+    VersionTagsRequest,
+) = _build_models()
 
 
 class SPAStaticFiles(StaticFiles):
@@ -147,9 +161,11 @@ class SPAStaticFiles(StaticFiles):
             return await super().get_response(path, scope)
         except StarletteHTTPException as e:
             last_segment = path.rsplit("/", 1)[-1]
-            is_spa_route = (e.status_code == 404
-                            and not path.startswith(("api/", "ws/"))
-                            and "." not in last_segment)
+            is_spa_route = (
+                e.status_code == 404
+                and not path.startswith(("api/", "ws/"))
+                and "." not in last_segment
+            )
             if is_spa_route:
                 return await super().get_response("index.html", scope)
             raise
@@ -206,8 +222,12 @@ def create_admin_app(
     def _dataset_img_url(name: str, server_path: str) -> str | None:
         """服务端绝对路径 → 可访问的 URL（数据集原图）"""
         try:
-            rel = Path(server_path).resolve().relative_to(
-                (paths.dataset_dir / name / "images" / "train").resolve()).as_posix()
+            rel = (
+                Path(server_path)
+                .resolve()
+                .relative_to((paths.dataset_dir / name / "images" / "train").resolve())
+                .as_posix()
+            )
             return f"/api/datasets/{name}/images/train/{rel}"
         except ValueError:
             return None
@@ -216,8 +236,10 @@ def create_admin_app(
     def dataset_preview(name: str, boxes: bool = False, count: int = 4):
         """样本预览：返回 URL 列表（boxes=true 为画框缓存图）"""
         if boxes:
-            urls = [f"/api/preview-cache/{name}/{Path(p).name}"
-                    for p in dataset_svc.get_annotated_samples(name, count=count)]
+            urls = [
+                f"/api/preview-cache/{name}/{Path(p).name}"
+                for p in dataset_svc.get_annotated_samples(name, count=count)
+            ]
             return {"images": urls}
         info = dataset_svc.get_info(name)
         if "error" in info:
@@ -256,8 +278,9 @@ def create_admin_app(
             tmp_path = tmp.name
         try:
             # 命名优先级：显式 name > 上传文件名（而非临时文件名）
-            result = dataset_svc.extract(tmp_path, name or Path(file.filename).stem,
-                                         overwrite=overwrite)
+            result = dataset_svc.extract(
+                tmp_path, name or Path(file.filename).stem, overwrite=overwrite
+            )
         finally:
             Path(tmp_path).unlink(missing_ok=True)
         status_code = 409 if result["status"] == "exists" else None
@@ -300,8 +323,10 @@ def create_admin_app(
             return cfg
         if not allow_download:
             raise HTTPException(
-                400, f"模型 {name} 未下载到 basemodels/。"
-                     "请先 POST /api/models/download，或设置 download_missing=true。")
+                400,
+                f"模型 {name} 未下载到 basemodels/。"
+                "请先 POST /api/models/download，或设置 download_missing=true。",
+            )
         from src.model_downloader import ensure_model
 
         cfg.model = str(ensure_model(name, base))
@@ -471,8 +496,7 @@ def create_admin_app(
 
         if req.model_path:
             if not is_path_allowed(req.model_path, ["runs", "basemodels", "exports"], base):
-                raise HTTPException(
-                    400, "model_path 必须位于 runs/、basemodels/ 或 exports/ 之下")
+                raise HTTPException(400, "model_path 必须位于 runs/、basemodels/ 或 exports/ 之下")
             weights = Path(req.model_path)
         elif req.run_name:
             if req.weights not in ("best", "last"):
@@ -493,8 +517,11 @@ def create_admin_app(
             # 只留 mAP50 / mAP50_95 两个规范键：注册表的 get_best 与前端都按
             # 这两个键取数，多塞一套 "mAP@50" 同义键只会让对比表出现重复行。
             final = training_svc.get_training_results(req.run_name).get("final_metrics") or {}
-            metrics = {k: float(final[k]) for k in ("mAP50", "mAP50_95")
-                       if isinstance(final.get(k), (int, float))}
+            metrics = {
+                k: float(final[k])
+                for k in ("mAP50", "mAP50_95")
+                if isinstance(final.get(k), (int, float))
+            }
 
         try:
             version = _registry().register(
@@ -514,9 +541,12 @@ def create_admin_app(
             metrics_source = "results.csv"
         else:
             metrics_source = "none"
-        return {"success": True, "version": version.to_dict(),
-                "metrics_auto_filled": metrics_source == "results.csv",
-                "metrics_source": metrics_source}
+        return {
+            "success": True,
+            "version": version.to_dict(),
+            "metrics_auto_filled": metrics_source == "results.csv",
+            "metrics_source": metrics_source,
+        }
 
     @app.post("/api/registry/{dataset}/{version_id}/status")
     def registry_set_status(dataset: str, version_id: str, req: VersionStatusRequest):
@@ -568,8 +598,7 @@ def create_admin_app(
         version = _require_version(reg, dataset, version_id)
         if version.status == "production":
             # 直接删会让 get_production_model 静默变 None，调用方无从察觉
-            raise HTTPException(
-                409, "生产版本不能直接删除：请先把别的版本设为生产，或改为归档")
+            raise HTTPException(409, "生产版本不能直接删除：请先把别的版本设为生产，或改为归档")
 
         kept_path = Path(version.model_path)
         deleted_copy = kept_path.is_relative_to(reg.models_dir.resolve())
@@ -594,8 +623,12 @@ def create_admin_app(
         r = report.results[0] if report.results else None
         if r is None or not r.success:
             raise HTTPException(500, (r.message if r else "导出失败"))
-        return {"success": True, "format": r.format, "path": r.output_path,
-                "size_mb": round(r.file_size / (1024 * 1024), 2)}
+        return {
+            "success": True,
+            "format": r.format,
+            "path": r.output_path,
+            "size_mb": round(r.file_size / (1024 * 1024), 2),
+        }
 
     # ------------------------------------------------------------------
     # WebSocket：训练状态 + 日志流（每秒推送，替代 Gradio Timer 轮询）
@@ -606,10 +639,13 @@ def create_admin_app(
         try:
             while True:
                 status = training_svc.get_status()
-                await ws.send_text(json.dumps(
-                    {"type": "training", "status": status, "logs": status.pop("logs", "")},
-                    ensure_ascii=False, default=str,
-                ))
+                await ws.send_text(
+                    json.dumps(
+                        {"type": "training", "status": status, "logs": status.pop("logs", "")},
+                        ensure_ascii=False,
+                        default=str,
+                    )
+                )
                 await asyncio.sleep(1.0)
         except (WebSocketDisconnect, RuntimeError):
             return
@@ -624,18 +660,20 @@ def create_admin_app(
     # ------------------------------------------------------------------
     # 前端静态托管（vite build 产物存在时，SPA 回退到 index.html）
     # ------------------------------------------------------------------
-    dist = (Path(frontend_dist) if frontend_dist
-            else PROJECT_ROOT / "frontend" / "dist")
+    dist = Path(frontend_dist) if frontend_dist else PROJECT_ROOT / "frontend" / "dist"
     if dist.exists():
         app.mount("/", SPAStaticFiles(directory=str(dist), html=True), name="frontend")
     else:
+
         @app.get("/")
         async def index():
-            return JSONResponse({
-                "service": "AYT Admin API",
-                "hint": "前端未构建：cd frontend && pnpm install && pnpm build",
-                "api_docs": "/api/docs",
-            })
+            return JSONResponse(
+                {
+                    "service": "AYT Admin API",
+                    "hint": "前端未构建：cd frontend && pnpm install && pnpm build",
+                    "api_docs": "/api/docs",
+                }
+            )
 
     return app
 

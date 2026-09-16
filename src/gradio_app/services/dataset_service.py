@@ -86,8 +86,13 @@ class DatasetService:
             label_count = 0
 
             if img_dir.exists():
-                img_count = len([f for f in img_dir.rglob("*")
-                                if f.suffix.lower() in self.SUPPORTED_IMAGE_EXTS and f.is_file()])
+                img_count = len(
+                    [
+                        f
+                        for f in img_dir.rglob("*")
+                        if f.suffix.lower() in self.SUPPORTED_IMAGE_EXTS and f.is_file()
+                    ]
+                )
 
             if label_dir.exists():
                 label_count = len([f for f in label_dir.rglob("*.txt") if f.is_file()])
@@ -110,8 +115,9 @@ class DatasetService:
         info["sample_images"] = sample_images
         return info
 
-    def extract(self, zip_path: str, dataset_name: str | None = None,
-                overwrite: bool = False) -> dict[str, str]:
+    def extract(
+        self, zip_path: str, dataset_name: str | None = None, overwrite: bool = False
+    ) -> dict[str, str]:
         """解压数据集ZIP
 
         Args:
@@ -132,7 +138,7 @@ class DatasetService:
             return {
                 "status": "exists",
                 "message": f"数据集 '{dataset_name}' 已存在。"
-                           "请勾选「覆盖同名数据集」后重新上传，或改用其他名称。",
+                "请勾选「覆盖同名数据集」后重新上传，或改用其他名称。",
                 "dataset_name": dataset_name,
             }
 
@@ -140,19 +146,28 @@ class DatasetService:
             if target_dir.exists():
                 shutil.rmtree(target_dir)
 
-            with zipfile.ZipFile(zip_path, 'r') as zf:
+            with zipfile.ZipFile(zip_path, "r") as zf:
                 total_size = sum(info.file_size for info in zf.infolist())
                 if total_size > self.MAX_ZIP_SIZE:
-                    return {"status": "error", "message": f"ZIP文件过大（{total_size / (1024**3):.1f}GB），超过2GB限制"}
+                    return {
+                        "status": "error",
+                        "message": f"ZIP文件过大（{total_size / (1024**3):.1f}GB），超过2GB限制",
+                    }
 
                 if len(zf.infolist()) > self.MAX_ZIP_FILE_COUNT:
-                    return {"status": "error", "message": f"ZIP内文件数量过多（{len(zf.infolist())}），超过100000限制"}
+                    return {
+                        "status": "error",
+                        "message": f"ZIP内文件数量过多（{len(zf.infolist())}），超过100000限制",
+                    }
 
                 for info in zf.infolist():
-                    if info.filename.startswith('/') or '..' in info.filename.split('/'):
+                    if info.filename.startswith("/") or ".." in info.filename.split("/"):
                         return {"status": "error", "message": f"ZIP包含不安全路径: {info.filename}"}
                     if info.file_size > self.MAX_SINGLE_FILE_SIZE:
-                        return {"status": "error", "message": f"文件过大: {info.filename}（{info.file_size / (1024**2):.0f}MB）"}
+                        return {
+                            "status": "error",
+                            "message": f"文件过大: {info.filename}（{info.file_size / (1024**2):.0f}MB）",
+                        }
 
                 zf.extractall(target_dir)
 
@@ -179,10 +194,12 @@ class DatasetService:
 
         try:
             import io
+
             old_stderr = sys.stderr
             sys.stderr = io.StringIO()
 
             from src.data_validator import validate_dataset
+
             report = validate_dataset(str(dataset_path))
 
             sys.stderr = old_stderr
@@ -235,24 +252,39 @@ class DatasetService:
 
         # 类名（用于标签文本）
         class_names: dict[int, str] = {}
-        for yaml_path in (dataset_path / "data.yaml", self.base_dir / "configs" / "models" / f"data_{dataset_name}.yaml"):
+        for yaml_path in (
+            dataset_path / "data.yaml",
+            self.base_dir / "configs" / "models" / f"data_{dataset_name}.yaml",
+        ):
             if yaml_path.exists():
                 try:
                     import yaml
+
                     data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
                     class_names = dict(enumerate(data.get("names", [])))
                     break
                 except Exception:
                     continue
 
-        colors = ["#FF3B30", "#34C759", "#007AFF", "#FFCC00",
-                  "#AF52DE", "#FF9500", "#00C7BE", "#FF2D55"]
+        colors = [
+            "#FF3B30",
+            "#34C759",
+            "#007AFF",
+            "#FFCC00",
+            "#AF52DE",
+            "#FF9500",
+            "#00C7BE",
+            "#FF2D55",
+        ]
 
         cache_dir = self.base_dir / "logs" / "preview_cache" / dataset_name
         cache_dir.mkdir(parents=True, exist_ok=True)
 
-        images = [f for f in sorted(train_img_dir.rglob("*"))
-                  if f.suffix.lower() in self.SUPPORTED_IMAGE_EXTS][:count]
+        images = [
+            f
+            for f in sorted(train_img_dir.rglob("*"))
+            if f.suffix.lower() in self.SUPPORTED_IMAGE_EXTS
+        ][:count]
         out: list[str] = []
         for img_path in images:
             label_path = train_lbl_dir / f"{img_path.stem}.txt"
@@ -289,8 +321,11 @@ class DatasetService:
                             color = colors[cls_id % len(colors)]
                             draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
                             if class_names:
-                                draw.text((x1 + 2, max(0, y1 - 12)),
-                                          class_names.get(cls_id, str(cls_id)), fill=color)
+                                draw.text(
+                                    (x1 + 2, max(0, y1 - 12)),
+                                    class_names.get(cls_id, str(cls_id)),
+                                    fill=color,
+                                )
                     im.save(out_path)
                 out.append(str(out_path))
             except Exception as e:
@@ -377,13 +412,20 @@ class DatasetService:
             lines.append("数据验证完全通过")
 
         cat_names = {
-            "directory_structure": "目录结构", "image_format": "图像格式",
-            "image_read_failed": "图像读取失败", "image_dimension": "图像尺寸异常",
-            "label_format": "标注格式错误", "label_out_of_bounds": "标注值越界",
-            "label_zero_size": "标注框尺寸为零", "missing_label": "缺少标注文件",
-            "orphan_label": "孤立标注文件", "class_mismatch": "类别不匹配",
-            "config_error": "配置文件错误", "dataset_size": "数据集规模",
-            "split_ratio": "划分比例", "class_imbalance": "类别不平衡",
+            "directory_structure": "目录结构",
+            "image_format": "图像格式",
+            "image_read_failed": "图像读取失败",
+            "image_dimension": "图像尺寸异常",
+            "label_format": "标注格式错误",
+            "label_out_of_bounds": "标注值越界",
+            "label_zero_size": "标注框尺寸为零",
+            "missing_label": "缺少标注文件",
+            "orphan_label": "孤立标注文件",
+            "class_mismatch": "类别不匹配",
+            "config_error": "配置文件错误",
+            "dataset_size": "数据集规模",
+            "split_ratio": "划分比例",
+            "class_imbalance": "类别不平衡",
         }
 
         if errors:
@@ -405,6 +447,8 @@ class DatasetService:
             lines.append("\n**数据集统计:**")
             for split, data in stats["splits"].items():
                 if data.get("images", 0) > 0:
-                    lines.append(f"  - {split}: {data['images']}张图像, {data.get('labels', 0)}个标注")
+                    lines.append(
+                        f"  - {split}: {data['images']}张图像, {data.get('labels', 0)}个标注"
+                    )
 
         return "\n".join(lines)
