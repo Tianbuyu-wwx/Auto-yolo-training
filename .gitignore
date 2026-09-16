@@ -22,6 +22,13 @@ build/
 dist/
 *.egg-info/
 
+# Node / 前端（frontend/）。注意：
+# - node_modules/ 必须显式忽略，否则 frontend/ 入库会连带 5500+ 个依赖文件
+# - dist/ 上面的规则保持宽泛（同时覆盖 node_modules/**/dist/），不要收窄为 frontend/dist/
+node_modules/
+.vite/
+*.tsbuildinfo
+
 # IDE and OS files
 .idea/
 .vscode/
@@ -107,6 +114,8 @@ dataset/**/*.rar
 # 通用化分析/规划文档（不入版本库，仅项目根本地参考）
 full-analysis-*.md
 generalization-plan-*.md
+frontend-review-*.md
+frontend-optimization-plan-*.md
 
 # Ultralytics 运行期生成（与 YOLO_CONFIG_DIR 配置无关的 fallback 目录）
 Ultralytics/
