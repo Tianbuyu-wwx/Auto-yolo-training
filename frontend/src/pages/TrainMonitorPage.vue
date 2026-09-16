@@ -4,6 +4,8 @@ import { api, errMsg, trainingSocket } from '../lib/api.js'
 import { toastErr, toastOk } from '../lib/toast.js'
 import LineChart from '../components/LineChart.vue'
 import LogConsole from '../components/LogConsole.vue'
+import MetricCard from '../components/MetricCard.vue'
+import StatusBadge from '../components/StatusBadge.vue'
 
 const status = ref(null)
 const logs = ref('')
@@ -78,11 +80,7 @@ onBeforeUnmount(() => closeWs && closeWs())
 <template>
   <div>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
-      <span v-if="status" class="badge"
-            :class="status.is_running ? 'warn' : status.success ? 'ok' : status.error_message ? 'err' : 'idle'">
-        <span class="dot" :class="status.is_running ? 'run' : status.success ? 'ok' : status.error_message ? 'bad' : 'idle'"></span>
-        {{ status.is_running ? (status.is_stopping ? '正在停止…' : `训练中 · ${status.current_stage}`) : status.success ? '训练完成' : status.error_message ? '失败' : '空闲' }}
-      </span>
+      <StatusBadge v-if="status" :status="status" dot />
       <div style="flex:1"></div>
       <span v-if="wsState === 'disconnected'" class="badge err">实时连接已断开，正在重连…</span>
       <span class="muted mono" style="font-size:11px">WS: {{ wsState }}</span>
@@ -102,22 +100,10 @@ onBeforeUnmount(() => closeWs && closeWs())
 
     <!-- 指标卡 -->
     <div class="grid c4" style="margin-bottom:16px">
-      <div class="metric">
-        <div class="value amber">{{ epochText }}</div>
-        <div class="label">Epoch</div>
-      </div>
-      <div class="metric">
-        <div class="value blue">{{ fmt('current_loss') }}</div>
-        <div class="label">Loss</div>
-      </div>
-      <div class="metric">
-        <div class="value green">{{ fmt('current_map50') }}</div>
-        <div class="label">{{ labels[0] }}</div>
-      </div>
-      <div class="metric">
-        <div class="value green">{{ fmt('current_map50_95') }}</div>
-        <div class="label">{{ labels[1] }}</div>
-      </div>
+      <MetricCard :value="epochText" label="Epoch" tone="amber" />
+      <MetricCard :value="fmt('current_loss')" label="Loss" tone="blue" />
+      <MetricCard :value="fmt('current_map50')" :label="labels[0]" tone="green" />
+      <MetricCard :value="fmt('current_map50_95')" :label="labels[1]" tone="green" />
     </div>
 
     <!-- 曲线 -->

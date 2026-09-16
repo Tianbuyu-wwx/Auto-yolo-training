@@ -1,6 +1,8 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api, errMsg, trainingSocket } from '../lib/api.js'
+import MetricCard from '../components/MetricCard.vue'
+import StatusBadge from '../components/StatusBadge.vue'
 
 const status = ref(null)
 const trainableCount = ref(null)   // 可训练（有 data.yaml）
@@ -56,20 +58,6 @@ const map95Text = computed(() => hasRun.value ? fmt4(status.value.current_map50_
 
 const labels = computed(() => status.value?.metric_labels || ['mAP@50', 'mAP@50-95'])
 
-const statusText = (s) => {
-  if (!s) return '—'
-  if (s.is_running) return s.is_stopping ? '正在停止' : `训练中 · ${s.current_stage}`
-  if (s.success) return '上次训练完成'
-  if (s.error_message) return '失败'
-  return '空闲'
-}
-const statusBadge = (s) => {
-  if (!s) return 'idle'
-  if (s.is_running) return 'warn'
-  if (s.success) return 'ok'
-  if (s.error_message) return 'err'
-  return 'idle'
-}
 const num = (v) => (v == null ? '—' : v)
 </script>
 
@@ -81,22 +69,10 @@ const num = (v) => (v == null ? '—' : v)
     </p>
 
     <div class="grid c4">
-      <div class="metric">
-        <div class="value amber">{{ epochText }}</div>
-        <div class="label">Epoch</div>
-      </div>
-      <div class="metric">
-        <div class="value blue">{{ lossText }}</div>
-        <div class="label">Loss</div>
-      </div>
-      <div class="metric">
-        <div class="value green">{{ mapText }}</div>
-        <div class="label">{{ labels[0] }}</div>
-      </div>
-      <div class="metric">
-        <div class="value green">{{ map95Text }}</div>
-        <div class="label">{{ labels[1] }}</div>
-      </div>
+      <MetricCard :value="epochText" label="Epoch" tone="amber" />
+      <MetricCard :value="lossText" label="Loss" tone="blue" />
+      <MetricCard :value="mapText" :label="labels[0]" tone="green" />
+      <MetricCard :value="map95Text" :label="labels[1]" tone="green" />
     </div>
 
     <div class="grid c2" style="margin-top:16px">
@@ -105,7 +81,7 @@ const num = (v) => (v == null ? '—' : v)
         <table class="tbl">
           <tr>
             <td>训练状态</td>
-            <td><span class="badge" :class="statusBadge(status)">{{ statusText(status) }}</span></td>
+            <td><StatusBadge :status="status" done-label="上次训练完成" /></td>
           </tr>
           <tr>
             <td>数据集</td>

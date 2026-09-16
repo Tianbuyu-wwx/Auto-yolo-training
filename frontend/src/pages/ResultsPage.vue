@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
 import { toastErr, toastOk } from '../lib/toast.js'
+import MetricCard from '../components/MetricCard.vue'
 
 const runs = ref([])
 const selected = ref('')
@@ -78,22 +79,10 @@ const fmt4 = (v) => (v == null ? '—' : Number(v).toFixed(4))
 
     <template v-if="results">
       <div class="grid c4" style="margin-bottom:16px">
-        <div class="metric">
-          <div class="value green">{{ fmt4(results.final_metrics?.mAP50) }}</div>
-          <div class="label">{{ (results.metric_labels || ['mAP@50'])[0] }}</div>
-        </div>
-        <div class="metric">
-          <div class="value green">{{ fmt4(results.final_metrics?.mAP50_95) }}</div>
-          <div class="label">{{ (results.metric_labels || ['mAP@50', 'mAP@50-95'])[1] }}</div>
-        </div>
-        <div class="metric">
-          <div class="value amber">{{ results.final_metrics?.epoch ?? '—' }}</div>
-          <div class="label">Best Epoch</div>
-        </div>
-        <div class="metric">
-          <div class="value blue">{{ results.has_weights ? '可下载' : '无权重' }}</div>
-          <div class="label">best.pt</div>
-        </div>
+        <MetricCard :value="fmt4(results.final_metrics?.mAP50)" :label="(results.metric_labels || ['mAP@50'])[0]" tone="green" />
+        <MetricCard :value="fmt4(results.final_metrics?.mAP50_95)" :label="(results.metric_labels || ['mAP@50', 'mAP@50-95'])[1]" tone="green" />
+        <MetricCard :value="results.final_metrics?.epoch ?? '—'" label="Best Epoch" tone="amber" />
+        <MetricCard :value="results.has_weights ? '可下载' : '无权重'" label="best.pt" tone="blue" />
       </div>
 
       <div class="card" style="margin-bottom:16px">
