@@ -21,11 +21,11 @@
 | **调参** | Optuna TPE + MedianPruner 搜索（40+ 维度，含数据增强） |
 | **评估** | mAP@50 / mAP@50-95 / Precision / Recall / Fitness + 任务感知指标（segment/pose/classify） |
 | **导出** | 12 种格式（ONNX / TensorRT / OpenVINO / TorchScript / CoreML / TFLite / 等） |
-| **注册表** | ModelRegistry 自动注册训练产物，支持版本对比与提升生产 |
+| **注册表** | ModelRegistry 自动注册训练产物；控制台可注册版本、打标、对比、晋升生产、删除 |
 | **模型** | 27 个预训练权重（4 家族 × 5 尺寸 + 4 任务），自动识别 + 一键下载 |
-| **接口** | **Web 控制台（Vue 3 SPA，6 页）** + CLI（`ayt-web` / `ayt-train` 等 9 个）+ FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
+| **接口** | **Web 控制台（Vue 3 SPA，7 页）** + CLI（`ayt-web` / `ayt-train` 等 9 个）+ FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
 | **部署** | Dockerfile（CPU + cu128 双 tag，含前端构建阶段） + docker-compose（4 profile） + Makefile（34 目标） |
-| **质量** | pytest 275 passed + ruff 全量规则 + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
+| **质量** | pytest 300 passed / 1 skipped + ruff 全量规则 + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
 
 ---
 
@@ -416,7 +416,8 @@ make test-cov
 | C 通用能力 | ✅ | 4 任务类型 + 27 模型清单 + CLI 下载器 + 任务抽象 |
 | D 生产化 | ✅ | Dockerfile + docker-compose + Makefile + pre-commit + MkDocs |
 | E CI/CD 多平台 | 计划 | Linux/Mac job + GPU runner + pip-audit + coverage badge |
-| F 分布式 | 远期 | 任务队列（Redis/Celery）+ 断点恢复 + 模型注册中心 Web UI |
+| F 分布式 | 远期 | 任务队列（Redis/Celery）—— 其中断点续训与模型注册中心控制台已提前交付（见 G） |
+| G 控制台能力补全 | ✅ | 断点续训（从检查点恢复）+ 模型注册中心控制台（注册 / 打标 / 对比 / 晋升 / 删除） |
 
 ---
 
