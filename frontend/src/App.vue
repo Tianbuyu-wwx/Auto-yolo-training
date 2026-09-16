@@ -19,6 +19,7 @@ const NAV = [
   { to: '/train/config', icon: '⚙', label: '训练配置' },
   { to: '/train/monitor', icon: '⏱', label: '训练监控' },
   { to: '/results', icon: '▥', label: '结果 · 模型库' },
+  { to: '/registry', icon: '◈', label: '模型注册中心' },
   { to: '/queue', icon: '▦', label: '任务队列' },
 ]
 

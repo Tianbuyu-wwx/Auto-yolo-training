@@ -21,6 +21,7 @@ export const api = {
     headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   }),
+  del: (p) => request(p, { method: 'DELETE' }),
   postForm: (p, form) => request(p, { method: 'POST', body: form }),
 }
 

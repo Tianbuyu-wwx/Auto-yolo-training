@@ -14,6 +14,7 @@ export const router = createRouter({
     { path: '/train/config', name: 'train-config', component: () => import('./pages/TrainConfigPage.vue'), meta: { title: '训练配置' } },
     { path: '/train/monitor', name: 'train-monitor', component: () => import('./pages/TrainMonitorPage.vue'), meta: { title: '训练监控' } },
     { path: '/results', name: 'results', component: () => import('./pages/ResultsPage.vue'), meta: { title: '结果 · 模型库' } },
+    { path: '/registry', name: 'registry', component: () => import('./pages/RegistryPage.vue'), meta: { title: '模型注册中心' } },
     { path: '/queue', name: 'queue', component: () => import('./pages/QueuePage.vue'), meta: { title: '任务队列' } },
     // 兜底：后端 SPA 回退会把任意路径都吐回 index.html，没有这条时
     // 用户访问 /nope 会看到「侧栏正常、内容区全空白」，无从判断是页面不存在
