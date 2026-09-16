@@ -10,12 +10,15 @@ site_description: 通用 YOLO 模型自动训练平台 · 数据校验 / 训练 
 site_author: Auto YOLO Training Contributors
 
 # 仓库地址（用于 "Edit on GitHub" 链接）
-repo_url: https://github.com/Tianbuyu/auto-yolo-training
-repo_name: Tianbuyu/auto-yolo-training
+repo_url: https://github.com/Tianbuyu-wwx/Auto-yolo-training
+repo_name: Tianbuyu-wwx/Auto-yolo-training
 
 # 仅包含显式列出的页面（避免 docs/ 下散落文件意外被包含）
 docs_dir: docs
-site_dir: ../site
+# site_dir 相对于本配置文件所在目录解析。原写作 `../site`，会把站点构建到
+# 仓库**外**的父目录（本地是 E:\项目\site，CI 上是 workspace 的同级目录），
+# 于是 docs.yml 里 `upload-pages-artifact: path: site` 找不到产物而失败。
+site_dir: site
 use_directory_urls: true
 
 # theme
@@ -80,6 +83,7 @@ markdown_extensions:
 nav:
   - 首页: README.md
   - 快速开始: quickstart.md
+  - Web 控制台: console.md
   - 数据集: datasets.md
   - API 推理服务: api.md
   - 项目演进:

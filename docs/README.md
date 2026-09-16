@@ -1,10 +1,10 @@
 # Auto YOLO Training
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-181%20passed-brightgreen.svg)](#测试)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/Tianbuyu-wwx/Auto-yolo-training/blob/main/LICENSE)
+![Tests](https://img.shields.io/badge/tests-275%20passed-brightgreen.svg)
 [![Ruff](https://img.shields.io/badge/lint-ruff-blue.svg)](https://github.com/astral-sh/ruff)
-[![Docker](https://img.shields.io/badge/docker-cpu%20%7C%20cu128-2496ED.svg)](Dockerfile)
+[![Docker](https://img.shields.io/badge/docker-cpu%20%7C%20cu128-2496ED.svg)](https://github.com/Tianbuyu-wwx/Auto-yolo-training/blob/main/Dockerfile)
 
 通用 YOLO 模型自动训练平台：数据校验、训练、评估、导出、推理一体化。支持 YOLOv5 / YOLOv8 / YOLOv11 / YOLO26 全系列，4 大任务类型（检测 / 分割 / 姿态 / 分类）。
 
@@ -23,9 +23,9 @@
 | **导出** | 12 种格式（ONNX / TensorRT / OpenVINO / TorchScript / CoreML / TFLite / 等） |
 | **注册表** | ModelRegistry 自动注册训练产物，支持版本对比与提升生产 |
 | **模型** | 27 个预训练权重（4 家族 × 5 尺寸 + 4 任务），自动识别 + 一键下载 |
-| **接口** | CLI（`ayt-train` / `ayt-serve` 等 7 个）+ Gradio 4 Tab + FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
-| **部署** | Dockerfile（CPU + cu128 双 tag） + docker-compose（4 profile） + Makefile（23 目标） |
-| **质量** | pytest 181 passed + ruff 全量规则 + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI |
+| **接口** | **Web 控制台（Vue 3 SPA，6 页）** + CLI（`ayt-web` / `ayt-train` 等 9 个）+ FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
+| **部署** | Dockerfile（CPU + cu128 双 tag，含前端构建阶段） + docker-compose（4 profile） + Makefile（34 目标） |
+| **质量** | pytest 275 passed + ruff 全量规则 + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
 
 ---
 
@@ -95,10 +95,11 @@ docker compose --profile gpu up         # 启动 GPU bash 容器
 
 | 文档 | 说明 |
 |---|---|
-| [快速开始](docs/quickstart.md) | 5 分钟跑通指南 |
-| [数据集](docs/datasets.md) | YOLO / 分类 / Roboflow 格式 + 转换 |
-| [API 推理服务](docs/api.md) | FastAPI 端点 + 认证 + Python 客户端示例 |
-| [第一阶段可信基线](docs/第一阶段可信基线实施记录与后续方案.md) | 项目演进历史 |
+| [快速开始](quickstart.md) | 5 分钟跑通指南 |
+| [Web 控制台](console.md) | 控制台启动 / 页面说明 / 数据语义 / 视口要求 |
+| [数据集](datasets.md) | YOLO / 分类 / Roboflow 格式 + 转换 |
+| [API 推理服务](api.md) | FastAPI 端点 + 认证 + Python 客户端示例 |
+| [第一阶段可信基线](第一阶段可信基线实施记录与后续方案.md) | 项目演进历史 |
 
 ---
 
@@ -108,7 +109,7 @@ docker compose --profile gpu up         # 启动 GPU bash 容器
 |---|---|
 | `make help` | 显示所有目标 |
 | `make install` | 安装运行时 + 开发依赖 |
-| `make test` | 跑测试套件（181 tests） |
+| `make test` | 跑测试套件（275 tests） |
 | `make lint` | ruff 检查 |
 | `make lint-fix` | ruff 自动修复 |
 | `make format` | ruff 自动格式化 |
@@ -241,14 +242,14 @@ python ayt_models.py download yolov8n.pt
 | YOLOv11 | detect | n / s / m / l / x | `yolo11{n,s,m,l,x}.pt` |
 | YOLO26 | detect | n / s / m / l / x | `yolo26{n,s,m,l,x}.pt` |
 
-总计 **27 个**预训练权重，详见 [`src/model_catalog.py`](src/model_catalog.py)。
+总计 **27 个**预训练权重，详见 [`src/model_catalog.py`](https://github.com/Tianbuyu-wwx/Auto-yolo-training/blob/main/src/model_catalog.py)。
 
 ---
 
 ## 🧪 测试
 
 ```bash
-# 跑全部 CPU-safe 测试（181 tests）
+# 跑全部 CPU-safe 测试（275 tests）
 make test
 
 # 跑单个文件
@@ -258,7 +259,7 @@ python -m pytest test/test_data_validator.py -v
 make test-cov
 ```
 
-**测试统计**：181 passed, 1 skipped in ~30s（`pytest -m "not gpu and not training"`）。
+**测试统计**：275 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
 
 **测试组织**：
 
@@ -347,7 +348,7 @@ make test-cov
 
 ## 📄 许可证
 
-[MIT](LICENSE) © 2026 Auto YOLO Training Contributors
+[MIT](https://github.com/Tianbuyu-wwx/Auto-yolo-training/blob/main/LICENSE) © 2026 Auto YOLO Training Contributors
 
 ---
 

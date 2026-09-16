@@ -22,6 +22,10 @@ build/
 dist/
 *.egg-info/
 
+# MkDocs 构建产物。site_dir 原先写作 ../site，产物落在仓库外所以从未暴露；
+# 修正为 site 后必须在这里忽略，否则文档站会被整站提交入库。
+site/
+
 # Node / 前端（frontend/）。注意：
 # - node_modules/ 必须显式忽略，否则 frontend/ 入库会连带 5500+ 个依赖文件
 # - dist/ 上面的规则保持宽泛（同时覆盖 node_modules/**/dist/），不要收窄为 frontend/dist/

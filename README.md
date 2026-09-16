@@ -2,13 +2,13 @@
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-181%20passed-brightgreen.svg)](#测试)
+[![Tests](https://img.shields.io/badge/tests-275%20passed-brightgreen.svg)](#测试)
 [![Ruff](https://img.shields.io/badge/lint-ruff-blue.svg)](https://github.com/astral-sh/ruff)
 [![Docker](https://img.shields.io/badge/docker-cpu%20%7C%20cu128-2496ED.svg)](Dockerfile)
 
 通用 YOLO 模型自动训练平台：数据校验、训练、评估、导出、推理一体化。支持 YOLOv5 / YOLOv8 / YOLOv11 / YOLO26 全系列，4 大任务类型（检测 / 分割 / 姿态 / 分类）。
 
-面向需要在受控环境中建立训练基线的开发者与团队。提供命令行、Gradio 界面、FastAPI 推理服务三种入口，并支持 Docker 一键部署。
+面向需要在受控环境中建立训练基线的开发者与团队。提供 **Web 控制台**、命令行、FastAPI 推理服务三种入口，并支持 Docker 一键部署。Web 控制台是主界面（Vue 3 SPA，`frontend/`）；原 Gradio 界面已冻结，仅作历史入口保留。
 
 ---
 
@@ -23,9 +23,9 @@
 | **导出** | 12 种格式（ONNX / TensorRT / OpenVINO / TorchScript / CoreML / TFLite / 等） |
 | **注册表** | ModelRegistry 自动注册训练产物，支持版本对比与提升生产 |
 | **模型** | 27 个预训练权重（4 家族 × 5 尺寸 + 4 任务），自动识别 + 一键下载 |
-| **接口** | CLI（`ayt-train` / `ayt-serve` 等 7 个）+ Gradio 4 Tab + FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
-| **部署** | Dockerfile（CPU + cu128 双 tag） + docker-compose（4 profile） + Makefile（23 目标） |
-| **质量** | pytest 181 passed + ruff 全量规则 + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI |
+| **接口** | **Web 控制台（Vue 3 SPA，6 页）** + CLI（`ayt-web` / `ayt-train` 等 9 个）+ FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
+| **部署** | Dockerfile（CPU + cu128 双 tag，含前端构建阶段） + docker-compose（4 profile） + Makefile（34 目标） |
+| **质量** | pytest 275 passed + ruff 全量规则 + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
 
 ---
 
@@ -61,22 +61,25 @@ make smoke
 ```bash
 # CPU 容器
 make docker-build
-docker run -it --rm -p 7860:7860 -p 8000:8000 \
+docker run -it --rm -p 8080:8080 -p 8000:8000 \
     -v $(pwd)/dataset:/as/dataset \
     -v $(pwd)/basemodels:/as/basemodels \
     -v $(pwd)/runs:/as/runs \
     ayt:cpu
 
 # 容器内：
-ayt-gradio --host 0.0.0.0    # Gradio 界面
-ayt-serve  --host 0.0.0.0    # FastAPI 推理服务
+ayt-web    --host 0.0.0.0 --port 8080   # Web 控制台（Vue SPA + 管理面 API）→ http://localhost:8080
+ayt-serve  --host 0.0.0.0               # FastAPI 推理服务
 ayt-train  my_dataset --model yolov8s.pt --epochs 100   # 训练
 
 # GPU 容器（需 NVIDIA Container Toolkit）
 make docker-build-gpu
-docker run --gpus all -it --rm -p 7860:7860 -p 8000:8000 \
+docker run --gpus all -it --rm -p 8080:8080 -p 8000:8000 \
     -v $(pwd)/dataset:/as/dataset ayt:cu128
 ```
+
+> 镜像内已包含构建好的前端产物（构建时由独立的 Node 阶段生成并拷贝到
+> `/as/frontend/dist`），`ayt-web` 启动后直接可用，无需在容器里装 Node。
 
 ### 方式 C：docker-compose profile 启动
 
@@ -85,6 +88,64 @@ docker compose --profile gradio up      # 启动 Gradio 容器
 docker compose --profile serve up       # 启动 FastAPI 容器
 docker compose --profile cpu up         # 启动 bash 容器
 docker compose --profile gpu up         # 启动 GPU bash 容器
+```
+
+---
+
+## 🖥 Web 控制台
+
+控制台是这套工具的主界面，前端源码在 `frontend/`（Vue 3 + Vite），后端是
+`src/api/admin.py` 的管理面 FastAPI。6 个页面：总览 / 数据集 / 训练配置 /
+训练监控 / 结果 · 模型库 / 任务队列。
+
+### 生产模式（单进程，同源）
+
+```bash
+make frontend-build          # 构建到 frontend/dist
+make web                     # 等价于 python -m src.api.admin --host 127.0.0.1 --port 8080
+# 打开 http://127.0.0.1:8080
+```
+
+后端在 `frontend/dist` 存在时自动静态托管并启用 SPA 回退；
+**目录不存在时 `/` 只会返回一段 JSON 提示**——界面空白先查这里。
+
+### 开发模式（热更新）
+
+```bash
+make frontend-install        # pnpm install --frozen-lockfile
+make frontend-dev            # Vite 起在 5173，/api 与 /ws 代理到 8080
+# 另一个终端：
+make web                     # 后端 API
+# 打开 http://127.0.0.1:5173
+```
+
+### 前端产物预算
+
+前端有产物体积门禁，CI 会跑，本地可单独执行：
+
+```bash
+make frontend-check          # 构建 + 校验预算
+```
+
+首屏 JS 预算 160 KB、单个 chunk 500 KB。首屏资产由 `dist/index.html` 解析得出，
+所以路由懒加载的页面与按需加载的图表库不会被算进首屏。
+
+> **视口要求**：控制台定位为桌面端工具，最低支持 **1024px** 视口宽度。
+> 更窄的窗口会显示明确的提示页，而不是让布局静默破版。
+
+### 前端目录结构
+
+```
+frontend/
+├── index.html
+├── vite.config.js          # 开发代理 + 生产分 chunk 策略
+├── scripts/check-bundle.mjs# 产物预算门禁
+└── src/
+    ├── main.js  router.js  App.vue
+    ├── lib/                # api.js（REST + WS 封装）、toast.js（全局反馈）
+    ├── styles/tokens.css   # 全部设计 token 与组件样式（单一样式来源）
+    ├── components/         # LineChart / LogConsole / ToastHost
+    └── pages/              # 6 个页面 + NotFoundPage
 ```
 
 ---
@@ -108,12 +169,17 @@ docker compose --profile gpu up         # 启动 GPU bash 容器
 |---|---|
 | `make help` | 显示所有目标 |
 | `make install` | 安装运行时 + 开发依赖 |
-| `make test` | 跑测试套件（181 tests） |
+| `make test` | 跑测试套件（275 tests） |
 | `make lint` | ruff 检查 |
 | `make lint-fix` | ruff 自动修复 |
 | `make format` | ruff 自动格式化 |
 | `make smoke` | 烟雾训练验证（`_smoke_test` 数据集，CPU 1 epoch） |
 | `make smoke-validate` | 烟雾数据校验 |
+| `make frontend-install` | 安装前端依赖（pnpm，严格按 lockfile） |
+| `make frontend-dev` | 启动前端开发服务器（http://127.0.0.1:5173） |
+| `make frontend-build` | 构建前端产物到 `frontend/dist` |
+| `make frontend-check` | 构建前端并校验产物预算（CI 同款门禁） |
+| `make web` | 启动控制台（后端 + 已构建的前端，http://127.0.0.1:8080） |
 | `make docs-install` | 安装 MkDocs 依赖 |
 | `make docs` | 本地启动 MkDocs 预览（http://127.0.0.1:8000） |
 | `make docs-build` | 构建 MkDocs 静态站点（`site/`） |
@@ -136,7 +202,8 @@ ayt-eval      # 评估
 ayt-export    # 导出
 ayt-serve     # FastAPI 推理
 ayt-validate  # 数据校验
-ayt-gradio    # Gradio 界面
+ayt-web       # Web 控制台（Vue SPA + 管理面 API，默认 127.0.0.1:8080）
+ayt-gradio    # Gradio 界面（已冻结，仅作历史入口）
 ayt-models    # 预训练模型清单与下载（list / local / download）
 ```
 
@@ -197,9 +264,10 @@ python ayt_models.py download yolov8n.pt
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│                       Entry Points（7 CLI + 1 Gradio + 1 API）       │
+│                 Entry Points（9 CLI，含 ayt-web 控制台）              │
 │  train.py / tune.py / eval.py / export.py / serve.py / validate.py │
-│  gradio_app.py / ayt_models.py                                     │
+│  src/api/admin.py（Web 控制台 + 管理面 API） / gradio_app.py（冻结） │
+│  ayt_models.py                                                     │
 └────────────────────────┬───────────────────────────────────────────┘
                          │
 ┌────────────────────────┴───────────────────────────────────────────┐
@@ -248,7 +316,7 @@ python ayt_models.py download yolov8n.pt
 ## 🧪 测试
 
 ```bash
-# 跑全部 CPU-safe 测试（181 tests）
+# 跑全部 CPU-safe 测试（275 tests）
 make test
 
 # 跑单个文件
@@ -258,7 +326,7 @@ python -m pytest test/test_data_validator.py -v
 make test-cov
 ```
 
-**测试统计**：181 passed, 1 skipped in ~30s（`pytest -m "not gpu and not training"`）。
+**测试统计**：275 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
 
 **测试组织**：
 
@@ -272,6 +340,8 @@ make test-cov
 | `test_model_downloader.py` | 模型下载 |
 | `test_run_artifacts.py` | 训练产物解析 |
 | `test_inference_service.py` | FastAPI 推理 |
+| `test_admin_api.py` | 管理面 FastAPI（控制台后端）：数据集 / 训练 / 队列 / 导出端点 |
+| `test_phase3.py` | 阶段 3：任务队列 / AutoBatch / 多 GPU / 代理调参 / 推理 / Gradio 认证 |
 | `test_gradio_services.py` | Gradio 服务层 |
 | `test_training_pipeline.py` | 训练流水线 |
 | `test_fastapi_api.py` | FastAPI 端点 |
@@ -327,9 +397,14 @@ make test-cov
 
 ### 已知限制
 
-- 训练任务目前仍在 Web 进程内（Gradio）执行；无独立任务队列、进程隔离、断点恢复、并发训练
+- **控制台为桌面专用**：最低 1024px 视口，不做移动/平板适配（窄屏显示提示页）
+- 控制台侧尚无多用户认证 / 权限隔离（`ayt-web` 默认只监听 127.0.0.1）
+- 数据集状态存在两级口径：`is_ready`（扫描级，labels 目录有标注）与
+  `is_trainable`（训练级，存在 `data.yaml`）。两者会不一致——例如有完整标注但
+  缺 `data.yaml` 的数据集会显示为「缺 data.yaml」且无法选入训练
+- `issues` 告警（如「val 集中 75/75 张图像缺少对应标注」）目前只做展示，
+  尚未在提交训练前强制拦截
 - FastAPI 端点全部同步（Ultralytics `model.predict` 是同步的）
-- Gradio 侧尚未形成公网部署的多用户认证 / 权限隔离
 - 训练产物 + 数据集版本化未集成（DVC 计划在阶段 C 后）
 
 ### 路线图
