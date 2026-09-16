@@ -66,10 +66,25 @@ class ModelRegistry:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
     def _generate_version_id(self, model_path: str) -> str:
-        """生成版本ID"""
+        """生成版本ID
+
+        时间戳只精确到秒，而模型文件名（best/last）区分度很低，所以「同一秒内注册多次」
+        会撞出完全相同的 id —— 一旦撞上，`models/` 下的副本目录会被共用，
+        且 `delete_version` 是按 id 过滤的，会一次删掉两条记录。
+        控制台可以点按钮注册，撞车是真实可能的，因此这里保证 id 全局唯一。
+        """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         model_name = Path(model_path).stem
-        return f"{model_name}_{timestamp}"
+        base_id = f"{model_name}_{timestamp}"
+
+        taken = {v.version_id for versions in self._versions.values() for v in versions}
+        if base_id not in taken:
+            return base_id
+
+        suffix = 2
+        while f"{base_id}_{suffix}" in taken:
+            suffix += 1
+        return f"{base_id}_{suffix}"
 
     def _copy_model(self, source_path: str, version_id: str) -> str:
         """复制模型到注册表"""

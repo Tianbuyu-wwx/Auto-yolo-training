@@ -96,6 +96,48 @@ class TestModelRegistry(unittest.TestCase):
         all_models = self.registry.list_all()
         self.assertIsInstance(all_models, dict)
 
+    def test_same_second_registrations_get_distinct_ids(self):
+        """时间戳只精确到秒，模型名又都是 best/last：同一秒注册多次不能撞 id。
+
+        撞了会共用 models/<id>/ 副本目录，而 delete_version 是按 id 过滤的，
+        一次删除会连带删掉另一条记录。
+
+        时钟必须冻结：不冻结的话两次调用横跨秒边界就自然拿到不同 id，
+        测试会「通过但不是因为修好了」。
+        """
+        from datetime import datetime as real_datetime
+        from unittest import mock
+
+        class _FrozenDatetime(real_datetime):
+            @classmethod
+            def now(cls):
+                return real_datetime(2026, 1, 1, 0, 0, 0)
+
+        dummy = Path(self.tmpdir) / "best.pt"
+        dummy.write_text("dummy")
+        with mock.patch("src.model_registry.datetime", _FrozenDatetime):
+            v1 = self.registry.register(model_path=str(dummy), dataset_name="ds")
+            v2 = self.registry.register(model_path=str(dummy), dataset_name="ds")
+
+        # 两次的 created_at 完全相同 —— 证明确实落在同一秒
+        self.assertEqual(v1.created_at, v2.created_at)
+        self.assertNotEqual(v1.version_id, v2.version_id)
+        self.assertNotEqual(v1.model_path, v2.model_path)
+        self.assertTrue(Path(v1.model_path).is_file())
+        self.assertTrue(Path(v2.model_path).is_file())
+
+    def test_delete_version_removes_the_copy_only(self):
+        """删版本删的是注册表内的副本，源文件不动"""
+        src = Path(self.tmpdir) / "best.pt"
+        src.write_text("dummy")
+        v = self.registry.register(model_path=str(src), dataset_name="ds")
+        copy_path = Path(v.model_path)
+        self.assertTrue(copy_path.is_file())
+
+        self.assertTrue(self.registry.delete_version("ds", v.version_id))
+        self.assertFalse(copy_path.exists())
+        self.assertTrue(src.is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

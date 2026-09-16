@@ -8,6 +8,7 @@ M1 管理面 API 验收测试（前端升级：REST + WebSocket）
 import io
 import time
 import zipfile
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -301,6 +302,190 @@ class TestModelAndRegistry:
         # 导出 run 不存在 → 404
         r = client.post("/api/exports", json={"run_name": "ghost", "fmt": "onnx"})
         assert r.status_code == 404
+
+
+# ----------------------------------------------------------------------
+# 模型注册表写端点（G-4）
+# ----------------------------------------------------------------------
+class TestRegistryEndpoints:
+    @pytest.fixture()
+    def reg_run(self, client):
+        """造一个带 best.pt / last.pt / results.csv 的 run"""
+        base = client.app.state.base_dir
+        run = base / "runs" / "detect" / "reg_run"
+        (run / "weights").mkdir(parents=True)
+        (run / "weights" / "best.pt").write_bytes(b"fake-best")
+        (run / "weights" / "last.pt").write_bytes(b"fake-last")
+        (run / "results.csv").write_text(
+            "epoch,time,metrics/precision(B),metrics/recall(B),"
+            "metrics/mAP50(B),metrics/mAP50-95(B)\n"
+            "1,1.0,0.5,0.4,0.50,0.30\n"
+            "2,2.0,0.7,0.6,0.80,0.60\n",
+            encoding="utf-8",
+        )
+        return "reg_run"
+
+    def _register(self, client, dataset="regds", run="reg_run", **kw):
+        r = client.post("/api/registry/register",
+                        json={"dataset_name": dataset, "run_name": run, **kw})
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    def _versions(self, client, dataset="regds"):
+        r = client.get(f"/api/registry/{dataset}")
+        assert r.status_code == 200, r.text
+        return r.json()["versions"]
+
+    def test_register_autofills_metrics_from_results_csv(self, client, reg_run):
+        """手抄 mAP 既麻烦又易错 —— 从 run 的 results.csv 自动补最终指标"""
+        body = self._register(client, tags=["baseline"])
+        assert body["metrics_auto_filled"] is True
+        v = body["version"]
+        # 取的是最后一行（epoch 2），不是第一行
+        assert v["metrics"]["mAP50"] == 0.8
+        assert v["metrics"]["mAP50_95"] == 0.6
+        # 只保留规范键，避免对比表出现 "mAP@50" 同义重复行
+        assert set(v["metrics"]) == {"mAP50", "mAP50_95"}
+        assert v["status"] == "staging"
+        assert v["tags"] == ["baseline"]
+
+    def test_register_uses_explicit_metrics_when_given(self, client, reg_run):
+        body = self._register(client, metrics={"mAP50": 0.123})
+        assert body["metrics_source"] == "request"
+        assert body["version"]["metrics"] == {"mAP50": 0.123}
+
+    def test_register_last_weights(self, client, reg_run):
+        v = self._register(client, weights="last")["version"]
+        assert Path(v["model_path"]).name == "last.pt"
+
+    def test_register_missing_weights_404(self, client, reg_run):
+        r = client.post("/api/registry/register",
+                        json={"dataset_name": "regds", "run_name": "ghost_run"})
+        assert r.status_code == 404
+
+    def test_register_rejects_path_traversal(self, client, reg_run):
+        """run_name 来自请求体，不能借 ../ 把权重指到 runs/ 之外"""
+        r = client.post("/api/registry/register",
+                        json={"dataset_name": "regds", "run_name": "../../src"})
+        assert r.status_code == 400
+
+    def test_register_rejects_outside_model_path(self, client, reg_run, tmp_path):
+        r = client.post("/api/registry/register", json={
+            "dataset_name": "regds", "model_path": str(tmp_path / "outside.pt")})
+        assert r.status_code == 400
+
+    def test_register_requires_a_source(self, client, reg_run):
+        r = client.post("/api/registry/register", json={"dataset_name": "regds"})
+        assert r.status_code == 400
+
+    def test_register_requires_dataset_name(self, client, reg_run):
+        r = client.post("/api/registry/register",
+                        json={"dataset_name": "   ", "run_name": "reg_run"})
+        assert r.status_code == 400
+
+    def test_versions_404_for_unknown_dataset(self, client):
+        assert client.get("/api/registry/nope").status_code == 404
+
+    def test_empty_tag_list_rejected(self, client, reg_run):
+        v = self._register(client)["version"]
+        r = client.post(f"/api/registry/regds/{v['version_id']}/tags", json={"tags": ["  "]})
+        assert r.status_code == 400
+
+    def test_status_whitelist(self, client, reg_run):
+        v = self._register(client)["version"]
+        vid = v["version_id"]
+        r = client.post(f"/api/registry/regds/{vid}/status", json={"status": "banana"})
+        assert r.status_code == 400
+        r = client.post(f"/api/registry/regds/{vid}/status", json={"status": "archived"})
+        assert r.status_code == 200
+        assert self._versions(client)[0]["status"] == "archived"
+
+    def test_missing_version_404(self, client, reg_run):
+        assert client.post("/api/registry/regds/nope/status",
+                           json={"status": "archived"}).status_code == 404
+        assert client.post("/api/registry/regds/nope/promote").status_code == 404
+        assert client.delete("/api/registry/regds/nope").status_code == 404
+
+    def test_promote_archives_previous_production(self, client, reg_run):
+        """一个数据集只能有一个生产版本；晋升新的应把旧的降为 archived"""
+        v1 = self._register(client, tags=["v1"])["version"]
+        v2 = self._register(client, tags=["v2"])["version"]
+
+        r = client.post(f"/api/registry/regds/{v1['version_id']}/promote")
+        assert r.status_code == 200
+        assert r.json()["archived"] == []
+
+        r = client.post(f"/api/registry/regds/{v2['version_id']}/promote")
+        assert r.status_code == 200
+        assert r.json()["archived"] == [v1["version_id"]]
+
+        by_id = {v["version_id"]: v for v in self._versions(client)}
+        assert by_id[v1["version_id"]]["status"] == "archived"
+        assert by_id[v2["version_id"]]["status"] == "production"
+        assert client.get("/api/registry/regds").json()["production_model"]
+
+    def test_add_tags_dedupes(self, client, reg_run):
+        v = self._register(client, tags=["a"])["version"]
+        r = client.post(f"/api/registry/regds/{v['version_id']}/tags",
+                        json={"tags": ["a", "b", " b "]})
+        assert r.status_code == 200
+        assert sorted(r.json()["tags"]) == ["a", "b"]
+
+    def test_compare_versions(self, client, reg_run):
+        v1 = self._register(client, metrics={"mAP50": 0.5})["version"]
+        v2 = self._register(client, metrics={"mAP50": 0.8})["version"]
+        r = client.get("/api/registry/regds/compare",
+                       params={"a": v1["version_id"], "b": v2["version_id"]})
+        assert r.status_code == 200
+        diff = r.json()["metrics_diff"]["mAP50"]
+        assert diff["v1"] == 0.5 and diff["v2"] == 0.8
+        assert diff["diff"] == pytest.approx(0.3)
+
+        r = client.get("/api/registry/regds/compare", params={"a": v1["version_id"], "b": "nope"})
+        assert r.status_code == 404
+
+    def test_delete_staging_keeps_weights_on_disk(self, client, reg_run):
+        """注册记录 ≠ 权重文件：删记录不该动 runs/ 下的原位权重"""
+        v = self._register(client)["version"]
+        weights = Path(v["model_path"])
+        assert weights.is_file()
+
+        r = client.delete(f"/api/registry/regds/{v['version_id']}")
+        assert r.status_code == 200
+        assert r.json()["deleted_registry_copy"] is False
+        assert r.json()["weights_path"] == str(weights)
+        assert weights.is_file(), "原位权重被误删"
+        assert client.get("/api/registry/regds").status_code == 404
+
+    def test_delete_copied_version_removes_only_the_copy(self, client, reg_run):
+        """copy_model=True 时删的是注册表内的副本，原位权重必须还在"""
+        v = self._register(client, copy_model=True)["version"]
+        copy_path = Path(v["model_path"])
+        assert copy_path.is_file()
+        assert "model_registry" in str(copy_path)
+
+        r = client.delete(f"/api/registry/regds/{v['version_id']}")
+        assert r.status_code == 200
+        assert r.json()["deleted_registry_copy"] is True
+        assert not copy_path.exists(), "注册表副本应被删除"
+        assert (client.app.state.base_dir / "runs" / "detect" / "reg_run"
+                / "weights" / "best.pt").is_file(), "原位权重被误删"
+
+    def test_production_version_cannot_be_deleted(self, client, reg_run):
+        v = self._register(client)["version"]
+        client.post(f"/api/registry/regds/{v['version_id']}/promote")
+        r = client.delete(f"/api/registry/regds/{v['version_id']}")
+        assert r.status_code == 409
+        # 409 之后必须仍然查得到，不能删了一半
+        assert client.get("/api/registry/regds").status_code == 200
+
+    def test_same_second_registrations_get_distinct_ids(self, client, reg_run):
+        """时间戳只到秒、文件名都是 best.pt —— id 撞车会把两条记录绑成一个副本目录"""
+        v1 = self._register(client, copy_model=True)["version"]
+        v2 = self._register(client, copy_model=True)["version"]
+        assert v1["version_id"] != v2["version_id"]
+        assert Path(v1["model_path"]).is_file()
+        assert Path(v2["model_path"]).is_file()
 
 
 # ----------------------------------------------------------------------

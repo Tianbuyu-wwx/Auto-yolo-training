@@ -101,10 +101,37 @@ def _build_models():
         run_name: str
         fmt: str = "onnx"
 
-    return StartTrainingRequest, EnqueueRequest, ExportRequest
+    class RegisterModelRequest(BaseModel):
+        """注册模型版本请求。
+
+        权重来源二选一：`run_name`（推荐，从 runs/ 派生，路径不可能越界）
+        或 `model_path`（限 runs/ 、basemodels/ 、exports/ 白名单内）。
+        `metrics` 留空时自动从该 run 的 results.csv 取最终指标 —— 让用户手抄 mAP
+        既麻烦又容易抄错。
+        """
+        dataset_name: str
+        run_name: str = ""
+        weights: str = "best"          # best | last
+        model_path: str = ""
+        description: str = ""
+        tags: list[str] = []
+        metrics: dict[str, float] | None = None
+        # 默认不复制：与训练管线的自动注册保持一致，避免把几百 MB 权重再存一份。
+        # 复制的好处是 runs/ 被清理后注册表仍可用，所以交给用户决定。
+        copy_model: bool = False
+
+    class VersionStatusRequest(BaseModel):
+        status: str
+
+    class VersionTagsRequest(BaseModel):
+        tags: list[str]
+
+    return (StartTrainingRequest, EnqueueRequest, ExportRequest,
+            RegisterModelRequest, VersionStatusRequest, VersionTagsRequest)
 
 
-StartTrainingRequest, EnqueueRequest, ExportRequest = _build_models()
+(StartTrainingRequest, EnqueueRequest, ExportRequest,
+ RegisterModelRequest, VersionStatusRequest, VersionTagsRequest) = _build_models()
 
 
 class SPAStaticFiles(StaticFiles):
@@ -399,11 +426,159 @@ def create_admin_app(
             raise HTTPException(502, f"下载失败: {e}") from e
         return {"success": True, "path": str(path)}
 
-    @app.get("/api/registry")
-    def registry_all():
+    # ------------------------------------------------------------------
+    # 模型注册表（读 + 写）
+    #
+    # ModelRegistry 的读写方法早就在，但此前只暴露了一个只读列表 ——
+    # 控制台看得到版本却动不了，等价于一个只能看不能用的注册中心。
+    # 注意：每个请求都新建实例，直接读盘上的 versions.json，
+    # 这样训练进程刚注册的版本立刻可见（训练跑在另一个进程里）。
+    # ------------------------------------------------------------------
+    REGISTRY_STATUSES = ("staging", "production", "archived")
+
+    def _registry():
         from src.model_registry import ModelRegistry
 
-        return {"datasets": ModelRegistry(str(base)).list_all()}
+        return ModelRegistry(str(base))
+
+    def _require_version(reg, dataset: str, version_id: str):
+        version = reg.get_version(dataset, version_id)
+        if version is None:
+            raise HTTPException(404, f"版本不存在: {dataset}/{version_id}")
+        return version
+
+    @app.get("/api/registry")
+    def registry_all():
+        return {"datasets": _registry().list_all()}
+
+    @app.get("/api/registry/{dataset}")
+    def registry_versions(dataset: str):
+        reg = _registry()
+        versions = reg.get_versions(dataset)
+        if not versions:
+            raise HTTPException(404, f"数据集 {dataset} 没有注册版本")
+        return {
+            "dataset": dataset,
+            "versions": [v.to_dict() for v in versions],
+            "production_model": reg.get_production_model(dataset),
+        }
+
+    @app.post("/api/registry/register")
+    def registry_register(req: RegisterModelRequest):
+        dataset_name = req.dataset_name.strip()
+        if not dataset_name:
+            raise HTTPException(400, "请填写数据集名称")
+
+        if req.model_path:
+            if not is_path_allowed(req.model_path, ["runs", "basemodels", "exports"], base):
+                raise HTTPException(
+                    400, "model_path 必须位于 runs/、basemodels/ 或 exports/ 之下")
+            weights = Path(req.model_path)
+        elif req.run_name:
+            if req.weights not in ("best", "last"):
+                raise HTTPException(400, "weights 只能是 best 或 last")
+            weights = paths.runs_dir / req.run_name / "weights" / f"{req.weights}.pt"
+            # run_name 由请求体给出，可能含 ../ —— 解析后必须仍在 runs/ 内
+            if not is_path_allowed(str(weights), ["runs"], base):
+                raise HTTPException(400, "run 名称非法")
+        else:
+            raise HTTPException(400, "请提供 run_name 或 model_path")
+
+        if not weights.is_file():
+            raise HTTPException(404, f"权重文件不存在: {weights}")
+
+        metrics = dict(req.metrics or {})
+        if not metrics and req.run_name:
+            # 自动补最终指标；results.csv 缺失或读不出时保持空，不编造数字。
+            # 只留 mAP50 / mAP50_95 两个规范键：注册表的 get_best 与前端都按
+            # 这两个键取数，多塞一套 "mAP@50" 同义键只会让对比表出现重复行。
+            final = training_svc.get_training_results(req.run_name).get("final_metrics") or {}
+            metrics = {k: float(final[k]) for k in ("mAP50", "mAP50_95")
+                       if isinstance(final.get(k), (int, float))}
+
+        try:
+            version = _registry().register(
+                model_path=str(weights),
+                dataset_name=dataset_name,
+                metrics=metrics,
+                tags=[t.strip() for t in req.tags if t and t.strip()],
+                description=req.description,
+                copy_model=req.copy_model,
+            )
+        except OSError as e:
+            raise HTTPException(500, f"注册失败（写入 model_registry/）: {e}") from e
+
+        if req.metrics:
+            metrics_source = "request"
+        elif metrics:
+            metrics_source = "results.csv"
+        else:
+            metrics_source = "none"
+        return {"success": True, "version": version.to_dict(),
+                "metrics_auto_filled": metrics_source == "results.csv",
+                "metrics_source": metrics_source}
+
+    @app.post("/api/registry/{dataset}/{version_id}/status")
+    def registry_set_status(dataset: str, version_id: str, req: VersionStatusRequest):
+        if req.status not in REGISTRY_STATUSES:
+            raise HTTPException(400, "status 只能是 " + " / ".join(REGISTRY_STATUSES))
+        reg = _registry()
+        _require_version(reg, dataset, version_id)
+        reg.update_status(dataset, version_id, req.status)
+        return {"success": True, "status": req.status}
+
+    @app.post("/api/registry/{dataset}/{version_id}/promote")
+    def registry_promote(dataset: str, version_id: str):
+        """晋升为生产版本（该数据集原有的生产版本会自动转为 archived）"""
+        reg = _registry()
+        _require_version(reg, dataset, version_id)
+        reg.promote_to_production(dataset, version_id)
+        versions = reg.get_versions(dataset)
+        return {
+            "success": True,
+            "production_model": reg.get_production_model(dataset),
+            "archived": [v.version_id for v in versions if v.status == "archived"],
+        }
+
+    @app.post("/api/registry/{dataset}/{version_id}/tags")
+    def registry_add_tags(dataset: str, version_id: str, req: VersionTagsRequest):
+        tags = [t.strip() for t in req.tags if t and t.strip()]
+        if not tags:
+            raise HTTPException(400, "请提供至少一个非空标签")
+        reg = _registry()
+        _require_version(reg, dataset, version_id)
+        reg.add_tags(dataset, version_id, tags)
+        return {"success": True, "tags": reg.get_version(dataset, version_id).tags}
+
+    @app.get("/api/registry/{dataset}/compare")
+    def registry_compare(dataset: str, a: str, b: str):
+        result = _registry().compare_versions(dataset, a, b)
+        if "error" in result:
+            raise HTTPException(404, result["error"])
+        return result
+
+    @app.delete("/api/registry/{dataset}/{version_id}")
+    def registry_delete(dataset: str, version_id: str):
+        """删除注册记录。
+
+        只动注册表：`copy_model=False` 注册的版本，权重留在 runs/ 原位不受影响；
+        `copy_model=True` 的版本，注册表内那份副本会被删除（原位权重同样保留）。
+        """
+        reg = _registry()
+        version = _require_version(reg, dataset, version_id)
+        if version.status == "production":
+            # 直接删会让 get_production_model 静默变 None，调用方无从察觉
+            raise HTTPException(
+                409, "生产版本不能直接删除：请先把别的版本设为生产，或改为归档")
+
+        kept_path = Path(version.model_path)
+        deleted_copy = kept_path.is_relative_to(reg.models_dir.resolve())
+        reg.delete_version(dataset, version_id)
+        return {
+            "success": True,
+            "deleted_registry_copy": deleted_copy,
+            "weights_path": None if deleted_copy else version.model_path,
+        }
 
     @app.post("/api/exports")
     def export_model(req: ExportRequest):
