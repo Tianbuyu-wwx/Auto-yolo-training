@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 // 按需引入。此前是 `import * as echarts from 'echarts'`，把整包拉进产物：
 // 实测 echarts.min.js 1,034,102 B 占 JS 产物 1,167,852 B 的 88.5%，
 // 而这里只用到 line 一种图表 + grid/tooltip 两个组件。
@@ -14,6 +14,17 @@ echarts.use([LineChart, GridComponent, CanvasRenderer])
 const props = defineProps({
   option: { type: Object, required: true },
   height: { type: Number, default: 260 },
+  /** 无数据点时的占位文案。父组件可换成更有行动指向的说法 */
+  emptyText: { type: String, default: '暂无数据' },
+})
+
+/**
+ * 是否没有任何数据点。没有它的时候，未开训的监控页会渲染出一副画好坐标系
+ * 的空框 —— 读者无法判断这是"还没有数据"还是"图表坏了"。
+ */
+const isEmpty = computed(() => {
+  const series = props.option?.series || []
+  return series.length === 0 || series.every((s) => !s.data || s.data.length === 0)
 })
 
 const el = ref(null)
@@ -79,5 +90,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="el" :style="{ height: height + 'px', width: '100%' }"></div>
+  <!-- 占位层盖在画布之上而不是替换画布：echarts 实例一旦被 display:none
+       会在恢复时量到 0 尺寸而需要重排，用不透明覆盖层则完全不动尺寸。 -->
+  <div class="chart-box" :style="{ height: height + 'px' }">
+    <div ref="el" class="chart-canvas"></div>
+    <p v-if="isEmpty" class="chart-empty">{{ emptyText }}</p>
+  </div>
 </template>

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api, errMsg, trainingSocket } from '../lib/api.js'
 import { toastErr, toastOk } from '../lib/toast.js'
+import { CHART, axisPair } from '../lib/chart-theme.js'
 import LineChart from '../components/LineChart.vue'
 import LogConsole from '../components/LogConsole.vue'
 import MetricCard from '../components/MetricCard.vue'
@@ -58,18 +59,17 @@ const epochText = computed(() => hasRun.value ? `${status.value.current_epoch} /
 const fmt = (key) => (hasRun.value && status.value[key] != null ? Number(status.value[key]).toFixed(4) : '—')
 
 const lossOption = computed(() => ({
-  grid: { left: 48, right: 16, top: 30, bottom: 28 },
-  title: { text: '训练损失', textStyle: { color: '#8b90a0', fontSize: 12 }, left: 8, top: 4 },
-  xAxis: { type: 'value', name: 'epoch', axisLine: { lineStyle: { color: '#343a4f' } }, axisLabel: { color: '#8b90a0' }, splitLine: { lineStyle: { color: '#1a1d28' } } },
-  yAxis: { type: 'value', axisLine: { lineStyle: { color: '#343a4f' } }, axisLabel: { color: '#8b90a0' }, splitLine: { lineStyle: { color: '#1a1d28' } } },
-  series: [{ type: 'line', data: lossSeries.value, showSymbol: false, lineStyle: { color: '#3b82f6', width: 2 }, areaStyle: { color: 'rgba(59,130,246,.12)' } }],
+  grid: { ...CHART.grid },
+  title: { text: '训练损失', textStyle: { color: CHART.label, fontSize: 12 }, left: 8, top: 4 },
+  ...axisPair(),
+  series: [{ type: 'line', data: lossSeries.value, showSymbol: false, lineStyle: { color: CHART.line.blue, width: 2 }, areaStyle: { color: CHART.area.blue } }],
 }))
 const mapOption = computed(() => ({
-  grid: { left: 48, right: 16, top: 30, bottom: 28 },
-  title: { text: labels.value.join(' / '), textStyle: { color: '#8b90a0', fontSize: 12 }, left: 8, top: 4 },
-  xAxis: { type: 'value', name: 'epoch', axisLine: { lineStyle: { color: '#343a4f' } }, axisLabel: { color: '#8b90a0' }, splitLine: { lineStyle: { color: '#1a1d28' } } },
-  yAxis: { type: 'value', max: 1, axisLine: { lineStyle: { color: '#343a4f' } }, axisLabel: { color: '#8b90a0' }, splitLine: { lineStyle: { color: '#1a1d28' } } },
-  series: [{ type: 'line', data: mapSeries.value, showSymbol: false, lineStyle: { color: '#22c55e', width: 2 }, areaStyle: { color: 'rgba(34,197,94,.10)' } }],
+  grid: { ...CHART.grid },
+  title: { text: labels.value.join(' / '), textStyle: { color: CHART.label, fontSize: 12 }, left: 8, top: 4 },
+  // mAP 的定义域固定为 0~1，锁死上限否则无数据时纵轴会塌成一条线
+  ...axisPair({ yMax: 1 }),
+  series: [{ type: 'line', data: mapSeries.value, showSymbol: false, lineStyle: { color: CHART.line.green, width: 2 }, areaStyle: { color: CHART.area.green } }],
 }))
 
 let closeWs = null
@@ -108,8 +108,8 @@ onBeforeUnmount(() => closeWs && closeWs())
 
     <!-- 曲线 -->
     <div class="grid c2" style="margin-bottom:16px">
-      <div class="card"><LineChart :option="lossOption" :height="260" /></div>
-      <div class="card"><LineChart :option="mapOption" :height="260" /></div>
+      <div class="card"><LineChart :option="lossOption" :height="260" empty-text="训练开始后按 epoch 累积" /></div>
+      <div class="card"><LineChart :option="mapOption" :height="260" empty-text="训练开始后按 epoch 累积" /></div>
     </div>
 
     <!-- 日志 -->
