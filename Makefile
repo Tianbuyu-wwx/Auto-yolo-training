@@ -10,6 +10,9 @@
 #   make test           - 跑 CPU-safe 测试
 #   make lint           - ruff 检查
 #   make smoke          - 烟雾训练验证（_smoke_test 数据集）
+#   make frontend-dev   - 启动前端开发服务器（Vite，含 API 代理）
+#   make frontend-build - 构建前端产物（frontend/dist）
+#   make frontend-check - 构建前端并校验产物预算
 #   make docs           - 本地启动 MkDocs 预览
 #   make docker-build   - 构建 CPU Docker 镜像
 #   make docker-run     - 启动 Gradio 容器
@@ -17,6 +20,7 @@
 # ---------- 配置 ----------
 PYTHON ?= python
 PIP ?= pip
+PNPM ?= pnpm
 DOCKER_IMAGE ?= ayt
 DOCKER_TAG ?= cpu
 DOCKER_REGISTRY ?= ""
@@ -103,6 +107,32 @@ smoke-validate smoke-validate:  ## 烟雾数据校验
 tensorboard tensorboard:  ## 启动 TensorBoard 查看训练曲线（runs/ 目录）
 	$(PYTHON) -m tensorboard.main --logdir runs
 
+# ---------- 前端（Vue SPA，frontend/）----------
+# 前端是控制台的主界面；Gradio 那套已冻结，仅作历史入口保留。
+.PHONY: frontend-install
+frontend-install frontend-install:  ## 安装前端依赖（pnpm，严格按 lockfile）
+	cd frontend && $(PNPM) install --frozen-lockfile
+
+.PHONY: frontend-dev
+frontend-dev frontend-dev:  ## 启动前端开发服务器（http://127.0.0.1:5173，/api 与 /ws 代理到 8080）
+	cd frontend && $(PNPM) dev
+
+.PHONY: frontend-build
+frontend-build frontend-build:  ## 构建前端产物到 frontend/dist
+	cd frontend && $(PNPM) build
+
+.PHONY: frontend-check
+frontend-check frontend-check:  ## 构建前端并校验产物预算（CI 同款门禁）
+	cd frontend && $(PNPM) build && $(PNPM) check-bundle
+
+.PHONY: frontend-preview
+frontend-preview frontend-preview:  ## 本地预览已构建的前端（需后端另跑 ayt-web）
+	cd frontend && $(PNPM) preview
+
+.PHONY: web
+web web:  ## 启动控制台（后端 + 已构建的前端，http://127.0.0.1:8080）
+	$(PYTHON) -m src.api.admin --host 127.0.0.1 --port 8080
+
 # ---------- 文档 ----------
 .PHONY: docs-install
 docs-install docs-install:  ## 安装 MkDocs
@@ -170,7 +200,7 @@ clean clean:  ## 清理临时文件（不删 dataset/runs/basemodels/）
 	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
-	rm -rf build/ dist/ *.egg-info htmlcov/ .coverage* 2>/dev/null || true
+	rm -rf build/ dist/ frontend/dist/ *.egg-info htmlcov/ .coverage* 2>/dev/null || true
 	@echo "$(GREEN)✓ 清理完成（未删 dataset/runs/basemodels/）$(RESET)"
 
 .PHONY: clean-all

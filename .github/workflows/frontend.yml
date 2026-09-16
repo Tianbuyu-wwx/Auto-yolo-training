@@ -1,0 +1,50 @@
+name: frontend
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # 版本与 frontend/package.json 的 packageManager 保持一致，
+      # 否则 pnpm 会因 lockfileVersion 或 workspace 配置差异拒绝 --frozen-lockfile
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        working-directory: frontend
+        run: pnpm build
+
+      # 防量级退化。此前整包 echarts 被静态引入（占产物 88.5%），
+      # 而项目只画一张折线图 —— 这类问题肉眼 review 不出来，只能靠门禁。
+      - name: Check bundle budget
+        working-directory: frontend
+        run: pnpm check-bundle
