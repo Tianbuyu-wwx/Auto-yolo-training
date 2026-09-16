@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, errMsg } from '../lib/api.js'
 import { toastErr, toastOk } from '../lib/toast.js'
@@ -8,10 +8,34 @@ const router = useRouter()
 const datasets = ref([])
 const excluded = ref([])      // 扫描到但缺 data.yaml、因而无法选入训练的数据集
 const models = ref([])
+const checkpoints = ref([])   // 可续训断点（含数据集与进度，来自 checkpoint_details）
 const task = ref('detect')
 const busy = ref(false)
 const loading = ref(true)
 const loadError = ref('')
+
+// 续训状态
+const resumeOn = ref(false)
+const resumePath = ref('')
+
+const currentCkpt = computed(() => checkpoints.value.find(c => c.path === resumePath.value) || null)
+
+// 续训时数据集必须与断点一致：管线在 resume 模式下仍以**当前** dataset_name 传 data=，
+// 接错数据集不会报错，只会在别的数据上接着练。能从 args.yaml 反推时就把选择锁死。
+const resumeDataset = computed(() =>
+  (resumeOn.value && resumePath.value ? currentCkpt.value?.dataset || '' : ''))
+const datasetLocked = computed(() => !!resumeDataset.value)
+// datasets 即「可训练」集合：后端 list_datasets() 以 data.yaml 存在为判定，
+// 与 is_trainable 同源（见 dataset_service.get_all_statuses 的口径说明）。
+// 所以"不在 datasets 里"就等于"这个断点现在接不上"。
+const resumeDatasetBad = computed(() =>
+  !!resumeDataset.value && !datasets.value.includes(resumeDataset.value))
+
+// 能反推出数据集却不能训练（缺 data.yaml）→ 必须挡住，否则会拿错数据起训
+const resumeBlocked = computed(() => resumeOn.value
+  && (!resumePath.value || resumeDatasetBad.value))
+
+const canSubmit = computed(() => !busy.value && !!cfg.value.dataset_name && !resumeBlocked.value)
 
 const PRESETS = {
   快速验证: { epochs: 50, batch: 16, imgsz: 416, patience: 10, lr0: 0.002 },
@@ -95,7 +119,16 @@ async function downloadModel() {
 }
 
 function payload() {
-  return { ...cfg.value, dataset_name: cfg.value.dataset_name }
+  const body = { ...cfg.value, dataset_name: cfg.value.dataset_name }
+  if (resumeOn.value && resumePath.value) {
+    // 两处都要指向同一个 ckpt：管线从 cfg.model 解析模型路径（YOLO(model_path)），
+    // 而 resume 标志来自 cfg.resume_from。只传 resume_from 会静默失效 ——
+    // 不报错，但会拿原来的预训练模型重新起训，等于白等。
+    body.model = resumePath.value
+    body.resume_from = resumePath.value
+    if (resumeDataset.value) body.dataset_name = resumeDataset.value
+  }
+  return body
 }
 
 async function startNow() {
@@ -129,7 +162,27 @@ async function loadOptions() {
   } finally {
     loading.value = false
   }
+  // 断点列表单独取且失败不致命：没有断点只是"不能续训"，
+  // 不该让整页退化成"选项加载失败"。
+  try {
+    const runs = await api.get('/api/trainings/runs')
+    checkpoints.value = runs.checkpoint_details || []
+  } catch { checkpoints.value = [] }
 }
+
+/** 勾上续训时自动落到最新断点，避免"开了开关却因没选断点被静默挡住提交" */
+function onResumeToggle() {
+  if (resumeOn.value && !resumePath.value) {
+    resumePath.value = checkpoints.value[0]?.path || ''
+  }
+}
+
+// 断点决定数据集：能反推出来就同步过去，让用户看到"数据集被断点锁定"
+watch(resumePath, (p) => {
+  if (!resumeOn.value || !p) return
+  const ds = checkpoints.value.find(c => c.path === p)?.dataset
+  if (ds) cfg.value.dataset_name = ds
+})
 
 onMounted(loadOptions)
 </script>
@@ -146,13 +199,23 @@ onMounted(loadOptions)
             <div class="retry"><button class="btn sm" @click="loadOptions">重试</button></div>
           </p>
           <template v-else>
-            <select v-model="cfg.dataset_name" :disabled="loading">
+            <select v-model="cfg.dataset_name" :disabled="loading || datasetLocked">
               <option value="" disabled>{{ loading ? '加载中…' : '— 选择数据集 —' }}</option>
               <option v-for="d in datasets" :key="d" :value="d">{{ d }}</option>
             </select>
+            <!-- 续训时数据集由断点决定，锁住而不是仅提示：管线会以这里的值传 data=，
+                 选错不报错、只在别的数据上接着练，属于静默错误 -->
+            <p v-if="datasetLocked" class="hint" style="margin-top:8px">
+              由断点决定（{{ currentCkpt?.run }}），已锁定。
+              <button class="link-btn" @click="resumeOn = false">退出续训</button>
+            </p>
+            <p v-if="resumeDatasetBad" class="hint danger" style="margin-top:8px">
+              断点所属数据集 <b>{{ resumeDataset }}</b> 当前不可训练（缺 data.yaml），
+              请先到 <router-link to="/datasets">数据集页</router-link> 处理。
+            </p>
             <!-- 这里只列出可训练的（存在 data.yaml）。把被排除的也说出来，
                  否则用户在数据集页看到「可训练」的列表与这里对不上账。 -->
-            <p v-if="!loading && excluded.length" class="hint" style="margin-top:8px">
+            <p v-else-if="!loading && excluded.length" class="hint" style="margin-top:8px">
               另有 {{ excluded.length }} 个数据集不可选（缺 data.yaml）：{{ excluded.join('、') }}
               <router-link to="/datasets">去处理</router-link>
             </p>
@@ -165,7 +228,7 @@ onMounted(loadOptions)
         <div class="card">
           <h3>任务与模型</h3>
           <label class="field" style="margin-bottom:10px">任务类型
-            <select v-model="task" @change="onTaskChange">
+            <select v-model="task" :disabled="resumeOn" @change="onTaskChange">
               <option value="detect">detect · 目标检测</option>
               <option value="segment">segment · 实例分割</option>
               <option value="pose">pose · 姿态估计</option>
@@ -173,21 +236,59 @@ onMounted(loadOptions)
             </select>
           </label>
           <label class="field" style="margin-bottom:10px">预训练模型
-            <select v-model="cfg.model">
+            <select v-model="cfg.model" :disabled="resumeOn">
               <option v-for="m in taskModels" :key="m.filename" :value="m.filename">
                 {{ m.filename }}（{{ m.family }} {{ m.size }}）{{ m.local ? '· 本地' : '· 需下载' }}
               </option>
             </select>
           </label>
-          <p v-if="localModels.length" class="hint" style="margin-bottom:10px">
+          <p v-if="resumeOn" class="hint" style="margin-bottom:10px">
+            续训以断点内的模型为准，此处不生效。
+          </p>
+          <p v-else-if="localModels.length" class="hint" style="margin-bottom:10px">
             标注「本地」的 {{ localModels.length }} 个模型已在本机，可直接开始训练。
           </p>
-          <button class="btn sm" :disabled="busy" @click="downloadModel" v-if="remoteModels.some(m => m.filename === cfg.model)">
+          <button v-if="!resumeOn && remoteModels.some(m => m.filename === cfg.model)"
+                  class="btn sm" :disabled="busy" @click="downloadModel">
             {{ busy ? '处理中…' : '下载选中模型' }}
           </button>
         </div>
 
         <div class="card">
+          <h3>断点续训</h3>
+          <label class="row-check">
+            <input type="checkbox" v-model="resumeOn" @change="onResumeToggle" />
+            从某个断点继续训练
+          </label>
+
+          <template v-if="resumeOn">
+            <p v-if="!checkpoints.length" class="hint" style="margin-top:12px">
+              暂无可用断点。续训需要一次未跑完的训练留下的
+              <code class="mono">last.pt</code>（正常跑完的 run 只有 best.pt）。
+            </p>
+            <template v-else>
+              <label class="field" style="margin-top:12px">选择断点
+                <select v-model="resumePath">
+                  <option v-for="c in checkpoints" :key="c.path" :value="c.path">
+                    {{ c.run }} · {{ c.epochs_done }}/{{ c.epochs_planned }} 轮 · {{ c.modified }}
+                  </option>
+                </select>
+              </label>
+              <p v-if="currentCkpt" class="hint" style="margin-top:10px">
+                数据集 <b>{{ currentCkpt.dataset || '无法判定' }}</b> ·
+                已完成 <b>{{ currentCkpt.epochs_done }}</b> 轮 ·
+                断点 {{ currentCkpt.size_mb }} MB
+              </p>
+              <!-- 反推不出去数据集（缺 args.yaml）时不能装作知道：让用户自己确认 -->
+              <p v-if="currentCkpt && !currentCkpt.dataset" class="hint danger" style="margin-top:6px">
+                该断点缺 <code class="mono">args.yaml</code>，无法反推数据集。
+                请自行确认下方选中的数据集与断点一致，否则会在别的数据上接着练。
+              </p>
+            </template>
+          </template>
+        </div>
+
+        <div v-if="!resumeOn" class="card">
           <h3>参数预设</h3>
           <div style="display:flex;flex-direction:column;gap:8px">
             <label v-for="(v, name) in PRESETS" :key="name"
@@ -202,22 +303,45 @@ onMounted(loadOptions)
         <div class="card">
           <h3>执行</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
-            <button class="btn primary" :disabled="busy || !cfg.dataset_name" @click="startNow">
-              {{ busy ? '提交中…' : '▶ 立即开始训练' }}
+            <button class="btn primary" :disabled="!canSubmit" @click="startNow">
+              {{ busy ? '提交中…' : (resumeOn ? '▶ 从断点继续训练' : '▶ 立即开始训练') }}
             </button>
-            <button class="btn" :disabled="busy || !cfg.dataset_name" @click="enqueue">
+            <button class="btn" :disabled="!canSubmit" @click="enqueue">
               {{ busy ? '提交中…' : '▦ 加入队列' }}
             </button>
-            <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--text-muted)">
-              <input type="checkbox" v-model="cfg.skip_validation" style="width:auto" />
+            <label v-if="!resumeOn" class="row-check">
+              <input type="checkbox" v-model="cfg.skip_validation" />
               跳过数据校验（数据已确认正常时）
             </label>
           </div>
         </div>
       </div>
 
-      <!-- 右列：参数组 -->
+      <!-- 右列：参数组。续训模式下这些参数一个都不会生效——管线在 resume 时
+           只传 {"resume": True, "plots", "verbose"}，其余全部取 checkpoint 内的值。
+           所以整列换成"续训将使用什么"，而不是摆一片改不动的输入框。 -->
       <div style="display:flex;flex-direction:column;gap:16px">
+        <div v-if="resumeOn" class="card">
+          <h3>续训将使用</h3>
+          <table class="tbl">
+            <tbody>
+              <tr><td class="muted">数据集</td><td>{{ resumeDataset || cfg.dataset_name || '—' }}</td></tr>
+              <tr><td class="muted">断点</td><td class="mono truncate" :title="resumePath">{{ currentCkpt?.run || '—' }}</td></tr>
+              <tr><td class="muted">已完成</td><td class="mono">{{ currentCkpt?.epochs_done ?? '—' }} 轮</td></tr>
+              <tr><td class="muted">原本计划</td><td class="mono">{{ currentCkpt?.epochs_planned ?? '—' }} 轮</td></tr>
+              <tr><td class="muted">断点时间</td><td class="mono">{{ currentCkpt?.modified || '—' }}</td></tr>
+            </tbody>
+          </table>
+          <p class="hint" style="margin-top:12px">
+            续训以 checkpoint 内保存的超参数为准（轮数、学习率、优化器、批次、设备等），
+            外部传入的覆盖参数会被忽略，因此常规参数区在续训模式下不显示。
+          </p>
+          <p class="hint" style="margin-top:8px">
+            要改这些参数，请退出续训另起一次训练。
+          </p>
+        </div>
+
+        <template v-if="!resumeOn">
         <div class="card">
           <h3>基础</h3>
           <div class="grid c4">
@@ -278,6 +402,7 @@ onMounted(loadOptions)
             </label>
           </div>
         </details>
+        </template>
       </div>
     </div>
   </div>
