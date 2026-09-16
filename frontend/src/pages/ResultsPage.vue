@@ -1,70 +1,93 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
+import { toastErr, toastOk } from '../lib/toast.js'
 
 const runs = ref([])
 const selected = ref('')
 const results = ref(null)
 const exportFmt = ref('onnx')
-const exportMsg = ref('')
-const exportOk = ref(true)
+const exporting = ref(false)
 const compareMd = ref('')
 const registry = ref({})
 
+const loading = ref(true)
+const loadError = ref('')
+
 async function refreshRuns(selectAfter) {
-  const r = await api.get('/api/trainings/runs')
-  runs.value = r.runs
-  if (selectAfter && runs.value.includes(selectAfter)) selected.value = selectAfter
-  if (!selected.value && runs.value.length) selected.value = runs.value[0]
-  await loadResults()
+  loading.value = true
+  loadError.value = ''
+  try {
+    const r = await api.get('/api/trainings/runs')
+    runs.value = r.runs
+    if (selectAfter && runs.value.includes(selectAfter)) selected.value = selectAfter
+    if (!selected.value && runs.value.length) selected.value = runs.value[0]
+    await loadResults()
+  } catch (e) {
+    // 不能退化成「暂无训练产物」——那是"跑过但没产物"，与"接口挂了"是两回事
+    loadError.value = errMsg(e)
+    runs.value = []; results.value = null
+  } finally {
+    loading.value = false
+  }
 }
 
 async function loadResults() {
   results.value = null
   if (!selected.value) return
   try { results.value = await api.get(`/api/trainings/results?run=${encodeURIComponent(selected.value)}`) }
-  catch { /* 该 run 无产物 */ }
+  catch { /* 该 run 无产物，由模板的空态承接 */ }
 }
 
 async function onExport() {
-  exportMsg.value = ''
+  exporting.value = true
   try {
     const r = await api.post('/api/exports', { run_name: selected.value, fmt: exportFmt.value })
-    exportOk.value = true
-    exportMsg.value = `✅ ${r.format} → ${r.path}（${r.size_mb} MB）`
-  } catch (e) { exportOk.value = false; exportMsg.value = errMsg(e) }
+    toastOk(`${r.format} 导出完成 → ${r.path}（${r.size_mb} MB）`)
+  } catch (e) { toastErr(errMsg(e)) } finally { exporting.value = false }
 }
 
-async function loadCompare() { compareMd.value = (await api.get('/api/trainings/compare')).markdown }
+async function loadCompare() {
+  try { compareMd.value = (await api.get('/api/trainings/compare')).markdown }
+  catch (e) { toastErr(errMsg(e)) }
+}
 async function loadRegistry() { registry.value = (await api.get('/api/registry')).datasets }
 
 onMounted(async () => {
   await refreshRuns()
   loadRegistry().catch(() => {})
 })
+
+const fmt4 = (v) => (v == null ? '—' : Number(v).toFixed(4))
 </script>
 
 <template>
   <div>
+    <p v-if="loadError" class="state-msg error">
+      训练记录加载失败：{{ loadError }}
+      <div class="retry"><button class="btn sm" @click="refreshRuns()">重试</button></div>
+    </p>
+
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <select v-model="selected" style="max-width:280px" @change="loadResults">
-        <option value="" disabled>— 选择 run —</option>
+      <select v-model="selected" style="max-width:280px" :disabled="loading || !runs.length" @change="loadResults">
+        <option value="" disabled>{{ loading ? '加载中…' : runs.length ? '— 选择 run —' : '暂无 run' }}</option>
         <option v-for="r in runs" :key="r" :value="r">{{ r }}</option>
       </select>
+      <span v-if="!loading && !loadError" class="hint">共 {{ runs.length }} 个 run</span>
     </div>
 
     <template v-if="results">
       <div class="grid c4" style="margin-bottom:16px">
         <div class="metric">
-          <div class="value green">{{ results.final_metrics ? results.final_metrics.mAP50.toFixed(4) : '--' }}</div>
+          <div class="value green">{{ fmt4(results.final_metrics?.mAP50) }}</div>
           <div class="label">{{ (results.metric_labels || ['mAP@50'])[0] }}</div>
         </div>
         <div class="metric">
-          <div class="value green">{{ results.final_metrics && results.final_metrics.mAP50_95 != null ? results.final_metrics.mAP50_95.toFixed(4) : '--' }}</div>
+          <div class="value green">{{ fmt4(results.final_metrics?.mAP50_95) }}</div>
           <div class="label">{{ (results.metric_labels || ['mAP@50', 'mAP@50-95'])[1] }}</div>
         </div>
         <div class="metric">
-          <div class="value amber">{{ results.final_metrics ? results.final_metrics.epoch : '--' }}</div>
+          <div class="value amber">{{ results.final_metrics?.epoch ?? '—' }}</div>
           <div class="label">Best Epoch</div>
         </div>
         <div class="metric">
@@ -89,15 +112,20 @@ onMounted(async () => {
           <code class="mono">{{ results.download_url ? `runs/detect/${results.run_name}/weights/best.pt` : '尚无 best.pt' }}</code>
           <div style="flex:1"></div>
           <select v-model="exportFmt" style="width:150px">
-            <option v-for="f in ['onnx','torchscript','openvino','engine','coreml','tflite','saved_model','paddle','ncnn']" :key="f" :value="f">{{ f }}</option>
+            <option v-for="f in ['onnx','torchscript','openvino','engine','coreml','tflite','saved_model','paddle','ncnn']"
+                    :key="f" :value="f">{{ f }}</option>
           </select>
-          <button class="btn primary" :disabled="!results.has_weights" @click="onExport">开始导出</button>
-          <a v-if="results.download_url" class="btn" :href="results.download_url">⬇️ 下载 best.pt</a>
+          <button class="btn primary" :disabled="!results.has_weights || exporting" @click="onExport">
+            {{ exporting ? '导出中…' : '开始导出' }}
+          </button>
+          <a v-if="results.download_url" class="btn" :href="results.download_url">下载 best.pt</a>
         </div>
-        <p v-if="exportMsg" :class="exportOk ? 'ok-text' : 'error-text'">{{ exportMsg }}</p>
       </div>
     </template>
-    <div v-else class="card muted" style="margin-bottom:16px">暂无训练产物，先去「训练配置」启动一次训练。</div>
+
+    <div v-else-if="!loading && !loadError" class="card muted" style="margin-bottom:16px">
+      {{ runs.length ? '该 run 无训练产物，换一个 run 试试。' : '暂无训练产物，先去「训练配置」启动一次训练。' }}
+    </div>
 
     <div class="grid c2">
       <div class="card">
@@ -118,7 +146,7 @@ onMounted(async () => {
               <tbody>
                 <tr v-for="v in versions" :key="v.version_id">
                   <td class="mono">{{ v.version_id.slice(0, 12) }}</td>
-                  <td class="mono">{{ v.metrics?.mAP50 != null ? v.metrics.mAP50.toFixed(4) : '--' }}</td>
+                  <td class="mono">{{ fmt4(v.metrics?.mAP50) }}</td>
                   <td><span class="badge" :class="v.status === 'production' ? 'ok' : 'idle'">{{ v.status }}</span></td>
                 </tr>
               </tbody>

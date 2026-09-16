@@ -236,15 +236,61 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 @media (max-width: 1100px) { .gallery { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
 
-.toast {
+/* ---- 全局操作反馈 ----
+   宿主只负责定位，单条 .toast 不再自行 fixed —— 否则多条通知会叠在同一坐标上。 */
+.toast-host {
   position: fixed; top: 66px; right: 24px; z-index: 99;
+  display: flex; flex-direction: column; gap: 8px;
+  width: max-content; max-width: 400px;
+  pointer-events: none;   /* 空白区域不挡住底层操作 */
+}
+.toast {
+  pointer-events: auto;
+  display: flex; align-items: flex-start; gap: 12px;
   background: var(--bg-card); border: 1px solid var(--border-strong);
   border-left: 3px solid var(--blue); border-radius: 8px;
-  padding: 12px 16px; font-size: 13px; max-width: 380px;
+  padding: 12px 14px; font-size: 13px;
   box-shadow: 0 8px 24px rgba(0,0,0,.4);
 }
 .toast.success { border-left-color: var(--green); }
 .toast.error { border-left-color: var(--red); }
+.toast-text { flex: 1; overflow-wrap: anywhere; }
+.toast-close {
+  flex-shrink: 0; width: 18px; height: 18px; line-height: 1;
+  border: 0; border-radius: 4px; background: transparent;
+  color: var(--text-muted); font-size: 16px; cursor: pointer;
+  font-family: var(--sans);
+}
+.toast-close:hover { color: var(--text); background: var(--bg-input); }
+
+.toast-enter-active, .toast-leave-active { transition: opacity .18s ease, transform .18s ease; }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(12px); }
+
+/* ---- 键盘焦点 ----
+   原先全文没有任何 :focus/:focus-visible 规则，而 .nav a 等处的 outline
+   被浏览器默认样式压成 none —— 实测 Tab 走一遍侧栏与顶栏完全看不到焦点落点。 */
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.btn:focus-visible,
+.nav a:focus-visible,
+.toast-close:focus-visible,
+select:focus-visible,
+input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* ---- 页面三态（加载 / 空 / 失败）----
+   三者必须可区分：此前接口失败时 statuses 为空，渲染出与「真的没有数据集」
+   完全相同的空态文案，把用户引向错误的排查方向。 */
+.state-msg { font-size: 12.5px; padding: 14px 2px; }
+.state-msg.error { color: var(--red); }
+.state-msg .retry { margin-top: 10px; }
+
+/* 数据集问题列。告警文本不允许截断——截断等于把风险藏起来，
+   宁可让行变高。宽度上限只是防止它把整张表撑开。 */
+.issue-cell { max-width: 300px; }
+.issue-text { color: var(--amber); font-size: 12px; line-height: 1.5; }
+.hint { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+.hint a { color: var(--blue); }
+/* 截断的单元格必须同时给 title，否则信息就丢了（备注列放失败原因） */
+.truncate { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- 窄视口守卫 ----
    本控制台为桌面工具，不做移动/平板适配（已确认产品决策）。低于支持下限时

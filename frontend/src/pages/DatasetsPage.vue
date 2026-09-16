@@ -1,13 +1,18 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
+import { toastErr, toastOk } from '../lib/toast.js'
 
-const datasets = ref([])
-const statuses = ref([])
+const datasets = ref([])        // 可训练（存在 data.yaml）——训练配置页的下拉就是它
+const statuses = ref([])        // 磁盘上全部数据集目录（扫描级）
 const selected = ref('')
 const info = ref(null)
 const previews = ref([])
 const showBoxes = ref(false)
+
+const loading = ref(true)
+const loadError = ref('')
+
 const validating = ref(false)
 const validateMsg = ref('')
 const validateOk = ref(true)
@@ -16,23 +21,49 @@ const validateOk = ref(true)
 const zipFile = ref(null)
 const uploadName = ref('')
 const overwrite = ref(false)
-const uploadMsg = ref('')
-const uploadOk = ref(true)
+const uploading = ref(false)
 
 // 转换
-const pendingList = ref([])
 const deleteOriginal = ref(false)
-const convertMsg = ref('')
-const convertOk = ref(true)
+const converting = ref(false)
+
+const pendingList = computed(() => statuses.value.filter(s => s.needs_conversion).map(s => s.name))
+const notTrainable = computed(() => statuses.value.filter(s => !s.is_trainable).map(s => s.name))
+const issueCount = computed(() => statuses.value.filter(s => s.issues?.length).length)
+
+/**
+ * 状态徽标必须按 is_trainable 判定，不能按 is_ready。
+ *
+ * is_ready 是扫描级（labels 目录存在且有标注文件），is_trainable 是训练级
+ * （存在 data.yaml）。实测 _smoke_test / cabel-damage-mini 有完整标注但缺
+ * data.yaml —— 旧代码把它们标成绿色「就绪」，用户转到训练配置页却在数据集
+ * 下拉里找不到它们，没有任何解释。
+ */
+function badge(s) {
+  if (s.is_trainable) return { cls: 'ok', text: '可训练' }
+  if (s.is_ready) return { cls: 'warn', text: '缺 data.yaml' }
+  if (s.needs_conversion) return { cls: 'warn', text: '需转换' }
+  return { cls: 'err', text: '不可训练' }
+}
 
 async function refresh(selectAfter) {
-  const data = await api.get('/api/datasets')
-  datasets.value = data.datasets
-  statuses.value = data.statuses
-  pendingList.value = data.statuses.filter(s => s.needs_conversion).map(s => s.name)
-  if (selectAfter && datasets.value.includes(selectAfter)) selectDataset(selectAfter)
-  else if (selected.value && !datasets.value.includes(selected.value)) {
-    selected.value = ''; info.value = null; previews.value = []
+  loading.value = true
+  loadError.value = ''
+  try {
+    const data = await api.get('/api/datasets')
+    datasets.value = data.datasets
+    statuses.value = data.statuses
+    if (selectAfter && datasets.value.includes(selectAfter)) selectDataset(selectAfter)
+    else if (selected.value && !datasets.value.includes(selected.value)) {
+      selected.value = ''; info.value = null; previews.value = []
+    }
+  } catch (e) {
+    // 关键：失败不能退化成空态。否则接口挂了会显示「暂无数据集，请上传 ZIP」，
+    // 与真的没有数据集完全同形，把用户引向错误的排查方向。
+    loadError.value = errMsg(e)
+    datasets.value = []; statuses.value = []
+  } finally {
+    loading.value = false
   }
 }
 
@@ -59,22 +90,22 @@ async function loadPreviews() {
 }
 
 async function onUpload() {
-  uploadMsg.value = ''
-  if (!zipFile.value) { uploadMsg.value = '请选择 ZIP 文件'; uploadOk.value = false; return }
+  if (!zipFile.value) { toastErr('请先选择 ZIP 文件'); return }
+  uploading.value = true
   const form = new FormData()
   form.append('file', zipFile.value)
   form.append('name', uploadName.value)
   form.append('overwrite', overwrite.value)
   try {
     const result = await api.postForm('/api/datasets/upload', form)
-    uploadOk.value = true
-    uploadMsg.value = `✅ ${result.message}`
+    toastOk(result.message)
     zipFile.value = null
     await refresh(result.dataset_name)
   } catch (e) {
-    uploadOk.value = false
-    uploadMsg.value = errMsg(e)
-    if (String(uploadMsg.value).includes('已存在')) uploadMsg.value += '（可勾选「覆盖同名数据集」）'
+    const text = errMsg(e)
+    toastErr(text.includes('已存在') ? `${text}（可勾选「覆盖同名数据集」后重试）` : text)
+  } finally {
+    uploading.value = false
   }
 }
 
@@ -84,19 +115,22 @@ async function onValidate() {
     const r = await api.post(`/api/datasets/${encodeURIComponent(selected.value)}/validate`)
     validateOk.value = r.is_valid
     validateMsg.value = r.message
-  } catch (e) { validateOk.value = false; validateMsg.value = errMsg(e) }
-  validating.value = false
+    if (!r.is_valid) toastErr(`${selected.value} 校验未通过，详见下方报告`)
+  } catch (e) {
+    validateOk.value = false; validateMsg.value = errMsg(e); toastErr(errMsg(e))
+  } finally {
+    validating.value = false
+  }
 }
 
 async function onConvert() {
-  convertMsg.value = ''
+  converting.value = true
   try {
     const r = await api.post(
       `/api/datasets/${encodeURIComponent(selected.value)}/convert?delete_original=${deleteOriginal.value}`)
-    convertOk.value = true
-    convertMsg.value = r.message
+    toastOk(r.message)
     await refresh(r.converted_name)
-  } catch (e) { convertOk.value = false; convertMsg.value = errMsg(e) }
+  } catch (e) { toastErr(errMsg(e)) } finally { converting.value = false }
 }
 
 onMounted(() => refresh())
@@ -118,50 +152,78 @@ onMounted(() => refresh())
               <input type="checkbox" v-model="overwrite" style="width:auto" />
               覆盖同名数据集（不勾选时同名将拒绝上传）
             </label>
-            <button class="btn primary" @click="onUpload">上传并解压</button>
-            <p v-if="uploadMsg" :class="uploadOk ? 'ok-text' : 'error-text'">{{ uploadMsg }}</p>
+            <button class="btn primary" :disabled="uploading" @click="onUpload">
+              {{ uploading ? '上传中…' : '上传并解压' }}
+            </button>
           </div>
         </div>
 
         <div class="card">
           <h3>格式转换（分类 → YOLO）</h3>
-          <p v-if="pendingList.length" style="font-size:12px;color:var(--amber);margin-bottom:10px">
+          <p v-if="pendingList.length" class="hint" style="color:var(--amber);margin-bottom:10px">
             待转换：{{ pendingList.join('、') }}
           </p>
-          <p v-else class="muted" style="font-size:12.5px;margin-bottom:10px">✅ 所有数据集均为 YOLO 格式</p>
+          <p v-else class="hint" style="margin-bottom:10px">所有数据集均已具备 YOLO 结构</p>
           <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--text-muted);margin-bottom:10px">
             <input type="checkbox" v-model="deleteOriginal" style="width:auto" />
             转换后删除原始数据集（默认保留）
           </label>
-          <button class="btn" :disabled="!selected" @click="onConvert">转换当前数据集</button>
-          <p v-if="convertMsg" :class="convertOk ? 'ok-text' : 'error-text'">{{ convertMsg }}</p>
+          <button class="btn" :disabled="!selected || converting" @click="onConvert">
+            {{ converting ? '转换中…' : '转换当前数据集' }}
+          </button>
+          <p class="hint" style="margin-top:8px">先在上方列表选中一个数据集</p>
         </div>
       </div>
 
       <!-- 右侧：列表 + 详情 -->
       <div style="display:flex;flex-direction:column;gap:16px">
         <div class="card">
-          <!-- 计数必须取 statuses：表格渲染的是 statuses（磁盘上全部数据集），
-               而 datasets 只含可训练项（需有 data.yaml），两者口径不同。
-               原用 datasets.length 导致表头写 4 却渲染 6 行。 -->
+          <!-- 计数取 statuses（表格渲染的就是它，磁盘上全部目录）。
+               datasets 只含可训练项（需有 data.yaml），两者口径不同：
+               原用 datasets.length 导致表头写 4 而表格渲染 6 行。 -->
           <h3>数据集列表（{{ statuses.length }}）</h3>
-          <div class="table-wrap">
+
+          <p v-if="!loading && !loadError && statuses.length" class="hint" style="margin:-6px 0 12px">
+            共扫描 {{ statuses.length }} 个目录，其中 <strong>{{ datasets.length }}</strong> 个可训练
+            <template v-if="notTrainable.length">，{{ notTrainable.length }} 个缺 data.yaml（不可选入训练）</template>
+          </p>
+
+          <p v-if="loading" class="state-msg muted">加载中…</p>
+
+          <div v-else-if="loadError" class="state-msg error">
+            数据集列表加载失败：{{ loadError }}
+            <div class="retry"><button class="btn sm" @click="refresh()">重试</button></div>
+          </div>
+
+          <div v-else class="table-wrap">
             <table class="tbl">
-              <thead><tr><th>名称</th><th>格式</th><th>图像</th><th>标注</th><th>状态</th></tr></thead>
+              <thead>
+                <tr><th>名称</th><th>格式</th><th>图像</th><th>标注</th><th>状态</th><th>问题</th></tr>
+              </thead>
               <tbody>
                 <tr v-for="s in statuses" :key="s.name" style="cursor:pointer" @click="selectDataset(s.name)">
                   <td><code :style="s.name === selected ? 'color:var(--blue)' : ''">{{ s.name }}</code></td>
                   <td>{{ s.format }}</td>
                   <td class="mono">{{ s.image_count }}</td>
                   <td class="mono">{{ s.label_count }}</td>
-                  <td>
-                    <span class="badge" :class="s.is_ready ? 'ok' : 'warn'">{{ s.is_ready ? '就绪' : '需处理' }}</span>
+                  <td><span class="badge" :class="badge(s).cls">{{ badge(s).text }}</span></td>
+                  <!-- 告警不截断：后端早就在返回 issues，只是模板从未渲染它。
+                       data 数据集 image=371 / label=296（val 集 75/75 张无标注），
+                       旧界面 6 行全绿「就绪」，用户会拿坏数据训练并相信产出的 mAP。 -->
+                  <td class="issue-cell">
+                    <span v-if="!s.issues || !s.issues.length" class="muted">—</span>
+                    <span v-else class="issue-text">{{ s.issues.join('；') }}</span>
                   </td>
                 </tr>
-                <tr v-if="!statuses.length"><td colspan="5" class="muted">暂无数据集，请上传 ZIP</td></tr>
+                <tr v-if="!statuses.length"><td colspan="6" class="muted">暂无数据集，请上传 ZIP</td></tr>
               </tbody>
             </table>
           </div>
+
+          <!-- 列表之外的单条提示：告警只在一行里可见容易被略过 -->
+          <p v-if="!loading && !loadError && issueCount" class="hint" style="color:var(--amber);margin-top:10px">
+            {{ issueCount }} 个数据集的标注完整性存在问题，训练前请先核对「问题」列。
+          </p>
         </div>
 
         <div class="card" v-if="info">
@@ -192,7 +254,8 @@ onMounted(() => refresh())
               {{ validating ? '校验中…' : '校验数据集' }}
             </button>
           </div>
-          <pre v-if="validateMsg" class="data-block" style="margin-top:10px;color:var(--text)">{{ validateMsg }}</pre>
+          <pre v-if="validateMsg" class="data-block"
+               :style="{ marginTop: '10px', color: validateOk ? 'var(--text)' : 'var(--red)' }">{{ validateMsg }}</pre>
         </div>
       </div>
     </div>

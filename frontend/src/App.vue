@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from './lib/api.js'
+import ToastHost from './components/ToastHost.vue'
 
 const route = useRoute()
 const apiOk = ref(null)     // null=检测中
@@ -76,7 +77,8 @@ onBeforeUnmount(() => {
           <div class="spacer"></div>
           <span v-if="running" class="badge warn"><span class="dot run"></span>训练运行中</span>
           <span class="health">
-            <span class="dot" :class="{ ok: apiOk === true, bad: apiOk === false }"></span>
+            <!-- 三态都要有底：此前 null 时 dot 不带任何类，渲染成透明方块 -->
+            <span class="dot" :class="apiOk === true ? 'ok' : apiOk === false ? 'bad' : 'idle'"></span>
             API {{ apiOk === null ? '…' : apiOk ? '在线' : '离线' }}
           </span>
         </div>
@@ -86,4 +88,6 @@ onBeforeUnmount(() => {
       </main>
     </div>
   </div>
+
+  <ToastHost />
 </template>

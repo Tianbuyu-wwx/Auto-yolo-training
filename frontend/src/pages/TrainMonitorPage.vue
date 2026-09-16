@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api, errMsg, trainingSocket } from '../lib/api.js'
+import { toastErr, toastOk } from '../lib/toast.js'
 import LineChart from '../components/LineChart.vue'
 import LogConsole from '../components/LogConsole.vue'
 
@@ -8,7 +9,6 @@ const status = ref(null)
 const logs = ref('')
 const wsState = ref('…')
 const busy = ref(false)
-const actionMsg = ref('')
 
 // 曲线数据：前端按 tick 累积（每个 epoch 一个点）
 const lossSeries = ref([])
@@ -30,9 +30,10 @@ function onMessage(msg) {
 
 async function stop() {
   busy.value = true
-  try { await api.post('/api/trainings/stop'); actionMsg.value = '已发送停止信号（当前 epoch 结束后生效）' }
-  catch (e) { actionMsg.value = errMsg(e) }
-  busy.value = false
+  try {
+    await api.post('/api/trainings/stop')
+    toastOk('已发送停止信号（当前 epoch 结束后生效）')
+  } catch (e) { toastErr(errMsg(e)) } finally { busy.value = false }
 }
 
 const progressPct = computed(() => status.value ? Math.min(100, status.value.progress ?? 0) : 0)
@@ -45,6 +46,14 @@ const etaText = computed(() => {
 })
 
 const labels = computed(() => status.value?.metric_labels || ['mAP@50', 'mAP@50-95'])
+
+/**
+ * 与总览页同一判据：后端字段默认值就是 0，且 WS 每秒推送让 status 恒非空，
+ * 所以 `status ? 值 : '—'` 兜底永远不触发 —— 空闲时四张卡显示 0/0 与 0.0000×3。
+ */
+const hasRun = computed(() => !!status.value && status.value.total_epochs > 0)
+const epochText = computed(() => hasRun.value ? `${status.value.current_epoch} / ${status.value.total_epochs}` : '—')
+const fmt = (key) => (hasRun.value && status.value[key] != null ? Number(status.value[key]).toFixed(4) : '—')
 
 const lossOption = computed(() => ({
   grid: { left: 48, right: 16, top: 30, bottom: 28 },
@@ -75,10 +84,12 @@ onBeforeUnmount(() => closeWs && closeWs())
         {{ status.is_running ? (status.is_stopping ? '正在停止…' : `训练中 · ${status.current_stage}`) : status.success ? '训练完成' : status.error_message ? '失败' : '空闲' }}
       </span>
       <div style="flex:1"></div>
+      <span v-if="wsState === 'disconnected'" class="badge err">实时连接已断开，正在重连…</span>
       <span class="muted mono" style="font-size:11px">WS: {{ wsState }}</span>
-      <button class="btn danger" :disabled="busy || !status?.is_running || status?.is_stopping" @click="stop">■ 停止训练</button>
+      <button class="btn danger" :disabled="busy || !status?.is_running || status?.is_stopping" @click="stop">
+        {{ busy ? '发送中…' : '■ 停止训练' }}
+      </button>
     </div>
-    <p v-if="actionMsg" class="muted" style="margin:-10px 0 14px;font-size:12.5px">{{ actionMsg }}</p>
 
     <!-- 进度条 -->
     <div class="card" style="margin-bottom:16px">
@@ -92,19 +103,19 @@ onBeforeUnmount(() => closeWs && closeWs())
     <!-- 指标卡 -->
     <div class="grid c4" style="margin-bottom:16px">
       <div class="metric">
-        <div class="value amber">{{ status ? `${status.current_epoch} / ${status.total_epochs}` : '—' }}</div>
+        <div class="value amber">{{ epochText }}</div>
         <div class="label">Epoch</div>
       </div>
       <div class="metric">
-        <div class="value blue">{{ status ? status.current_loss.toFixed(4) : '—' }}</div>
+        <div class="value blue">{{ fmt('current_loss') }}</div>
         <div class="label">Loss</div>
       </div>
       <div class="metric">
-        <div class="value green">{{ status ? status.current_map50.toFixed(4) : '—' }}</div>
+        <div class="value green">{{ fmt('current_map50') }}</div>
         <div class="label">{{ labels[0] }}</div>
       </div>
       <div class="metric">
-        <div class="value green">{{ status ? status.current_map50_95.toFixed(4) : '—' }}</div>
+        <div class="value green">{{ fmt('current_map50_95') }}</div>
         <div class="label">{{ labels[1] }}</div>
       </div>
     </div>

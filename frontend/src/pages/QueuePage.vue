@@ -1,26 +1,41 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
+import { toastErr, toastOk } from '../lib/toast.js'
 
 const tasks = ref([])
 const error = ref('')
-const msg = ref('')
+const loading = ref(true)
 let timer = null
 
-const ICONS = { queued: '🟡', running: '🟢', done: '✅', failed: '❌', cancelled: '⛔', cancel_requested: '🟠' }
+/**
+ * 状态用「颜色 + 中文」表达，不再用彩色 Emoji。
+ * 原先的 🟡🟢✅❌⛔🟠 走 Segoe UI Emoji 字形，基线与尺寸无法与表格文字对齐
+ * （R6 截图里状态列明显偏大偏下），且 'running'/'done' 这类原始枚举不适合
+ * 直接呈现给用户。原始枚举保留在 title 里，便于对日志排查。
+ */
+const STATUS = {
+  queued: { cls: 'warn', dot: 'run', text: '排队中' },
+  running: { cls: 'warn', dot: 'run', text: '执行中' },
+  cancel_requested: { cls: 'idle', dot: 'idle', text: '取消中' },
+  done: { cls: 'ok', dot: 'ok', text: '已完成' },
+  failed: { cls: 'err', dot: 'bad', text: '失败' },
+  cancelled: { cls: 'idle', dot: 'idle', text: '已取消' },
+}
+const st = (s) => STATUS[s] || { cls: 'idle', dot: 'idle', text: s || '未知' }
 
 async function refresh() {
   try {
     tasks.value = (await api.get('/api/queue/tasks')).tasks
     error.value = ''
-  } catch (e) { error.value = errMsg(e) }
+  } catch (e) { error.value = errMsg(e) } finally { loading.value = false }
 }
 
 async function cancel(id) {
   try {
     await api.post(`/api/queue/${id}/cancel`)
-    msg.value = `任务 #${id} 已取消`
-  } catch (e) { msg.value = errMsg(e) }
+    toastOk(`任务 #${id} 已发送取消请求`)
+  } catch (e) { toastErr(errMsg(e)) }
   await refresh()
 }
 
@@ -30,38 +45,49 @@ onBeforeUnmount(() => clearInterval(timer))
 
 <template>
   <div>
-    <p class="muted" style="margin-bottom:16px;font-size:13px">
+    <p class="hint" style="margin-bottom:16px;font-size:13px">
       任务持久化到 SQLite，Web 重启不丢失；由队列按顺序执行，训练在独立子进程运行。
       在「训练配置」页点击「加入队列」提交任务。
     </p>
 
     <div class="card">
-      <div class="table-wrap">
-        <table class="tbl">
-          <thead>
-            <tr><th>#</th><th>数据集</th><th>模型</th><th>状态</th><th>创建时间</th><th>结束时间</th><th>备注</th><th></th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="t in tasks" :key="t.id">
-              <td class="mono">{{ t.id }}</td>
-              <td>{{ t.dataset_name }}</td>
-              <td class="mono">{{ t.config?.model }}</td>
-              <td><span class="badge" :class="t.status === 'done' ? 'ok' : ['failed'].includes(t.status) ? 'err' : ['queued','running'].includes(t.status) ? 'warn' : 'idle'">
-                {{ ICONS[t.status] || '·' }} {{ t.status }}</span></td>
-              <td class="mono">{{ (t.created_at || '').slice(0, 19) }}</td>
-              <td class="mono">{{ (t.finished_at || '').slice(0, 19) }}</td>
-              <td class="muted" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.error }}</td>
-              <td>
-                <button v-if="['queued','running','cancel_requested'].includes(t.status)"
-                        class="btn danger sm" @click="cancel(t.id)">取消</button>
-              </td>
-            </tr>
-            <tr v-if="!tasks.length"><td colspan="8" class="muted">队列为空</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p v-if="msg" class="muted" style="margin-top:10px;font-size:12.5px">{{ msg }}</p>
-      <p v-if="error" class="error-text">{{ error }}</p>
+      <p v-if="error" class="state-msg error">
+        队列读取失败：{{ error }}
+        <div class="retry"><button class="btn sm" @click="refresh">重试</button></div>
+      </p>
+
+      <template v-else>
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead>
+              <tr><th>#</th><th>数据集</th><th>模型</th><th>状态</th><th>创建时间</th><th>结束时间</th><th>备注</th><th></th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="t in tasks" :key="t.id">
+                <td class="mono">{{ t.id }}</td>
+                <td>{{ t.dataset_name }}</td>
+                <td class="mono">{{ t.config?.model }}</td>
+                <td :title="t.status">
+                  <span class="badge" :class="st(t.status).cls">
+                    <span class="dot" :class="st(t.status).dot"></span>{{ st(t.status).text }}
+                  </span>
+                </td>
+                <td class="mono">{{ (t.created_at || '').slice(0, 19) }}</td>
+                <td class="mono">{{ (t.finished_at || '').slice(0, 19) }}</td>
+                <!-- 备注列会被截断，完整文本放 title，否则失败原因看不全 -->
+                <td class="muted truncate" :title="t.error">{{ t.error }}</td>
+                <td>
+                  <button v-if="['queued','running','cancel_requested'].includes(t.status)"
+                          class="btn danger sm" @click="cancel(t.id)">取消</button>
+                </td>
+              </tr>
+              <tr v-if="!tasks.length">
+                <td colspan="8" class="muted">{{ loading ? '加载中…' : '队列为空' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </div>
   </div>
 </template>

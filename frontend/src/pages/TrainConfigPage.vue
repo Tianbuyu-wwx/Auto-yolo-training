@@ -2,14 +2,16 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, errMsg } from '../lib/api.js'
+import { toastErr, toastOk } from '../lib/toast.js'
 
 const router = useRouter()
 const datasets = ref([])
+const excluded = ref([])      // 扫描到但缺 data.yaml、因而无法选入训练的数据集
 const models = ref([])
 const task = ref('detect')
 const busy = ref(false)
-const msg = ref('')
-const msgOk = ref(true)
+const loading = ref(true)
+const loadError = ref('')
 
 const PRESETS = {
   快速验证: { epochs: 50, batch: 16, imgsz: 416, patience: 10, lr0: 0.002 },
@@ -81,16 +83,15 @@ function onTaskChange() {
 }
 
 async function downloadModel() {
-  busy.value = true; msg.value = ''
+  busy.value = true
   try {
     await api.postForm('/api/models/download', (() => {
       const f = new FormData(); f.append('filename', cfg.value.model); return f
     })())
-    msgOk.value = true; msg.value = `✅ ${cfg.value.model} 已下载`
+    toastOk(`${cfg.value.model} 已下载`)
     const data = await api.get('/api/models')
     models.value = data.models
-  } catch (e) { msgOk.value = false; msg.value = errMsg(e) }
-  busy.value = false
+  } catch (e) { toastErr(errMsg(e)) } finally { busy.value = false }
 }
 
 function payload() {
@@ -98,29 +99,39 @@ function payload() {
 }
 
 async function startNow() {
-  busy.value = true; msg.value = ''
+  busy.value = true
   try {
     await api.post('/api/trainings/start', payload())
     router.push('/train/monitor')
-  } catch (e) { msgOk.value = false; msg.value = errMsg(e) }
-  busy.value = false
+  } catch (e) { toastErr(errMsg(e)) } finally { busy.value = false }
 }
 
 async function enqueue() {
-  busy.value = true; msg.value = ''
+  busy.value = true
   try {
     const r = await api.post('/api/queue/enqueue', payload())
-    msgOk.value = true
-    msg.value = `✅ 已加入队列（任务 #${r.task_id}）`
-  } catch (e) { msgOk.value = false; msg.value = errMsg(e) }
-  busy.value = false
+    toastOk(`已加入队列（任务 #${r.task_id}）`)
+  } catch (e) { toastErr(errMsg(e)) } finally { busy.value = false }
 }
 
-onMounted(async () => {
-  const [ds, m] = await Promise.all([api.get('/api/datasets'), api.get('/api/models')])
-  datasets.value = ds.datasets
-  models.value = m.models
-})
+async function loadOptions() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const [ds, m] = await Promise.all([api.get('/api/datasets'), api.get('/api/models')])
+    datasets.value = ds.datasets
+    excluded.value = ds.statuses.filter(s => !s.is_trainable).map(s => s.name)
+    models.value = m.models
+  } catch (e) {
+    // 失败必须与"没有数据集可用"区分开，否则用户会跑去检查数据集而不是网络
+    loadError.value = errMsg(e)
+    datasets.value = []; excluded.value = []; models.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadOptions)
 </script>
 
 <template>
@@ -130,10 +141,25 @@ onMounted(async () => {
       <div style="display:flex;flex-direction:column;gap:16px">
         <div class="card">
           <h3>数据集</h3>
-          <select v-model="cfg.dataset_name">
-            <option value="" disabled>— 选择数据集 —</option>
-            <option v-for="d in datasets" :key="d" :value="d">{{ d }}</option>
-          </select>
+          <p v-if="loadError" class="state-msg error">
+            选项加载失败：{{ loadError }}
+            <div class="retry"><button class="btn sm" @click="loadOptions">重试</button></div>
+          </p>
+          <template v-else>
+            <select v-model="cfg.dataset_name" :disabled="loading">
+              <option value="" disabled>{{ loading ? '加载中…' : '— 选择数据集 —' }}</option>
+              <option v-for="d in datasets" :key="d" :value="d">{{ d }}</option>
+            </select>
+            <!-- 这里只列出可训练的（存在 data.yaml）。把被排除的也说出来，
+                 否则用户在数据集页看到「可训练」的列表与这里对不上账。 -->
+            <p v-if="!loading && excluded.length" class="hint" style="margin-top:8px">
+              另有 {{ excluded.length }} 个数据集不可选（缺 data.yaml）：{{ excluded.join('、') }}
+              <router-link to="/datasets">去处理</router-link>
+            </p>
+            <p v-else-if="!loading && !datasets.length" class="hint" style="margin-top:8px">
+              暂无可训练数据集，先去 <router-link to="/datasets">数据集页</router-link> 上传。
+            </p>
+          </template>
         </div>
 
         <div class="card">
@@ -149,12 +175,15 @@ onMounted(async () => {
           <label class="field" style="margin-bottom:10px">预训练模型
             <select v-model="cfg.model">
               <option v-for="m in taskModels" :key="m.filename" :value="m.filename">
-                {{ m.local ? '✅ ' : '' }}{{ m.filename }}（{{ m.family }} {{ m.size }}）
+                {{ m.filename }}（{{ m.family }} {{ m.size }}）{{ m.local ? '· 本地' : '· 需下载' }}
               </option>
             </select>
           </label>
+          <p v-if="localModels.length" class="hint" style="margin-bottom:10px">
+            标注「本地」的 {{ localModels.length }} 个模型已在本机，可直接开始训练。
+          </p>
           <button class="btn sm" :disabled="busy" @click="downloadModel" v-if="remoteModels.some(m => m.filename === cfg.model)">
-            ⬇️ 下载选中模型
+            {{ busy ? '处理中…' : '下载选中模型' }}
           </button>
         </div>
 
@@ -173,14 +202,17 @@ onMounted(async () => {
         <div class="card">
           <h3>执行</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
-            <button class="btn primary" :disabled="busy || !cfg.dataset_name" @click="startNow">▶ 立即开始训练</button>
-            <button class="btn" :disabled="busy || !cfg.dataset_name" @click="enqueue">▦ 加入队列</button>
+            <button class="btn primary" :disabled="busy || !cfg.dataset_name" @click="startNow">
+              {{ busy ? '提交中…' : '▶ 立即开始训练' }}
+            </button>
+            <button class="btn" :disabled="busy || !cfg.dataset_name" @click="enqueue">
+              {{ busy ? '提交中…' : '▦ 加入队列' }}
+            </button>
             <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--text-muted)">
               <input type="checkbox" v-model="cfg.skip_validation" style="width:auto" />
               跳过数据校验（数据已确认正常时）
             </label>
           </div>
-          <p v-if="msg" :class="msgOk ? 'ok-text' : 'error-text'">{{ msg }}</p>
         </div>
       </div>
 

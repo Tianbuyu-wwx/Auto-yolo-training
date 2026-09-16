@@ -32,17 +32,35 @@ class DatasetService:
         self.manager = AutoDatasetManager(str(self.dataset_dir))
 
     def list_datasets(self) -> list[str]:
-        """列出所有可用数据集"""
+        """列出所有可用于训练的数据集（判定：存在 data.yaml）"""
         return self.manager.list_ready_datasets()
 
     def get_all_statuses(self) -> list[dict]:
-        """获取所有数据集状态"""
+        """获取所有数据集状态
+
+        注意这里是**两级口径**，二者会不一致，调用方不能混用：
+
+        - ``is_ready``：扫描级 —— 磁盘上有 YOLO 结构（labels 目录 + 标注文件数 > 0）。
+          它只说明"文件长得像 YOLO 格式"，不代表能训练。
+        - ``is_trainable``：训练级 —— 存在 ``data.yaml``。训练管线只认这一条，
+          它同时也是 ``list_datasets()`` 的判定依据。
+
+        实测差异：``_smoke_test`` / ``cabel-damage-mini`` 有完整标注但缺 ``data.yaml``，
+        因此 ``is_ready=True`` 却 ``is_trainable=False`` —— 界面若只按 ``is_ready``
+        显示「就绪」，用户会在训练配置页的模型下拉里找不到它，却得不到任何解释。
+
+        另：``is_ready`` 为真不代表数据合格 —— ``data`` 数据集 ``image_count=371``
+        而 ``label_count=296``（val 集 75/75 张无标注），这类告警只出现在 ``issues`` 里，
+        必须由调用方显式展示，否则用户会拿坏数据训练并相信产出的 mAP。
+        """
         datasets = self.manager.scan_all_datasets()
+        trainable = set(self.manager.list_ready_datasets())
         return [
             {
                 "name": ds.name,
                 "format": ds.format.value,
                 "is_ready": ds.is_ready,
+                "is_trainable": ds.name in trainable,
                 "needs_conversion": ds.needs_conversion,
                 "image_count": ds.image_count,
                 "label_count": ds.label_count,
