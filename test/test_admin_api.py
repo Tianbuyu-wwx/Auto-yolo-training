@@ -521,6 +521,127 @@ class TestRegistryEndpoints:
 
 
 # ----------------------------------------------------------------------
+# 数据集删除 / 回收站（G-5）
+# ----------------------------------------------------------------------
+class TestRecycleBin:
+    def _recycle_items(self, client):
+        r = client.get("/api/recycle")
+        assert r.status_code == 200, r.text
+        return r.json()["items"]
+
+    def test_delete_moves_to_recycle_not_rmtree(self, client, dummy_dataset):
+        """删数据集必须是「移到回收目录」，不是抹掉 —— 一次误点不该不可逆"""
+        base = client.app.state.base_dir
+        ds_dir = base / "dataset" / "api-ds"
+        assert ds_dir.is_dir()
+
+        r = client.delete("/api/datasets/api-ds")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["status"] == "success"
+        assert Path(body["recycled_to"]).is_dir()
+        assert not ds_dir.exists()
+
+        # 关键：数据还在磁盘上，且能被列出来
+        items = self._recycle_items(client)
+        assert len(items) == 1
+        assert items[0]["original_name"] == "api-ds"
+
+    def test_recycled_dir_is_not_listed_as_a_dataset(self, client, dummy_dataset):
+        """回收目录以 . 开头，扫描器必须跳过它 —— 否则会出现一个叫 .recycle 的假数据集"""
+        client.delete("/api/datasets/api-ds")
+        payload = client.get("/api/datasets").json()
+        names = payload["datasets"]
+        assert "api-ds" not in names
+        assert not any(".recycle" in n for n in names)
+
+        # 只断言 datasets 是不够的：.recycle 里没有 data.yaml，list_ready_datasets
+        # 天然不会列出它，上面那条恒真、没有辨别力。真正的风险在 statuses ——
+        # 它走 scan_all_datasets，会把回收目录当成一个数据集去分析，
+        # 界面上就凭空多出一个「格式未知」的假数据集。
+        status_names = [s["name"] for s in payload["statuses"]]
+        assert not any(".recycle" in n for n in status_names), status_names
+
+    def test_restore_brings_the_dataset_back(self, client, dummy_dataset):
+        client.delete("/api/datasets/api-ds")
+        recycled = self._recycle_items(client)[0]["recycled_name"]
+
+        r = client.post(f"/api/recycle/{recycled}/restore")
+        assert r.status_code == 200, r.text
+        assert self._recycle_items(client) == []
+
+        # 恢复后要重新成为「可训练」（data.yaml 还在）
+        ds = client.get("/api/datasets").json()
+        assert "api-ds" in ds["datasets"]
+        status = next(s for s in ds["statuses"] if s["name"] == "api-ds")
+        assert status["is_trainable"] is True
+
+    def test_restore_conflicts_with_existing_dir(self, client, dummy_dataset):
+        client.delete("/api/datasets/api-ds")
+        recycled = self._recycle_items(client)[0]["recycled_name"]
+        # 重建同名数据集后再恢复 → 不能静默覆盖
+        (client.app.state.base_dir / "dataset" / "api-ds").mkdir(parents=True)
+        r = client.post(f"/api/recycle/{recycled}/restore")
+        assert r.status_code == 400
+
+    def test_delete_unknown_404(self, client):
+        assert client.delete("/api/datasets/nope").status_code == 404
+
+    def test_restore_unknown_404(self, client):
+        assert client.post("/api/recycle/nope/restore").status_code == 404
+
+    def test_delete_blocked_while_training(self, client, dummy_dataset):
+        """训练中途把数据集抽走，报错和"删数据集"看不出关系，所以直接拦下"""
+        svc = client.app.state.services["training"]
+        svc.state.update(is_running=True)
+        try:
+            r = client.delete("/api/datasets/api-ds")
+            assert r.status_code == 409
+            assert (client.app.state.base_dir / "dataset" / "api-ds").is_dir()
+        finally:
+            svc.state.update(is_running=False)
+
+        assert client.delete("/api/datasets/api-ds").status_code == 200
+
+    @pytest.mark.parametrize("bad", ["..", "../src", "..%2Fsrc", "%2E%2E%2Fsrc"])
+    def test_delete_rejects_path_traversal(self, client, dummy_dataset, bad):
+        """客户端会把 `..` 规范化掉，请求根本到不了处理函数（实测 405 Method Not Allowed）。
+
+        也就是说这里有两层防御：URL 规范化 + 服务层的越界检查。断言"没到 2xx"
+        并且**目标没被动过**，才是这条用例真正要保证的东西。
+        """
+        r = client.delete(f"/api/datasets/{bad}")
+        assert r.status_code not in (200, 204), r.text
+        assert (client.app.state.base_dir / "dataset" / "api-ds").is_dir()
+
+    def test_service_rejects_traversal_names(self, client, dummy_dataset):
+        """直接打服务层（绕开 URL 规范化）：越界名必须被拒，且不得移动任何东西"""
+        base = client.app.state.base_dir
+        outside = base / "outside_probe"
+        outside.mkdir()
+        (outside / "keep.txt").write_text("keep", encoding="utf-8")
+
+        svc = client.app.state.services["dataset"]
+        for bad in (
+            "..",
+            "../src",
+            "../outside_probe",
+            "api-ds/../../outside_probe",
+            "",
+            ".",
+            "dataset",
+        ):
+            res = svc.delete(bad)
+            assert res["status"] == "error", f"{bad!r} 未被拒绝"
+
+        # dataset/ 内外都得原样在，且被拒绝的删除不该在回收目录里留下任何东西
+        assert (base / "dataset" / "api-ds").is_dir()
+        assert (outside / "keep.txt").is_file()
+        recycle = base / "dataset" / ".recycle"
+        assert not recycle.exists() or not any(recycle.iterdir()), "被拒绝的删除却写进了回收目录"
+
+
+# ----------------------------------------------------------------------
 # WebSocket + 静态托管
 # ----------------------------------------------------------------------
 class TestWsAndStatic:

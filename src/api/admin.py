@@ -304,6 +304,33 @@ def create_admin_app(
             raise HTTPException(400, result["message"])
         return result
 
+    # 回收站走 /api/recycle 而不是 /api/datasets/recycle：
+    # 后者会被上面已声明的 GET /api/datasets/{name} 抢走匹配（FastAPI 按声明顺序匹配），
+    # 于是 "recycle" 被当成一个数据集名去查，永远 404。
+    @app.delete("/api/datasets/{name}")
+    def delete_dataset(name: str):
+        """删除数据集 = 移入回收目录（可恢复），不是直接抹掉"""
+        if training_svc.state.is_running:
+            # 数据集中途消失会让训练在很晚的阶段炸，且报错和"删数据集"看不出关系
+            raise HTTPException(409, "训练进行中，请先停止训练再删除数据集")
+        result = dataset_svc.delete(name)
+        if result["status"] == "error":
+            code = 404 if "不存在" in result.get("message", "") else 400
+            raise HTTPException(code, result["message"])
+        return result
+
+    @app.get("/api/recycle")
+    def list_recycle():
+        return {"items": dataset_svc.list_recycled()}
+
+    @app.post("/api/recycle/{recycled_name}/restore")
+    def restore_recycle(recycled_name: str):
+        result = dataset_svc.restore(recycled_name)
+        if result["status"] == "error":
+            code = 404 if "不存在" in result.get("message", "") else 400
+            raise HTTPException(code, result["message"])
+        return result
+
     # ------------------------------------------------------------------
     # 训练
     # ------------------------------------------------------------------

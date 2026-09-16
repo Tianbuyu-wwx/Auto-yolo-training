@@ -6,6 +6,7 @@ import logging
 import shutil
 import sys
 import zipfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -371,6 +372,130 @@ class DatasetService:
     def get_pending_conversion(self) -> list[str]:
         """列出需要分类→YOLO 转换的数据集名称"""
         return [ds.name for ds in self.manager.scan_all_datasets() if ds.needs_conversion]
+
+    # ------------------------------------------------------------------
+    # 删除 / 回收站
+    # ------------------------------------------------------------------
+    # 回收目录以点开头：scan_all_datasets() 与 list_ready_datasets() 都会跳过
+    # 「以 . 开头的目录」，所以回收站不会被当成一个数据集列进控制台。
+    RECYCLE_DIR_NAME = ".recycle"
+
+    @property
+    def recycle_dir(self) -> Path:
+        return self.dataset_dir / self.RECYCLE_DIR_NAME
+
+    def _resolve_dataset(self, dataset_name: str) -> Path | None:
+        """把数据集名解析成 dataset/ 下的直接子目录；越界或不存在返回 None。
+
+        数据集名来自 URL 路径，必须挡住 `../` 之类的穿越写法。
+        """
+        if not dataset_name or dataset_name in (".", ".."):
+            return None
+        try:
+            candidate = (self.dataset_dir / dataset_name).resolve()
+        except OSError:
+            return None
+        if candidate.parent != self.dataset_dir.resolve() or not candidate.is_dir():
+            return None
+        return candidate
+
+    def delete(self, dataset_name: str) -> dict[str, Any]:
+        """删除数据集 —— 实际是**移入回收目录**，可以恢复。
+
+        为什么不用 `rmtree`：删数据集不可逆，而控制台上一次误点就足以触发。
+        移入 `dataset/.recycle/<名称>_<时间戳>/` 后仍可 `restore()` 回来，
+        代价只是多占一份磁盘（用户想彻底清掉时自行删该目录即可）。
+
+        同时清掉 `logs/preview_cache/<名称>/`：那是按数据集名缓存的画框图，
+        留着会在重建同名数据集时显示旧图。
+
+        Returns:
+            ``{"status": "success"/"error", "message": ..., "recycled_to": ...}``
+        """
+        src = self._resolve_dataset(dataset_name)
+        if src is None:
+            return {"status": "error", "message": f"数据集不存在: {dataset_name}"}
+
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        dest = self.recycle_dir / f"{dataset_name}_{stamp}"
+        try:
+            self.recycle_dir.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(src), str(dest))
+        except OSError as e:
+            logger.exception("[DELETE] 移入回收目录失败: %s", e)
+            return {"status": "error", "message": f"删除失败: {e}"}
+
+        preview = self.paths.logs_dir / "preview_cache" / dataset_name
+        if preview.is_dir():
+            shutil.rmtree(preview, ignore_errors=True)
+
+        return {
+            "status": "success",
+            "message": f"已删除「{dataset_name}」，可在回收目录中恢复",
+            "recycled_to": str(dest),
+            "recycled_name": dest.name,
+        }
+
+    def list_recycled(self) -> list[dict[str, Any]]:
+        """列出回收目录里的数据集（最近删除在前）"""
+        if not self.recycle_dir.is_dir():
+            return []
+        items = []
+        for entry in self.recycle_dir.iterdir():
+            if not entry.is_dir() or entry.name.startswith("."):
+                continue
+            try:
+                size_mb = round(
+                    sum(f.stat().st_size for f in entry.rglob("*") if f.is_file()) / (1024 * 1024),
+                    2,
+                )
+                mtime = entry.stat().st_mtime
+            except OSError:
+                size_mb, mtime = 0.0, 0.0
+            items.append(
+                {
+                    "recycled_name": entry.name,
+                    "original_name": self._original_name(entry.name),
+                    "size_mb": size_mb,
+                    "mtime": mtime,
+                    "recycled_at": datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+                    if mtime
+                    else "",
+                }
+            )
+        items.sort(key=lambda d: d["mtime"], reverse=True)
+        for d in items:
+            del d["mtime"]  # 仅用于排序，不外传
+        return items
+
+    @staticmethod
+    def _original_name(recycled_name: str) -> str:
+        """从 `<名称>_<YYYYmmdd>_<HHMMSS>` 还原原数据集名。
+
+        名字由 `delete()` 生成，所以这个解析是确定的；但**如果用户手工重命名过
+        回收目录**，这里就只能按重命名后的结果猜 —— 属于已知限制。
+        """
+        parts = recycled_name.rsplit("_", 2)
+        return parts[0] if len(parts) == 3 and len(parts[1]) == 8 else recycled_name
+
+    def restore(self, recycled_name: str) -> dict[str, Any]:
+        """把回收目录里的数据集恢复回 `dataset/<原名称>`"""
+        if not recycled_name or recycled_name in (".", ".."):
+            return {"status": "error", "message": "回收项名称非法"}
+        src = (self.recycle_dir / recycled_name).resolve()
+        if src.parent != self.recycle_dir.resolve() or not src.is_dir():
+            return {"status": "error", "message": f"回收项不存在: {recycled_name}"}
+
+        original = self._original_name(recycled_name)
+        dest = self.dataset_dir / original
+        if dest.exists():
+            return {"status": "error", "message": f"「{original}」已存在，请先改名或删除它再恢复"}
+        try:
+            shutil.move(str(src), str(dest))
+        except OSError as e:
+            logger.exception("[RESTORE] 恢复失败: %s", e)
+            return {"status": "error", "message": f"恢复失败: {e}"}
+        return {"status": "success", "message": f"已恢复为「{original}」", "restored_to": str(dest)}
 
     def _flatten_nested_dir(self, target_dir: Path) -> bool:
         """处理嵌套目录"""

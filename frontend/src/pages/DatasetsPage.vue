@@ -27,6 +27,11 @@ const uploading = ref(false)
 const deleteOriginal = ref(false)
 const converting = ref(false)
 
+// 删除 / 回收站
+const confirmDel = ref('')      // 两段式确认：值为待删的数据集名
+const busy = ref('')
+const recycleItems = ref([])
+
 const pendingList = computed(() => statuses.value.filter(s => s.needs_conversion).map(s => s.name))
 const notTrainable = computed(() => statuses.value.filter(s => !s.is_trainable).map(s => s.name))
 const issueCount = computed(() => statuses.value.filter(s => s.issues?.length).length)
@@ -133,7 +138,42 @@ async function onConvert() {
   } catch (e) { toastErr(errMsg(e)) } finally { converting.value = false }
 }
 
-onMounted(() => refresh())
+async function loadRecycle() {
+  try { recycleItems.value = (await api.get('/api/recycle')).items }
+  catch { recycleItems.value = [] }   // 回收站读不到不影响主列表
+}
+
+async function onDelete() {
+  busy.value = 'delete'
+  try {
+    const r = await api.del(`/api/datasets/${encodeURIComponent(selected.value)}`)
+    toastOk(r.message)
+    confirmDel.value = ''
+    selected.value = ''; info.value = null; previews.value = []
+    await refresh()
+    await loadRecycle()
+  } catch (e) {
+    toastErr(errMsg(e))
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function onRestore(item) {
+  busy.value = item.recycled_name
+  try {
+    const r = await api.post(`/api/recycle/${encodeURIComponent(item.recycled_name)}/restore`)
+    toastOk(r.message)
+    await refresh(r.restored_to ? item.original_name : '')
+    await loadRecycle()
+  } catch (e) {
+    toastErr(errMsg(e))
+  } finally {
+    busy.value = ''
+  }
+}
+
+onMounted(() => { refresh(); loadRecycle() })
 </script>
 
 <template>
@@ -172,6 +212,30 @@ onMounted(() => refresh())
             {{ converting ? '转换中…' : '转换当前数据集' }}
           </button>
           <p class="hint" style="margin-top:8px">先在上方列表选中一个数据集</p>
+        </div>
+
+        <div class="card">
+          <h3>删除数据集</h3>
+          <p class="hint" style="margin-bottom:10px">
+            当前选中：<code>{{ selected || '（未选择）' }}</code>
+          </p>
+          <p class="hint" style="margin-bottom:12px">
+            删除是移入回收目录 <code>dataset/.recycle/</code>，不是直接抹掉 ——
+            删错了可以在右侧回收站里恢复。
+          </p>
+          <template v-if="confirmDel && confirmDel === selected">
+            <div style="display:flex;gap:10px;align-items:center">
+              <button class="btn danger" :disabled="busy === 'delete'" @click="onDelete">
+                {{ busy === 'delete' ? '删除中…' : `确认删除「${selected}」` }}
+              </button>
+              <button class="btn" @click="confirmDel = ''">取消</button>
+            </div>
+          </template>
+          <button v-else class="btn danger" :disabled="!selected || busy === 'delete'"
+                  @click="confirmDel = selected">
+            删除当前数据集
+          </button>
+          <p class="hint" style="margin-top:8px">训练进行中不允许删除。</p>
         </div>
       </div>
 
@@ -256,6 +320,33 @@ onMounted(() => refresh())
           </div>
           <pre v-if="validateMsg" class="data-block"
                :style="{ marginTop: '10px', color: validateOk ? 'var(--text)' : 'var(--red)' }">{{ validateMsg }}</pre>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="margin:0">回收站（{{ recycleItems.length }}）</h3>
+            <button class="btn sm" @click="loadRecycle">刷新</button>
+          </div>
+          <div v-if="recycleItems.length" class="table-wrap">
+            <table class="tbl">
+              <thead><tr><th>原名称</th><th>大小</th><th>删除时间</th><th style="width:80px"></th></tr></thead>
+              <tbody>
+                <tr v-for="it in recycleItems" :key="it.recycled_name">
+                  <td><code>{{ it.original_name }}</code></td>
+                  <td class="mono">{{ it.size_mb }} MB</td>
+                  <td class="mono">{{ it.recycled_at }}</td>
+                  <td>
+                    <button class="btn sm" :disabled="busy === it.recycled_name" @click="onRestore(it)">
+                      {{ busy === it.recycled_name ? '恢复中…' : '恢复' }}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else class="muted" style="font-size:12.5px">
+            回收站是空的。删除的数据集会出现在这里，可随时恢复。
+          </p>
         </div>
       </div>
     </div>
