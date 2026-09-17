@@ -3,6 +3,9 @@
 -r requirements.txt
 -c constraints.txt
 
+# gradio 已从运行时依赖降为可选 extra（[gradio]），但测试仍会导入 UI 模块
+gradio
+
 pytest
 pytest-cov
 httpx

@@ -13,7 +13,8 @@ ultralytics
 optuna
 
 # Web UI and inference API
-gradio
+# gradio 不在这里：Gradio 界面已冻结，降为 pyproject 的可选 extra
+# （pip install 'auto-yolo-training[gradio]'）。控制台 ayt-web 不依赖它。
 fastapi
 # admin.py 直接 import starlette（StaticFiles / StarletteHTTPException 子类判定，
 # 不能换成 fastapi 的再导出：SPA 回退要捕获 StaticFiles 抛出的那个异常类型）。

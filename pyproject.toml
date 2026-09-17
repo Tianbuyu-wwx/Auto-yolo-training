@@ -29,7 +29,6 @@ classifiers = [
 dependencies = [
     "ultralytics>=8.4.0",
     "optuna>=4.0",
-    "gradio>=5.0",
     "fastapi>=0.139",
     "starlette>=0.40",
     "uvicorn>=0.30",
@@ -52,8 +51,14 @@ cpu = ["torch>=2.11", "torchvision>=0.26"]
 # 导出 ONNX/TensorRT 时附加依赖
 onnx = ["onnx>=1.15", "onnxsim>=0.4"]
 tensorrt = ["tensorrt>=10.0"]
-# 开发与测试
+# 已冻结的 Gradio 界面（历史入口）。默认**不安装**：
+#   pip install 'auto-yolo-training[gradio]'
+# 控制台（ayt-web）与训练/推理链路都不依赖它；未安装时 `ayt-gradio`
+# 会打印可操作的报错而不是 ImportError 堆栈。
+gradio = ["gradio>=5.0"]
+# 开发与测试。含 gradio：测试会导入 UI 模块（test_phase1 / test_phase3）
 dev = [
+    "gradio>=5.0",
     "pytest>=8.0",
     "pytest-cov>=7.0",
     "httpx>=0.28",
@@ -65,8 +70,10 @@ dev = [
 docs = ["mkdocs>=1.5", "mkdocs-material>=9"]
 
 [project.urls]
-Homepage = "https://github.com/Tianbuyu/auto-yolo-training"
-Issues = "https://github.com/Tianbuyu/auto-yolo-training/issues"
+Homepage = "https://github.com/Tianbuyu-wwx/Auto-yolo-training"
+Repository = "https://github.com/Tianbuyu-wwx/Auto-yolo-training"
+Issues = "https://github.com/Tianbuyu-wwx/Auto-yolo-training/issues"
+Documentation = "https://tianbuyu-wwx.github.io/Auto-yolo-training/"
 
 # ----------------------------------------------------------------------
 # 包布局（显式声明，覆盖 setuptools 的自动探测）
