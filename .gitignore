@@ -140,3 +140,8 @@ exports/*.pt
 # 是 dummy fixture 的产物，不入库）
 configs/**/data_dummy_dataset.yaml
 configs/**/dummy_dataset_*.yaml
+
+# 训练配置是**生成物**：ConfigGenerator 每次训练都会按当次参数重写
+# （device / epochs / imgsz / batch 全变），入库只会带来「跑一次训练就脏一棵树」
+# 的假改动。上面那条 dummy_dataset_* 规则只覆盖了测试生成的，这里补齐全部。
+configs/train/*_auto.yaml
