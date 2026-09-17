@@ -51,6 +51,19 @@
 
   scrollbar-color: var(--border-strong) var(--bg-deep);
   --radius: 10px;
+  --radius-sm: 7px;
+
+  /* ============ 动效 ============
+     全站只留一套时长/缓动，避免每个组件各写一个 .15s / .2s。
+     快档给「反馈」（hover/按压），中档给「状态变化」（面板展开、数值更新），
+     慢档只给「位置变化」（页面切换、进度条补间）—— 位移越大时长越长，这是
+     感知上「顺」的来源；反过来（小反馈用慢档）就会显得迟钝。
+     ease-out 用于位移（起步快、收尾稳），标准 ease 用于颜色与透明度。 */
+  --dur-fast: .13s;
+  --dur: .2s;
+  --dur-slow: .42s;
+  --ease: cubic-bezier(.4, 0, .2, 1);
+  --ease-out: cubic-bezier(.22, .61, .36, 1);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -167,7 +180,18 @@ body {
   box-shadow: var(--edge-top);
   border-radius: var(--radius); padding: 18px;
 }
-.card h3 { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 14px; text-transform: uppercase; letter-spacing: .06em; }
+.card h3 {
+  font-size: 12.5px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .055em;
+  /* 表头带：标题下压一条发丝线。原先每张卡只是「一片内容 + 一行小字标题」，
+     卡片之间没有内部结构，整页读起来是一块块同质的方块（card soup）。
+     一条 1px 分隔把卡内分成「标题区 / 内容区」，密度观感立刻不同。 */
+  padding-bottom: 10px; margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+/* 标题右侧留一个插槽位（计数、操作），避免各页自己写 flex 容器 */
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.card-head h3 { flex: 1; }
 
 /* ---- 网格 ----
    一律用 minmax(0,1fr) 而非裸 1fr。1fr 等价于 minmax(auto,1fr)，其
@@ -191,42 +215,80 @@ body {
   .split-2.side-300 { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* 指标卡。数值是每张卡唯一的信息主体，把它做成整页的视觉焦点：
-   字号 26 → 34px，标签再压小一档。原先数值/标签/边框三者权重接近，
-   四张卡并排时视线无处落，这也是"科技感不够"的直接来源之一。
-   卡内加一道顶部高光，让它比同屏的表格卡更"抬起来"一层。 */
+/* 指标卡。**左对齐 + 去辉光**（2026-09 改版）。
+   上一版是「居中大数字 + 22px 彩色辉光」，那是仪表盘模板的默认长相：
+   四张卡并排时四个发光数字互相抢注意力，而值本身没有层级差异 ——
+   辉光在此处不携带信息，只是把"大数字"再放大一次。
+   现在：标签在上（小字 + 语义色点）、数值在下（等宽、tabular-nums、左对齐）。
+   左对齐让四张卡的数值落在同一条基线上，扫读时视线不用左右跳；去辉光后
+   颜色只在数值上出现一次，"有色 = 有值"这层语义反而更清楚。 */
 .metric {
-  background: linear-gradient(180deg, rgba(255, 255, 255, .022), transparent 42%), var(--bg-card);
+  position: relative;
+  background: var(--bg-card);
   border: 1px solid var(--border);
   box-shadow: var(--edge-top);
-  border-radius: var(--radius); padding: 18px 16px; text-align: center;
+  border-radius: var(--radius); padding: 14px 16px 15px;
+  transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
-.metric .value { font-family: var(--mono); font-size: 34px; font-weight: 700; letter-spacing: -.03em; line-height: 1.08; }
-.metric .value.green { color: var(--green); text-shadow: 0 0 22px rgba(34, 197, 94, .3); }
-.metric .value.blue { color: var(--blue); text-shadow: 0 0 22px rgba(59, 130, 246, .3); }
-.metric .value.amber { color: var(--amber); text-shadow: 0 0 22px rgba(245, 158, 11, .3); }
-.metric .value.red { color: var(--red); text-shadow: 0 0 22px rgba(239, 68, 68, .3); }
-.metric .label { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .14em; margin-top: 7px; }
-/* 占位态（无数据）：去掉辉光、缩一档、降到次要色。辉光在这类"科技感"里是靠
-   颜色传达"有值且值有意义"，挂在一个破折号上就只剩装饰，还会读成一根亮条。
-   刻意不加 opacity —— 实测 --text-muted 落在卡片底上是 6.10:1，再乘 .55 会掉到
-   2.61:1，连大字号的 3.0:1 都够不着。占位符是有意义的内容（"还没数据"），
-   不是装饰，不能靠透明度来"弱化"。让它后退的是颜色 + 字号 + 没有辉光这三件事，
-   不是把对比度做没了。 */
-.metric .value.placeholder { color: var(--text-muted); text-shadow: none; font-size: 30px; }
+.metric:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.metric .metric-head {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .07em;
+}
+.metric .metric-head .dot { width: 6px; height: 6px; opacity: .85; }
+.metric .value {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: 27px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15;
+  margin-top: 6px; color: var(--text);
+}
+.metric .value.green { color: var(--green); }
+.metric .value.blue { color: var(--blue); }
+.metric .value.amber { color: var(--amber); }
+.metric .value.red { color: var(--red); }
+.metric .hint { margin-top: 3px; font-size: 11.5px; color: var(--text-muted); }
+/* 占位态：颜色退回次要色（不动字号，免得牵动整页基线） */
+.metric .value.placeholder { color: var(--text-muted); }
+/* 数值更新的一帧标记。WS 每秒推一次，若数值变了却什么都没发生，界面看起来
+   「不活着」；给一次 420ms 的底色脉冲（只动 background，不部位移，代价极低）。 */
+@keyframes metric-tick {
+  0% { background: rgba(59, 130, 246, .16); }
+  100% { background: transparent; }
+}
+.metric .value.tick { animation: metric-tick var(--dur-slow) var(--ease-out); border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  .metric { transition: none; }
+  .metric:hover { transform: none; }
+  .metric .value.tick { animation: none; }
+}
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border-strong);
   background: var(--bg-input); color: var(--text); font-size: 13px; font-weight: 500;
-  cursor: pointer; transition: border-color .15s, background .15s, filter .15s; font-family: var(--sans);
+  cursor: pointer; font-family: var(--sans);
+  /* 反馈分两档：颜色走快档（指针一搭上就该亮），位移走中档。
+     此前没有任何按压态 —— 点击时界面零响应，只在网络回来后才变化，
+     这是"点不动"错觉的直接来源。 */
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+              color var(--dur-fast) var(--ease), box-shadow var(--dur) var(--ease),
+              transform var(--dur-fast) var(--ease-out);
 }
 .btn:hover:not(:disabled) { border-color: var(--blue); }
-.btn:disabled { opacity: .45; cursor: not-allowed; }
-.btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
-.btn.primary:hover:not(:disabled) { filter: brightness(1.12); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.primary {
+  background: var(--blue); border-color: var(--blue); color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18);
+}
+.btn.primary:hover:not(:disabled) { filter: brightness(1.1); box-shadow: 0 6px 18px -10px rgba(59, 130, 246, .9), inset 0 1px 0 rgba(255,255,255,.18); }
+/* 危险按钮的禁用态要真的"退下去"：保留红边红字会让一个不可用的删除按钮
+   在空闲页面上继续抢注意力（监控页的"停止训练"最初就是这样）。 */
 .btn.danger { background: transparent; border-color: var(--red); color: var(--red); }
 .btn.danger:hover:not(:disabled) { background: rgba(239,68,68,.12); }
+.btn.danger:disabled { border-color: var(--border); color: var(--text-muted); background: transparent; }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
+.btn.ghost:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text); }
 .btn.sm { padding: 5px 10px; font-size: 12px; }
 
 input, select, textarea {
@@ -263,6 +325,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
    指认当前行，用品牌色会与真正的状态语义抢注意力。
    注意选择器不写成 .tbl tbody tr —— 总览页的「系统状态」表没有 tbody，
    那样写会让它的悬停静默失效。 */
+.tbl td { transition: background var(--dur-fast) var(--ease); }
 .tbl tr:hover td { background: rgba(255, 255, 255, .038); }
 .tbl tr:last-child td { border-bottom: 0; }
 .tbl code, .mono { font-family: var(--mono); font-size: 12.5px; }
@@ -307,7 +370,25 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 /* 进度条。这是全站唯一允许"发光"的非状态元素 —— 它本身就是进行中的训练，
    发光携带的是"正在发生"这一信息，不是装饰。 */
 .progress-track { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 6px; height: 10px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,.8); }
-.progress-fill { background: linear-gradient(90deg, var(--blue), var(--green)); height: 100%; border-radius: 6px; box-shadow: 0 0 12px -1px rgba(59,130,246,.75); transition: width .6s ease; }
+/* 单色填充 + 一道缓慢扫过的高光。
+   原先用 blue→green 渐变 + 外发光：渐变在这个长度上读不出「进度」以外的含义
+   （既不表示快慢也不表示好坏），却把两条品牌色混成第三种颜色；外发光则让
+   一个 10px 的条变成页面上最亮的东西。现在颜色只表达「已完成 = 主色」，
+   「正在动」交给扫光 —— 信息没少，噪音少了两层。 */
+.progress-fill {
+  position: relative; height: 100%; border-radius: 6px;
+  background: var(--blue);
+  transition: width var(--dur-slow) var(--ease-out);
+  overflow: hidden;
+}
+.progress-fill::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.22) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: progress-sheen 2.4s var(--ease) infinite;
+}
+@keyframes progress-sheen { to { transform: translateX(100%); } }
+.progress-track.is-idle .progress-fill::after { animation: none; }
 .progress-meta { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
 .progress-meta .eta { color: var(--amber); }
 
@@ -462,3 +543,116 @@ input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   /* Toast 进出伴随 18px 位移，属于同一类"位移型"动效。 */
   .toast-enter-active, .toast-leave-active { transition: none; }
 }
+
+/* ============================================================
+   2026-09 改版：流畅感（页面切换 / 骨架 / 微交互）与空态
+   ============================================================ */
+
+/* ---- 页面切换 ----
+   没有这一层之前，点导航是「内容瞬间替换」：位置与内容同时跳变，读者要重新
+   定位（"我点到哪了"）。给 180ms 淡入 + 6px 上浮：位置先动、内容跟上，感知上
+   是「滑过去」而不是「闪过去」。位移刻意很小 —— 大幅飞页在每秒重绘的控制台
+   里会变成噪音。离场比进场快（130ms），符合"旧内容让位"的直觉。 */
+.page-enter-active { transition: opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out); }
+.page-leave-active { transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.page-enter-from { opacity: 0; transform: translateY(6px); }
+.page-leave-to { opacity: 0; transform: translateY(-3px); }
+
+/* ---- 骨架屏 ----
+   加载态此前是「加载中…」一行字：内容回来时整块替换，页面会「噔」地长出来。
+   骨架屏把最终布局提前占位，数据到达只是把灰块换成交付内容 —— 位置不变，
+   视觉上就是"变清楚"而不是"跳一下"。同时它顺带把 CLS 压到接近 0。 */
+.sk { position: relative; overflow: hidden; background: rgba(255, 255, 255, .045); border-radius: var(--radius-sm); }
+.sk::after {
+  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .055), transparent);
+  animation: sk-sheen 1.5s var(--ease) infinite;
+}
+@keyframes sk-sheen { to { transform: translateX(100%); } }
+.sk-line { height: 11px; margin: 8px 0; }
+.sk-line.w40 { width: 40%; }
+.sk-line.w60 { width: 60%; }
+.sk-line.w80 { width: 80%; }
+.sk-value { height: 26px; width: 78px; margin-top: 8px; }
+.sk-block { height: 118px; }
+.sk-row { height: 32px; margin: 7px 0; }
+
+/* ---- 空态 ----
+   统一的空态结构：等宽字形符号（不是 emoji，也不是大插画）+ 一句说明 +
+   一句"下一步做什么"。此前各页面各写一句"暂无数据"，既没有下一步指引，
+   也没有任何视觉结构，读起来像渲染失败。 */
+.empty-state { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 20px 2px; }
+.empty-state .glyph { font-family: var(--mono); font-size: 14px; color: var(--text-muted); opacity: .65; letter-spacing: .12em; }
+.empty-state .title { font-size: 13.5px; }
+.empty-state .hint { font-size: 12.5px; color: var(--text-muted); line-height: 1.65; }
+.empty-state .actions { display: flex; gap: 10px; margin-top: 8px; }
+
+/* ---- 紧凑统计条 ----
+   总览首屏原先是四张等权大卡（Epoch / Loss / mAP…）—— 那是监控页的内容，
+   复制到总览只会让焦点落在"没有训练时全是破折号"的数字上。统计条把次要计数
+   压成一行：标签在上、数值在下、发丝线分隔、无边框无卡片。 */
+.stat-strip { display: flex; flex-wrap: wrap; }
+.stat-strip .stat { padding: 1px 18px; border-left: 1px solid var(--border); min-width: 124px; }
+.stat-strip .stat:first-child { border-left: 0; padding-left: 2px; }
+.stat-strip .k { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.stat-strip .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 19px; margin-top: 3px; }
+.stat-strip .v small { font-family: var(--sans); font-size: 11.5px; color: var(--text-muted); }
+
+/* ---- 状态头（总览首屏）----
+   首屏第一眼应该是「现在能不能训、缺什么、下一步做什么」，而不是一排数字卡。 */
+.status-hero { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.status-hero .hero-main { display: flex; flex-direction: column; gap: 7px; flex: 1; min-width: 280px; }
+.status-hero .hero-title { font-size: 19px; font-weight: 600; letter-spacing: -.01em; display: flex; align-items: center; gap: 10px; }
+.status-hero .hero-sub { font-size: 12.5px; color: var(--text-muted); line-height: 1.7; }
+.status-hero .hero-actions { display: flex; gap: 10px; }
+
+/* ---- 表格工具条 ---- */
+.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.toolbar input { max-width: 240px; }
+.toolbar .spacer { flex: 1; }
+.toolbar .count { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* ---- 危险区 ----
+   删除这类不可逆操作不该和上传/转换穿同一件衣服（三张一模一样的卡）。 */
+.zone-danger { border-color: rgba(239, 68, 68, .3); }
+.zone-danger h3 { color: rgba(239, 68, 68, .88); border-bottom-color: rgba(239, 68, 68, .2); }
+
+/* ---- 日志工具条 ---- */
+.log-tools { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.log-tools .spacer { flex: 1; }
+.log-tools .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+.log-tools .seg button {
+  background: transparent; border: 0; cursor: pointer; font-family: var(--sans);
+  color: var(--text-muted); font-size: 12px; padding: 4px 11px;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.log-tools .seg button + button { border-left: 1px solid var(--border); }
+.log-tools .seg button.on { background: var(--bg-input); color: var(--text); }
+.log-tools .count { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* ---- 动效无障碍：新增的三处一起收掉 ---- */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-active, .page-leave-active { transition: none; }
+  .page-enter-from, .page-leave-to { opacity: 1; transform: none; }
+  .sk::after { animation: none; }
+  .progress-fill::after { animation: none; }
+}
+
+/* 指标卡的语义色点（tone 直接作为类名传进来：green/blue/amber/red） */
+.dot.green { background: var(--green); }
+.dot.blue { background: var(--blue); }
+.dot.amber { background: var(--amber); }
+.dot.red { background: var(--red); }
+
+/* 日志行：级别着色 + 未渲染提示。整行一个 div 而不是一个巨型文本节点，
+   既让级别可着色，也让「每秒追加一行」的 reflow 只影响新增的那一行。 */
+.log-console .log-line { white-space: pre-wrap; overflow-wrap: anywhere; }
+.log-console .log-line.warn { color: var(--amber); }
+.log-console .log-line.error { color: #ff9c9c; }
+.log-omitted { color: var(--text-muted); font-size: 11.5px; padding-bottom: 4px; }
+
+/* 训练配置页的主操作卡：随滚动吸顶（长表单里主操作不该被滚出视野）。
+   顶栏高 52px + 24px 内边距，所以吸顶位置取 68px。窄屏布局改为单列，
+   此时不再吸顶 —— 单列下它会盖住参数区。 */
+.sticky-actions { position: sticky; top: 68px; z-index: 5; }
+@media (max-width: 1100px) { .sticky-actions { position: static; } }

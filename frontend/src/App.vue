@@ -16,8 +16,8 @@ function syncViewport() { viewportWidth.value = window.innerWidth }
 const NAV = [
   { to: '/', icon: '▣', label: '总览' },
   { to: '/datasets', icon: '▤', label: '数据集' },
-  { to: '/train/config', icon: '⚙', label: '训练配置' },
-  { to: '/train/monitor', icon: '⏱', label: '训练监控' },
+  { to: '/train/config', icon: '⊞', label: '训练配置' },
+  { to: '/train/monitor', icon: '◷', label: '训练监控' },
   { to: '/results', icon: '▥', label: '结果 · 模型库' },
   { to: '/registry', icon: '◈', label: '模型注册中心' },
   { to: '/queue', icon: '▦', label: '任务队列' },
@@ -88,7 +88,13 @@ onBeforeUnmount(() => {
         </div>
       </header>
       <main class="content">
-        <router-view />
+        <!-- 页面切换过渡：没有它时点导航是「内容瞬间替换」，位置与内容同时跳变。
+             mode="out-in" 保证旧页先退场，避免两页在同一位置重叠。 -->
+        <RouterView v-slot="{ Component }">
+          <Transition name="page" mode="out-in">
+            <component :is="Component" />
+          </Transition>
+        </RouterView>
       </main>
     </div>
   </div>

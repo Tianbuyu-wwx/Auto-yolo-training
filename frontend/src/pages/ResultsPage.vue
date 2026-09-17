@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
 import { toastErr, toastOk } from '../lib/toast.js'
+import EmptyState from '../components/EmptyState.vue'
 import MetricCard from '../components/MetricCard.vue'
 
 const runs = ref([])
@@ -85,10 +86,10 @@ const weightsHint = computed(() => {
 
 <template>
   <div>
-    <p v-if="loadError" class="state-msg error">
+    <div v-if="loadError" class="state-msg error">
       训练记录加载失败：{{ loadError }}
       <div class="retry"><button class="btn sm" @click="refreshRuns()">重试</button></div>
-    </p>
+    </div>
 
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <select v-model="selected" style="max-width:280px" :disabled="loading || !runs.length" @change="loadResults">
@@ -96,6 +97,14 @@ const weightsHint = computed(() => {
         <option v-for="r in runs" :key="r" :value="r">{{ r }}</option>
       </select>
       <span v-if="!loading && !loadError" class="hint">共 {{ runs.length }} 个 run</span>
+    </div>
+
+    <!-- 加载中：用骨架占住最终布局，数据到达只是"变清楚"，不是"跳一下" -->
+    <div v-if="loading" class="grid c4" style="margin-bottom:16px">
+      <div v-for="i in 4" :key="i" class="metric">
+        <div class="sk sk-line w60" style="margin:0 0 4px"></div>
+        <div class="sk sk-value"></div>
+      </div>
     </div>
 
     <template v-if="results">
@@ -170,8 +179,13 @@ const weightsHint = computed(() => {
       </div>
     </template>
 
-    <div v-else-if="!loading && !loadError" class="card muted" style="margin-bottom:16px">
-      {{ runs.length ? '该 run 无训练产物，换一个 run 试试。' : '暂无训练产物，先去「训练配置」启动一次训练。' }}
+    <div v-else-if="!loading && !loadError" class="card" style="margin-bottom:16px">
+      <EmptyState v-if="!runs.length" glyph="▥" title="暂无训练产物，先去「训练配置」启动一次训练。"
+                  hint="训练结束后这里会列出每个 run 的指标、曲线、产物去向与导出入口；CPU 上跑一次 make smoke 也能生成一个可看的 run。">
+        <router-link class="btn sm" to="/train/config">去配置训练</router-link>
+      </EmptyState>
+      <EmptyState v-else glyph="▥" title="该 run 无训练产物，换一个 run 试试。"
+                  hint="当前 run 可能只是评估目录，或产物已被回收 —— 回收站里的记录见下方「产物去向」。" />
     </div>
 
     <div class="grid c2">

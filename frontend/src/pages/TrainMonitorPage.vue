@@ -101,7 +101,10 @@ onBeforeUnmount(() => closeWs && closeWs())
 
     <!-- 进度条 -->
     <div class="card" style="margin-bottom:16px">
-      <div class="progress-track"><div class="progress-fill" :style="{ width: progressPct + '%' }"></div></div>
+      <!-- 空闲时不放扫光：没有训练在跑，"正在发生"的动效就成了假信号 -->
+      <div class="progress-track" :class="{ 'is-idle': !status?.is_running }">
+        <div class="progress-fill" :style="{ width: progressPct + '%' }"></div>
+      </div>
       <div class="progress-meta">
         <span>{{ progressPct.toFixed(1) }}%</span>
         <span class="eta">{{ etaText }}</span>
@@ -116,16 +119,28 @@ onBeforeUnmount(() => closeWs && closeWs())
 
     <!-- 指标卡 -->
     <div class="grid c4" style="margin-bottom:16px">
-      <MetricCard :value="epochText" label="Epoch" tone="amber" />
-      <MetricCard :value="fmt('current_loss')" label="Loss" tone="blue" />
-      <MetricCard :value="fmt('current_map50')" :label="labels[0]" tone="green" />
-      <MetricCard :value="fmt('current_map50_95')" :label="labels[1]" tone="green" />
+      <!-- 四张卡的补注用同一句式：<口径> · <每轮/汇总>。混着写（"尚未开始" /
+           "当前轮训练损失" / "训练开始后更新"）会让同一排文字看起来像没填完。 -->
+      <MetricCard :value="epochText" label="Epoch" tone="amber"
+                  :hint="hasRun ? `总计 ${status.total_epochs} 轮` : '总计轮数待定'" />
+      <MetricCard :value="fmt('current_loss')" label="Loss" tone="blue"
+                  :hint="hasRun ? '本轮训练损失' : '每轮更新'" />
+      <MetricCard :value="fmt('current_map50')" :label="labels[0]" tone="green"
+                  :hint="hasRun ? '验证集 · 本轮' : '每轮更新'" />
+      <MetricCard :value="fmt('current_map50_95')" :label="labels[1]" tone="green"
+                  :hint="hasRun ? '验证集 · 本轮' : '每轮更新'" />
     </div>
 
     <!-- 曲线 -->
     <div class="grid c2" style="margin-bottom:16px">
-      <div class="card"><LineChart :option="lossOption" :height="260" empty-text="训练开始后按 epoch 累积" /></div>
-      <div class="card"><LineChart :option="mapOption" :height="260" empty-text="训练开始后按 epoch 累积" /></div>
+      <div class="card">
+        <LineChart :option="lossOption" :height="260"
+                   empty-text="还没有数据：开始训练后按 epoch 绘制训练损失" />
+      </div>
+      <div class="card">
+        <LineChart :option="mapOption" :height="260"
+                   :empty-text="`还没有数据：开始训练后按 epoch 绘制 ${labels.join(' / ')}`" />
+      </div>
     </div>
 
     <!-- 日志 -->

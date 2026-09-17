@@ -1,8 +1,8 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api, errMsg, trainingSocket } from '../lib/api.js'
-import MetricCard from '../components/MetricCard.vue'
 import StatusBadge from '../components/StatusBadge.vue'
+import Skeleton from '../components/Skeleton.vue'
 
 const status = ref(null)
 const trainableCount = ref(null)   // 可训练（有 data.yaml）
@@ -59,23 +59,81 @@ const map95Text = computed(() => hasRun.value ? fmt4(status.value.current_map50_
 const labels = computed(() => status.value?.metric_labels || ['mAP@50', 'mAP@50-95'])
 
 const num = (v) => (v == null ? '—' : v)
+
+/**
+ * 首屏那句「下一步做什么」。按「有没有可训练数据 → 有没有在训 → 有没有告警」
+ * 的优先级给一条具体建议，而不是复读状态徽标（"空闲"两个字用户已经看到了）。
+ */
+const guidance = computed(() => {
+  if (loading.value) return '正在读取数据集、队列与模型清单…'
+  if (!trainableCount.value) return '还没有可训练的数据集：去「数据集」上传一个 ZIP，或运行 make smoke 用内置烟雾数据跑通链路。'
+  if (status.value?.is_running) return `正在训练：第 ${status.value.current_epoch} / ${status.value.total_epochs} 轮，曲线与日志见「训练监控」。`
+  if (issueCount.value) return `${issueCount.value} 个数据集的标注不完整，训练前建议先在「数据集」页看「问题」列。`
+  return '一切就绪：选一个数据集即可开始训练。'
+})
 </script>
 
 <template>
   <div>
-    <p v-if="error" class="state-msg error">
+    <div v-if="error" class="state-msg error">
       概览数据加载失败：{{ error }}
       <div class="retry"><button class="btn sm" @click="refresh">重试</button></div>
-    </p>
-
-    <div class="grid c4">
-      <MetricCard :value="epochText" label="Epoch" tone="amber" />
-      <MetricCard :value="lossText" label="Loss" tone="blue" />
-      <MetricCard :value="mapText" :label="labels[0]" tone="green" />
-      <MetricCard :value="map95Text" :label="labels[1]" tone="green" />
     </div>
 
-    <div class="grid c2" style="margin-top:16px">
+    <!-- 状态头：首屏第一眼要回答「现在能不能训、缺什么、下一步做什么」。
+         原先这里是与监控页完全重复的四张指标卡（Epoch / Loss / mAP），
+         空闲时四张卡全是破折号 —— 焦点落在"没有的东西"上。 -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="status-hero">
+        <div class="hero-main">
+          <div class="hero-title">
+            <StatusBadge :status="status" done-label="上次训练完成" dot />
+            <span v-if="hasRun" class="mono muted" style="font-size:12.5px">
+              第 {{ status.current_epoch }} / {{ status.total_epochs }} 轮
+            </span>
+          </div>
+          <div class="hero-sub">{{ guidance }}</div>
+        </div>
+        <div class="hero-actions">
+          <router-link class="btn primary" to="/train/config">配置并启动训练</router-link>
+          <router-link class="btn" to="/train/monitor">查看训练监控</router-link>
+        </div>
+      </div>
+
+      <!-- 次要计数压成一行：标签在上、数值在下、发丝线分隔，不用四张等权大卡 -->
+      <!-- 骨架按真实结构摆：上面一行 11px 标签、下面一行 19px 数值。
+           之前只放一块 26px 高的方块，数据到达时高度变化会推一次下面的内容。 -->
+      <div v-if="loading" class="stat-strip" style="margin-top:20px">
+        <div v-for="i in 4" :key="i" class="stat">
+          <!-- 高度按真实行盒算：标签 11px×1.6≈18px、数值 19px×1.6≈30px。
+               差几个像素就会在数据到达时把下面的内容整体推动一次。 -->
+          <div class="sk" style="margin:0 0 3px;height:18px;width:74px"></div>
+          <div class="sk" style="height:30px;width:56px"></div>
+        </div>
+      </div>
+      <div v-else class="stat-strip" style="margin-top:20px">
+        <div class="stat">
+          <div class="k">可训练数据集</div>
+          <div class="v">{{ num(trainableCount) }}<small> / {{ num(scanCount) }} 全部</small></div>
+        </div>
+        <div class="stat">
+          <div class="k">队列</div>
+          <div class="v">{{ num(queueCount) }}<small> 待执行/执行中</small></div>
+        </div>
+        <div class="stat">
+          <div class="k">本地预训练模型</div>
+          <div class="v">{{ num(localModels) }}<small> 个</small></div>
+        </div>
+        <div class="stat">
+          <div class="k">数据告警</div>
+          <div class="v" :class="issueCount ? 'amber' : ''">
+            {{ num(issueCount) }}<small> 个数据集</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid c2">
       <div class="card">
         <h3>系统状态</h3>
         <table class="tbl">
@@ -99,7 +157,9 @@ const num = (v) => (v == null ? '—' : v)
           <tr><td>队列</td><td><span class="mono">{{ num(queueCount) }}</span> 个待执行 / 执行中</td></tr>
           <tr><td>本地预训练模型</td><td><span class="mono">{{ num(localModels) }}</span> 个</td></tr>
         </table>
-        <p v-if="loading" class="muted" style="font-size:12.5px;margin-top:10px">加载中…</p>
+        <!-- 骨架行数对齐真实行数（4 行固定 + 可能的告警行），避免加载完成时
+             表格高度变化把下方内容推一次 -->
+        <div v-if="loading" style="margin-top:10px"><Skeleton variant="row" :count="5" /></div>
       </div>
 
       <div class="card">

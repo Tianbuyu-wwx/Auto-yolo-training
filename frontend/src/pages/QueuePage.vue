@@ -1,6 +1,8 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
+import EmptyState from '../components/EmptyState.vue'
+import Skeleton from '../components/Skeleton.vue'
 import { toastErr, toastOk } from '../lib/toast.js'
 
 const tasks = ref([])
@@ -51,13 +53,20 @@ onBeforeUnmount(() => clearInterval(timer))
     </p>
 
     <div class="card">
-      <p v-if="error" class="state-msg error">
+      <div v-if="error" class="state-msg error">
         队列读取失败：{{ error }}
         <div class="retry"><button class="btn sm" @click="refresh">重试</button></div>
-      </p>
+      </div>
 
       <template v-else>
-        <div class="table-wrap">
+        <div v-if="loading" style="padding:6px 0"><Skeleton variant="row" :count="4" /></div>
+
+        <EmptyState v-else-if="!tasks.length" glyph="▦" title="队列是空的"
+                    hint="在「训练配置」页点「加入队列」，任务会在这里按顺序执行；执行中的任务会显示状态与取消按钮。">
+          <router-link class="btn sm" to="/train/config">去配置训练</router-link>
+        </EmptyState>
+
+        <div v-else class="table-wrap">
           <table class="tbl">
             <thead>
               <tr><th>#</th><th>数据集</th><th>模型</th><th>状态</th><th>创建时间</th><th>结束时间</th><th>备注</th><th></th></tr>
@@ -80,9 +89,6 @@ onBeforeUnmount(() => clearInterval(timer))
                   <button v-if="['queued','running','cancel_requested'].includes(t.status)"
                           class="btn danger sm" @click="cancel(t.id)">取消</button>
                 </td>
-              </tr>
-              <tr v-if="!tasks.length">
-                <td colspan="8" class="muted">{{ loading ? '加载中…' : '队列为空' }}</td>
               </tr>
             </tbody>
           </table>

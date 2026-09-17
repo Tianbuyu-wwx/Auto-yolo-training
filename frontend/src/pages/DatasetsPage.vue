@@ -1,6 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
+import EmptyState from '../components/EmptyState.vue'
+import Skeleton from '../components/Skeleton.vue'
 import { toastErr, toastOk } from '../lib/toast.js'
 
 const datasets = ref([])        // 可训练（存在 data.yaml）——训练配置页的下拉就是它
@@ -32,6 +34,13 @@ const confirmDel = ref('')      // 两段式确认：值为待删的数据集名
 const busy = ref('')
 const recycleItems = ref([])
 
+const query = ref('')
+/** 筛选后的视图列表。计数与表格都读它，避免「表头写 6 行、表格画 3 行」。 */
+const visibleStatuses = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  return q ? statuses.value.filter(s => String(s.name).toLowerCase().includes(q)) : statuses.value
+})
+
 const pendingList = computed(() => statuses.value.filter(s => s.needs_conversion).map(s => s.name))
 const notTrainable = computed(() => statuses.value.filter(s => !s.is_trainable).map(s => s.name))
 const issueCount = computed(() => statuses.value.filter(s => s.issues?.length).length)
@@ -44,8 +53,18 @@ const issueCount = computed(() => statuses.value.filter(s => s.issues?.length).l
  * data.yaml —— 旧代码把它们标成绿色「就绪」，用户转到训练配置页却在数据集
  * 下拉里找不到它们，没有任何解释。
  */
+/**
+ * 状态徽标。**必须与「问题」列一致**：`data` 数据集 val 集 75/75 张无标注，
+ * is_trainable 却是 true —— 旧逻辑照样给出绿色「可训练」，与同行的黄色告警
+ * 直接矛盾（用户会以为那只是提示，实际上训练会带着无标注的验证集跑）。
+ */
 function badge(s) {
-  if (s.is_trainable) return { cls: 'ok', text: '可训练' }
+  const issues = s.issues?.length || 0
+  if (s.is_trainable) {
+    return issues
+      ? { cls: 'warn', text: `可训练 · ${issues} 项告警` }
+      : { cls: 'ok', text: '可训练' }
+  }
   if (s.is_ready) return { cls: 'warn', text: '缺 data.yaml' }
   if (s.needs_conversion) return { cls: 'warn', text: '需转换' }
   return { cls: 'err', text: '不可训练' }
@@ -214,7 +233,8 @@ onMounted(() => { refresh(); loadRecycle() })
           <p class="hint" style="margin-top:8px">先在上方列表选中一个数据集</p>
         </div>
 
-        <div class="card">
+        <!-- 危险区：不可逆操作不该和上传/转换穿同一件衣服 -->
+        <div class="card zone-danger">
           <h3>删除数据集</h3>
           <p class="hint" style="margin-bottom:10px">
             当前选中：<code>{{ selected || '（未选择）' }}</code>
@@ -245,19 +265,30 @@ onMounted(() => { refresh(); loadRecycle() })
           <!-- 计数取 statuses（表格渲染的就是它，磁盘上全部目录）。
                datasets 只含可训练项（需有 data.yaml），两者口径不同：
                原用 datasets.length 导致表头写 4 而表格渲染 6 行。 -->
-          <h3>数据集列表（{{ statuses.length }}）</h3>
+          <h3>数据集列表（{{ visibleStatuses.length }}<template v-if="query"> / {{ statuses.length }}</template>）</h3>
+
+          <!-- 工具条：表格一多就得能筛。原先 6 个目录全铺开、没有任何入口，
+               十来个数据集时只能靠肉眼扫「问题」列。 -->
+          <div class="toolbar">
+            <input v-model="query" type="search" placeholder="按名称筛选…" />
+            <div class="spacer"></div>
+            <span class="count">{{ visibleStatuses.length }} / {{ statuses.length }} 个目录</span>
+          </div>
 
           <p v-if="!loading && !loadError && statuses.length" class="hint" style="margin:-6px 0 12px">
             共扫描 {{ statuses.length }} 个目录，其中 <strong>{{ datasets.length }}</strong> 个可训练
             <template v-if="notTrainable.length">，{{ notTrainable.length }} 个缺 data.yaml（不可选入训练）</template>
           </p>
 
-          <p v-if="loading" class="state-msg muted">加载中…</p>
+          <div v-if="loading" style="padding:4px 0"><Skeleton variant="row" :count="5" /></div>
 
           <div v-else-if="loadError" class="state-msg error">
             数据集列表加载失败：{{ loadError }}
             <div class="retry"><button class="btn sm" @click="refresh()">重试</button></div>
           </div>
+
+          <EmptyState v-else-if="!statuses.length" glyph="▤" title="还没有数据集"
+                      hint="上传一个 ZIP（YOLO / 分类 / Roboflow 三种结构都能识别），或在项目根跑 make smoke 用内置烟雾数据跑通链路。" />
 
           <div v-else class="table-wrap">
             <table class="tbl">
@@ -265,7 +296,7 @@ onMounted(() => { refresh(); loadRecycle() })
                 <tr><th>名称</th><th>格式</th><th>图像</th><th>标注</th><th>状态</th><th>问题</th></tr>
               </thead>
               <tbody>
-                <tr v-for="s in statuses" :key="s.name" style="cursor:pointer" @click="selectDataset(s.name)">
+                <tr v-for="s in visibleStatuses" :key="s.name" style="cursor:pointer" @click="selectDataset(s.name)">
                   <td><code :style="s.name === selected ? 'color:var(--blue)' : ''">{{ s.name }}</code></td>
                   <td>{{ s.format }}</td>
                   <td class="mono">{{ s.image_count }}</td>
@@ -279,7 +310,7 @@ onMounted(() => { refresh(); loadRecycle() })
                     <span v-else class="issue-text">{{ s.issues.join('；') }}</span>
                   </td>
                 </tr>
-                <tr v-if="!statuses.length"><td colspan="6" class="muted">暂无数据集，请上传 ZIP</td></tr>
+                <tr v-if="!visibleStatuses.length"><td colspan="6" class="muted">没有名称匹配「{{ query }}」的数据集</td></tr>
               </tbody>
             </table>
           </div>

@@ -13,6 +13,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
+import EmptyState from '../components/EmptyState.vue'
 import { toastErr, toastOk } from '../lib/toast.js'
 
 const registry = ref({})        // { 数据集: [版本, ...] }
@@ -195,10 +196,10 @@ onMounted(async () => {
 
 <template>
   <div>
-    <p v-if="loadError" class="state-msg error">
+    <div v-if="loadError" class="state-msg error">
       注册表加载失败：{{ loadError }}
       <div class="retry"><button class="btn sm" @click="load(false)">重试</button></div>
-    </p>
+    </div>
 
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
       <select v-model="selectedDs" style="max-width:280px" :disabled="loading || !datasetNames.length"
@@ -430,8 +431,9 @@ onMounted(async () => {
       </div>
     </template>
 
-    <div v-else-if="!loading && !loadError" class="card muted">
-      注册表里还没有任何版本。训练完成会自动注册；也可以用上方「注册新版本」把已有的 run 补进来。
+    <div v-else-if="!loading && !loadError" class="card">
+      <EmptyState glyph="◈" title="注册表里还没有任何版本"
+                  hint="训练完成会自动注册一个版本；也可以用上方「注册新版本」把已有的 run 补进来，再进行晋升 / 回滚。" />
     </div>
   </div>
 </template>

@@ -194,10 +194,10 @@ onMounted(loadOptions)
       <div style="display:flex;flex-direction:column;gap:16px">
         <div class="card">
           <h3>数据集</h3>
-          <p v-if="loadError" class="state-msg error">
+          <div v-if="loadError" class="state-msg error">
             选项加载失败：{{ loadError }}
             <div class="retry"><button class="btn sm" @click="loadOptions">重试</button></div>
-          </p>
+          </div>
           <template v-else>
             <select v-model="cfg.dataset_name" :disabled="loading || datasetLocked">
               <option value="" disabled>{{ loading ? '加载中…' : '— 选择数据集 —' }}</option>
@@ -300,14 +300,16 @@ onMounted(loadOptions)
           </div>
         </div>
 
-        <div class="card">
+        <!-- 主操作卡吸顶：长表单滚到下半屏时，「立即开始训练」仍在视野里。
+             原先它被埋在左列最底部，改一个超参要滚回来才能提交。 -->
+        <div class="card sticky-actions">
           <h3>执行</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
             <button class="btn primary" :disabled="!canSubmit" @click="startNow">
-              {{ busy ? '提交中…' : (resumeOn ? '▶ 从断点继续训练' : '▶ 立即开始训练') }}
+              {{ busy ? '提交中…' : (resumeOn ? '从断点继续训练' : '立即开始训练') }}
             </button>
             <button class="btn" :disabled="!canSubmit" @click="enqueue">
-              {{ busy ? '提交中…' : '▦ 加入队列' }}
+              {{ busy ? '提交中…' : '加入队列' }}
             </button>
             <label v-if="!resumeOn" class="row-check">
               <input type="checkbox" v-model="cfg.skip_validation" />
