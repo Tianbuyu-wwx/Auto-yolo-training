@@ -335,6 +335,110 @@ class TestTaskQueue:
         # 再次 cancel running 任务返回 False（已是 cancel_requested）
         assert q.cancel(t1) is False
 
+class TestTaskQueueRecovery:
+    """崩溃/被杀之后，在途任务必须被回收，而不是永远卡在 running。
+
+    回归背景（2026-09-17 审计）：``claim_next`` 只认 queued，进程崩了以后
+    running / cancel_requested 的任务既不重跑也没法取消 —— 控制台上表现为
+    永远停在「执行中 / 取消中」。
+    """
+
+    def _backdate(self, q, task_id: int, seconds: int = 3600) -> None:
+        """把心跳/开始时间改老（测试直接操作连接，模拟"很久以前就失联了"）"""
+        from datetime import datetime, timedelta
+
+        old = (datetime.now() - timedelta(seconds=seconds)).isoformat()
+        q._conn.execute("UPDATE tasks SET heartbeat_at = ?, started_at = ? WHERE id = ?",
+                        (old, old, task_id))
+        q._conn.commit()
+
+    def test_stale_running_is_recovered_as_failed(self, tmp_path):
+        from src.task_queue import TASK_FAILED, TaskQueue
+
+        q = TaskQueue(tmp_path / "queue.db")
+        tid = q.enqueue("ds1", {"epochs": 1})
+        q.claim_next()                      # → running（线程已死：测试里没有真 runner）
+        self._backdate(q, tid)
+
+        recovered = q.recover_interrupted()
+
+        assert [r["id"] for r in recovered] == [tid]
+        task = q.get_task(tid)
+        assert task["status"] == TASK_FAILED
+        assert "中断" in task["error"]
+        assert task["finished_at"]
+
+    def test_fresh_heartbeat_is_not_recovered(self, tmp_path):
+        """另一个活着的消费者不能被误杀：心跳新 → 不动"""
+        from src.task_queue import TASK_RUNNING, TaskQueue
+
+        q = TaskQueue(tmp_path / "queue.db")
+        tid = q.enqueue("ds1", {})
+        q.claim_next()
+
+        assert q.recover_interrupted() == []
+        assert q.get_task(tid)["status"] == TASK_RUNNING
+
+    def test_cancel_requested_is_also_recovered(self, tmp_path):
+        """点了取消但消费进程跟着崩了：同样要回收"""
+        from src.task_queue import TASK_FAILED, TaskQueue
+
+        q = TaskQueue(tmp_path / "queue.db")
+        tid = q.enqueue("ds1", {})
+        q.claim_next()
+        q.cancel(tid)                        # → cancel_requested
+        self._backdate(q, tid)
+
+        recovered = q.recover_interrupted()
+
+        assert [r["id"] for r in recovered] == [tid]
+        assert q.get_task(tid)["status"] == TASK_FAILED
+
+    def test_queued_and_finished_are_untouched(self, tmp_path):
+        from src.task_queue import TASK_DONE, TASK_QUEUED, TaskQueue
+
+        q = TaskQueue(tmp_path / "queue.db")
+        first = q.enqueue("finished", {})
+        q.claim_next()                        # id1 → running
+        q.mark_finished(first, success=True)  # id1 → done
+        queued = q.enqueue("waiting", {})     # id2：一直没被消费
+        self._backdate(q, first)              # done 的条目再老也不该被碰
+
+        assert q.recover_interrupted() == []
+        assert q.get_task(queued)["status"] == TASK_QUEUED
+        assert q.get_task(first)["status"] == TASK_DONE
+
+    def test_runner_start_recovers_stale_task(self, tmp_path):
+        """runner 启动即回收 —— 这是 Web 进程每次启动都会走的路径"""
+        from src.task_queue import TASK_FAILED, QueueRunner, TaskQueue
+
+        q = TaskQueue(tmp_path / "queue.db")
+        tid = q.enqueue("ds1", {})
+        q.claim_next()
+        self._backdate(q, tid)
+
+        runner = QueueRunner(q, tmp_path, poll_interval=0.2)
+        runner.start()
+        runner.stop()
+
+        assert q.get_task(tid)["status"] == TASK_FAILED
+
+    def test_heartbeat_updates_the_stamp(self, tmp_path):
+        from src.task_queue import TaskQueue
+
+        q = TaskQueue(tmp_path / "queue.db")
+        tid = q.enqueue("ds1", {})
+        q.claim_next()
+        first = q.get_task(tid)["heartbeat_at"]
+        self._backdate(q, tid, seconds=600)
+
+        q.heartbeat(tid)
+
+        refreshed = q.get_task(tid)["heartbeat_at"]
+        assert refreshed != first
+        assert q.recover_interrupted() == []   # 心跳刷新后不再算失联
+
+
     def test_runner_executes_task_end_to_end(self, tmp_path):
         """QueueRunner 通过 worker 子进程执行任务（数据集不存在 → failed）"""
         from src.task_queue import QueueRunner, TaskQueue

@@ -5,7 +5,19 @@ SQLite 任务队列（阶段 F 前置：训练任务排队 / 持久化 / 崩溃�
 - 队列表 tasks 持久化到 SQLite（默认 logs/task_queue.db），Web 重启不丢任务
 - 任务执行复用 src.worker 子进程（进程隔离 + 日志文件 + 停止握手）
 - QueueRunner 在后台线程排队执行（默认串行，GPU 任务并发=1）
-- 取消：queued → 直接 cancelled；running → 写 stop 标志，worker 优雅停止
+- 取消：queued → 直接 cancelled；running → cancel_requested（写 stop 标志，
+  worker 在当前 epoch 结束后优雅停止，随后由 runner 落成 done/failed）
+- **崩溃恢复**：runner 启动时回收「消费进程已消失」的在途任务
+  （见 :meth:`TaskQueue.recover_interrupted`）—— 否则它们会永远卡在
+  running / cancel_requested，既不重跑也无法取消。
+
+状态机（完整）::
+
+    queued ──claim──▶ running ──mark_finished──▶ done / failed
+      │                  │
+      │                  └─cancel()──▶ cancel_requested ──worker 退出──▶ failed
+      └─cancel()──▶ cancelled
+    （启动时：running / cancel_requested 且心跳过期 → failed「服务重启，任务中断」）
 
 CLI（独立消费队列）:
     python -m src.task_queue            # 处理队列直到 Ctrl+C
@@ -28,12 +40,17 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# 任务状态机：queued → running → done / failed / cancelled
+# 任务状态机（见模块 docstring 的完整图）
 TASK_QUEUED = "queued"
 TASK_RUNNING = "running"
+TASK_CANCEL_REQUESTED = "cancel_requested"   # running + 用户点了取消，等 worker 收尾
 TASK_DONE = "done"
 TASK_FAILED = "failed"
 TASK_CANCELLED = "cancelled"
+
+# 在途任务的心跳过期阈值（秒）：活着的 runner 每轮循环都会 heartbeat，
+# 过期只可能是进程崩了/被杀了。启动时据此回收（见 recover_interrupted）。
+HEARTBEAT_STALE_SECONDS = 90
 
 
 class TaskQueue:
@@ -46,6 +63,8 @@ class TaskQueue:
         self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._init_schema()
+
+    _NEW_COLUMNS = {"owner_pid": "INTEGER", "heartbeat_at": "TEXT"}
 
     def _init_schema(self) -> None:
         with self._lock, self._conn:
@@ -60,10 +79,17 @@ class TaskQueue:
                     started_at TEXT,
                     finished_at TEXT,
                     error TEXT DEFAULT '',
-                    best_model_path TEXT DEFAULT ''
+                    best_model_path TEXT DEFAULT '',
+                    owner_pid INTEGER,
+                    heartbeat_at TEXT
                 )
                 """
             )
+            # 老库补列（幂等）：owner_pid / heartbeat_at 是崩溃恢复的判据
+            existing = {row["name"] for row in self._conn.execute("PRAGMA table_info(tasks)")}
+            for column, sql_type in self._NEW_COLUMNS.items():
+                if column not in existing:
+                    self._conn.execute(f"ALTER TABLE tasks ADD COLUMN {column} {sql_type}")
 
     def _row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
         out = dict(row)
@@ -93,9 +119,11 @@ class TaskQueue:
             ).fetchone()
             if row is None:
                 return None
+            now = datetime.now().isoformat()
             self._conn.execute(
-                "UPDATE tasks SET status = ?, started_at = ? WHERE id = ?",
-                (TASK_RUNNING, datetime.now().isoformat(), row["id"]),
+                "UPDATE tasks SET status = ?, started_at = ?, owner_pid = ?, heartbeat_at = ?"
+                " WHERE id = ?",
+                (TASK_RUNNING, now, os.getpid(), now, row["id"]),
             )
             claimed = self._row_to_dict(row)
             claimed["status"] = TASK_RUNNING
@@ -128,7 +156,7 @@ class TaskQueue:
             if row["status"] == TASK_RUNNING:
                 self._conn.execute(
                     "UPDATE tasks SET status = ? WHERE id = ?",
-                    ("cancel_requested", task_id),
+                    (TASK_CANCEL_REQUESTED, task_id),
                 )
                 return True
             return False
@@ -150,12 +178,59 @@ class TaskQueue:
             ).fetchall()
             return [self._row_to_dict(r) for r in rows]
 
+    def heartbeat(self, task_id: int) -> None:
+        """在途任务的心跳（runner 每轮循环调用一次）"""
+        with self._lock, self._conn:
+            self._conn.execute(
+                "UPDATE tasks SET heartbeat_at = ? WHERE id = ? AND status IN (?, ?)",
+                (datetime.now().isoformat(), task_id, TASK_RUNNING, TASK_CANCEL_REQUESTED),
+            )
+
+    def recover_interrupted(self, stale_after_seconds: int = HEARTBEAT_STALE_SECONDS) -> list[dict]:
+        """回收「消费进程已消失」的在途任务（启动时调用）。
+
+        判定：status ∈ {running, cancel_requested} 且心跳早于阈值（或从未心跳）。
+        活着的 runner 每秒都会 heartbeat，所以心跳过期只可能是进程崩了/被杀了；
+        不回它们的结果就是任务永远卡在 running —— 既不会重跑，也没法取消
+        （``claim_next`` 只认 queued）。
+
+        注意阈值而非「本进程启动时间」：队列可以被独立消费者
+        （``python -m src.task_queue``）与 Web 进程同时打开，用启动时间判断会
+        误杀另一个活着的消费者。
+        """
+        cutoff = datetime.now().timestamp() - stale_after_seconds
+        recovered: list[dict] = []
+        with self._lock, self._conn:
+            rows = self._conn.execute(
+                "SELECT id, dataset_name, started_at, heartbeat_at FROM tasks"
+                " WHERE status IN (?, ?)",
+                (TASK_RUNNING, TASK_CANCEL_REQUESTED),
+            ).fetchall()
+            for row in rows:
+                stamp = row["heartbeat_at"] or row["started_at"]
+                try:
+                    seen = datetime.fromisoformat(stamp).timestamp() if stamp else 0.0
+                except ValueError:
+                    seen = 0.0
+                if seen >= cutoff:
+                    continue
+                self._conn.execute(
+                    "UPDATE tasks SET status = ?, finished_at = ?, error = ? WHERE id = ?",
+                    (TASK_FAILED, datetime.now().isoformat(),
+                     "服务重启或消费进程失联，任务中断", row["id"]),
+                )
+                recovered.append({"id": row["id"], "dataset_name": row["dataset_name"]})
+        if recovered:
+            logger.warning("[QUEUE] 回收了 %d 个失联的在途任务: %s",
+                           len(recovered), [r["id"] for r in recovered])
+        return recovered
+
     def is_cancel_requested(self, task_id: int) -> bool:
         with self._lock:
             row = self._conn.execute(
                 "SELECT status FROM tasks WHERE id = ?", (task_id,)
             ).fetchone()
-            return bool(row) and row["status"] == "cancel_requested"
+            return bool(row) and row["status"] == TASK_CANCEL_REQUESTED
 
 
 class QueueRunner:
@@ -173,6 +248,8 @@ class QueueRunner:
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
+        # 先回收上次崩溃/被杀留下的在途任务，再把线程跑起来
+        self.queue.recover_interrupted()
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._loop, daemon=True, name="queue-runner")
         self._thread.start()
@@ -230,6 +307,7 @@ class QueueRunner:
 
         # 等待结束；期间响应取消请求（写 stop 标志 → worker 优雅停止）
         while proc.poll() is None:
+            self.queue.heartbeat(task["id"])   # 心跳：崩溃恢复据此判断消费者是否还活着
             if self._stop_event.is_set():
                 logger.warning("[QUEUE] runner 停止，强制终止任务 %s 子进程", task["id"])
                 proc.terminate()
