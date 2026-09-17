@@ -77,17 +77,23 @@ def test_readme_numbers_match_the_suite() -> None:
         f"但套件实际收集到 {collected} 个测试。改测试后请同步 README。"
     )
 
-    documented: dict[str, int] = {}
+    # 徽章是 shields.io 的 "tests passed" 徽章 → 必须等于 passed；
+    # 「跑测试套件（N tests）」描述的是那条命令会收集到多少个用例 → passed + skipped
+    # （= collected）同样是真实值，两者都接受，但不接受任何过期数字。
     badge = re.search(r"tests-(\d+)%20passed", readme)
     if badge:
-        documented["徽章（shields.io）"] = int(badge.group(1))
+        assert int(badge.group(1)) == passed, (
+            f"徽章写的是 tests-{badge.group(1)}，权威的 passed 数是 {passed}"
+        )
+
+    documented: dict[str, int] = {}
     for match in re.finditer(r"（(\d+) tests）", readme):
         documented[f"命令说明（{match.group(1)} tests）"] = int(match.group(1))
 
     assert documented, "README 里一个可机检的测试数字都没找到（守卫形同虚设）"
-    wrong = {label: value for label, value in documented.items() if value != passed}
+    wrong = {label: value for label, value in documented.items() if value not in {passed, collected}}
     assert not wrong, (
-        f"这些位置写的测试数与权威数字（{passed}）不一致："
+        f"这些位置写的测试数与权威数字（{passed} passed / {collected} collected）不一致："
         + "；".join(f"{label} → {value}" for label, value in wrong.items())
     )
 
