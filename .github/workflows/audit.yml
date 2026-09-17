@@ -62,8 +62,9 @@ jobs:
       # 3) starlette（10 条，修复 1.0.1+）—— fastapi 0.139.2 约束 starlette<0.53，
       #    要升得连 fastapi 一起升。
       # 4) torch（1 条，修复 2.13.0）—— 轮子（CPU/cu128）与已训产物都需要重验。
-      # 5) setuptools（2 条，修复 83.0.0）—— torch 2.11.0 的依赖约束 setuptools<83，
-      #    钉不上去（实测 ResolutionImpossible）。
+      # 5) setuptools（PYSEC-2026-3447，修复 83.0.0）—— torch 2.11.0 的依赖约束
+      #    setuptools<83，钉不上去（实测 ResolutionImpossible）。另一条 PYSEC-2025-49
+      #    已通过 constraints.txt 钉 setuptools==78.1.1 修掉。
       # ------------------------------------------------------------------
       - name: Audit installed dependencies
         run: |

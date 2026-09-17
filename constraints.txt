@@ -27,3 +27,6 @@ pytest==9.1.1        # 8.4.2 有 PYSEC-2026-1845；本机 9.1.1 全量套件已�
 pytest-cov==7.1.0
 httpx==0.28.1
 ruff==0.14.14
+
+# 构建/打包工具地板（78.1.0 有 PYSEC-2025-49；torch 2.11 约束 setuptools<83）
+setuptools==78.1.1
