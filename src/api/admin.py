@@ -215,10 +215,15 @@ class SPAStaticFiles(StaticFiles):
         try:
             return await super().get_response(path, scope)
         except StarletteHTTPException as e:
-            last_segment = path.rsplit("/", 1)[-1]
+            # starlette 的 StaticFiles.get_path() 走 os.path.normpath，**Windows 上
+            # 传进来的 path 是 `api\nope` 这种反斜杠形式** —— 只按 "api/" 判前缀会
+            # 永远为假，于是未知的 /api 路径被 SPA 回退吞成 200 + index.html，客户端
+            # 把「路径写错」读成「服务正常」。先归一化分隔符再判。
+            normalized = path.replace("\\", "/")
+            last_segment = normalized.rsplit("/", 1)[-1]
             is_spa_route = (
                 e.status_code == 404
-                and not path.startswith(("api/", "ws/"))
+                and not normalized.startswith(("api/", "ws/"))
                 and "." not in last_segment
             )
             if is_spa_route:

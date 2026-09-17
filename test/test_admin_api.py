@@ -47,6 +47,31 @@ def dummy_dataset(client, tmp_path):
         "nc: 1\nnames: [cat]\n", encoding="utf-8"
     )
     return "api-ds"
+
+
+@pytest.fixture()
+def reg_run(client):
+    """造一个带 best.pt / last.pt / results.csv 的 run。
+
+    模块级（而不是挂在某个测试类里）：注册表的两组用例都要用它 ——
+    ``TestRegistryEndpoints`` 的读写，以及 ``TestRegistryWeightsMissing``
+    的「权重被清理后」状态。
+    """
+    base = client.app.state.base_dir
+    run = base / "runs" / "detect" / "reg_run"
+    (run / "weights").mkdir(parents=True)
+    (run / "weights" / "best.pt").write_bytes(b"fake-best")
+    (run / "weights" / "last.pt").write_bytes(b"fake-last")
+    (run / "results.csv").write_text(
+        "epoch,time,metrics/precision(B),metrics/recall(B),"
+        "metrics/mAP50(B),metrics/mAP50-95(B)\n"
+        "1,1.0,0.5,0.4,0.50,0.30\n"
+        "2,2.0,0.7,0.6,0.80,0.60\n",
+        encoding="utf-8",
+    )
+    return "reg_run"
+
+
 # ----------------------------------------------------------------------
 # 数据集
 # ----------------------------------------------------------------------
@@ -332,29 +357,6 @@ class TestModelAndRegistry:
 # ----------------------------------------------------------------------
 # 模型注册表写端点（G-4）
 # ----------------------------------------------------------------------
-@pytest.fixture()
-def reg_run(client):
-    """造一个带 best.pt / last.pt / results.csv 的 run。
-
-    模块级（不是挂在某个测试类里）：注册表的两组用例都要用它 ——
-    ``TestRegistryEndpoints`` 的读写，以及 ``TestRegistryWeightsMissing``
-    的「权重被清理后」状态。
-    """
-    base = client.app.state.base_dir
-    run = base / "runs" / "detect" / "reg_run"
-    (run / "weights").mkdir(parents=True)
-    (run / "weights" / "best.pt").write_bytes(b"fake-best")
-    (run / "weights" / "last.pt").write_bytes(b"fake-last")
-    (run / "results.csv").write_text(
-        "epoch,time,metrics/precision(B),metrics/recall(B),"
-        "metrics/mAP50(B),metrics/mAP50-95(B)\n"
-        "1,1.0,0.5,0.4,0.50,0.30\n"
-        "2,2.0,0.7,0.6,0.80,0.60\n",
-        encoding="utf-8",
-    )
-    return "reg_run"
-
-
 class TestRegistryEndpoints:
     def _register(self, client, dataset="regds", run="reg_run", **kw):
         r = client.post(
@@ -824,6 +826,7 @@ class TestRegistryWeightsMissing:
         r = client.post(f"/api/registry/regds/{stale_version['version_id']}/promote")
         assert r.status_code == 409, r.text
         assert "权重" in r.json()["detail"]
+        # 挡住必须是真的没生效
         assert client.get("/api/registry/regds").json()["production_model"] is None
 
     def test_promote_still_works_for_a_live_version(self, client, reg_run):
@@ -834,3 +837,53 @@ class TestRegistryWeightsMissing:
         )
         body = client.get("/api/registry/regds").json()
         assert body["production_model_available"] is True
+
+
+# ----------------------------------------------------------------------
+# SPA 回退的边界（2026-09-17）
+# ----------------------------------------------------------------------
+@pytest.fixture()
+def spa_client(tmp_path):
+    """带 SPA 静态托管的 app，dist 是临时造的。
+
+    刻意不依赖仓库里是否构建过 frontend/dist：那样测试在 CI 上会因为「没有 dist」
+    而退化成「FastAPI 默认 404」，看着是绿的，其实回退逻辑根本没被走一遍。
+    """
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text(
+        "<!doctype html><title>AYT</title><div id=app></div>", encoding="utf-8"
+    )
+    (dist / "assets" / "app.js").write_text("console.log(1)", encoding="utf-8")
+    app = create_admin_app(
+        base_dir=tmp_path, use_subprocess=False, start_queue_runner=False,
+        api_key="", frontend_dist=dist,
+    )
+    with TestClient(app) as c:
+        yield c
+
+
+class TestSpaFallback:
+    """静态托管的回退边界：前端路由回退，但接口与静态资源不许被 HTML 顶掉。"""
+
+    def test_unknown_page_path_falls_back_to_index(self, spa_client):
+        r = spa_client.get("/queue")
+        assert r.status_code == 200
+        assert "id=app" in r.text
+
+    def test_unknown_api_path_is_404(self, spa_client):
+        """回归背景：Windows 上 starlette 送进来的 path 是 `api\\nope`（反斜杠），
+        旧判据 `path.startswith("api/")` 恒为假 → 未知接口返回 200 + index.html。"""
+        r = spa_client.get("/api/definitely-not-a-route")
+        assert r.status_code == 404, r.text
+
+    def test_unknown_ws_path_is_404(self, spa_client):
+        assert spa_client.get("/ws/definitely-not-a-route").status_code == 404
+
+    def test_missing_static_asset_is_404(self, spa_client):
+        assert spa_client.get("/assets/missing.js").status_code == 404
+
+    def test_existing_asset_is_served(self, spa_client):
+        r = spa_client.get("/assets/app.js")
+        assert r.status_code == 200
+        assert "console.log" in r.text
