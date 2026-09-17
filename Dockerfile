@@ -138,7 +138,11 @@ COPY --chown=ayt:ayt test/ ./test/
 COPY --from=frontend --chown=ayt:ayt /fe/dist ./frontend/dist
 
 # 数据/模型/产物目录（运行时挂载）
-RUN mkdir -p /as/dataset /as/basemodels /as/runs /as/exports /as/logs /as/reports /as/tuning && \
+# .ci/ 也要一起建并 chown：YOLO_CONFIG_DIR / MPLCONFIGDIR 指到这里，缺了它
+# Ultralytics 会打 "user config directory is not writable, using /tmp/..." 警告
+# 并把配置落到容器外（实测：ayt:cpu 首跑即出现该警告）。
+RUN mkdir -p /as/dataset /as/basemodels /as/runs /as/exports /as/logs /as/reports /as/tuning \
+              /as/.ci/Ultralytics /as/.ci/matplotlib && \
  chown -R ayt:ayt /as
 
 USER ayt
