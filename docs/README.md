@@ -190,6 +190,8 @@ frontend/
 | `make format` | ruff 自动格式化 |
 | `make smoke` | 烟雾训练验证（`_smoke_test` 数据集，CPU 1 epoch） |
 | `make smoke-validate` | 烟雾数据校验 |
+| `make gpu-check` | GPU 环境/kernel 检查（秒级，不跑训练） |
+| `make gpu-smoke` | GPU 通道验收：标记用例 + 真跑一次 CUDA 训练 |
 | `make frontend-install` | 安装前端依赖（pnpm，严格按 lockfile） |
 | `make frontend-dev` | 启动前端开发服务器（http://127.0.0.1:5173） |
 | `make frontend-build` | 构建前端产物到 `frontend/dist` |
@@ -345,6 +347,12 @@ make test-cov
 
 **测试统计**：357 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
 
+> **GPU 通道**：`gpu` 标记的用例不在上面这条命令里（GitHub 托管的 runner 没有 GPU）。
+> 本机验证用 `make gpu-smoke` —— 它先跑标记用例（驱动可见性、算力、**真算一遍 CUDA
+> 矩阵乘**并与 CPU 比对），再用 `train.py --device 0` 真跑一次训练，并用 nvidia-smi
+> 采样显存/利用率作为「确实在用 GPU」的证据。CI 侧对应 `.github/workflows/gpu.yml`，
+> **只能手动触发**且需要自托管 GPU runner（注册步骤见该文件头部注释）。
+
 **测试组织**：
 
 | 文件 | 覆盖 |
@@ -357,6 +365,7 @@ make test-cov
 | `test_model_downloader.py` | 模型下载 |
 | `test_run_artifacts.py` | 训练产物解析 |
 | `test_run_store.py` | run 生命周期（保留 / 回收 / 归档）：精确匹配、可恢复、归档不搬走 run 内权重 |
+| `test_gpu_smoke.py` | **GPU 标记**：CUDA kernel 实算校验、Ultralytics 选卡、device 串透传（默认 CI 排除） |
 | `test_docs_consistency.py` | 文档一致性守卫：站点首页 == 生成器输出、README 数字 == 套件实测、页面数 == 前端实际 |
 | `test_inference_service.py` | FastAPI 推理 |
 | `test_admin_api.py` | 管理面 FastAPI（控制台后端）：数据集 / 训练 / 队列 / 导出端点 |

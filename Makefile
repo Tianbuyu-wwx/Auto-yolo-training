@@ -10,6 +10,7 @@
 #   make test           - 跑 CPU-safe 测试
 #   make lint           - ruff 检查
 #   make smoke          - 烟雾训练验证（_smoke_test 数据集）
+#   make gpu-smoke      - GPU 通道验收（真跑一次 CUDA 训练）
 #   make frontend-dev   - 启动前端开发服务器（Vite，含 API 代理）
 #   make frontend-build - 构建前端产物（frontend/dist）
 #   make frontend-check - 构建前端并校验产物预算
@@ -111,6 +112,15 @@ smoke:  ## 跑烟雾训练（_smoke_test 数据集，CPU 1 epoch）
 .PHONY: smoke-validate
 smoke-validate:  ## 烟雾数据校验
 	$(PYTHON) validate_data.py _smoke_test
+
+.PHONY: gpu-smoke
+gpu-smoke:  ## GPU 通道验收（真跑一次 CUDA 训练 + 标记用例；需本机有 NVIDIA GPU）
+	$(PYTHON) -m pytest -m gpu -v --tb=short
+	$(PYTHON) scripts/gpu_smoke.py
+
+.PHONY: gpu-check
+gpu-check:  ## 只做 GPU 环境/kernel 检查（秒级，不跑训练）
+	$(PYTHON) scripts/gpu_smoke.py --skip-training
 
 .PHONY: tensorboard
 tensorboard:  ## 启动 TensorBoard 查看训练曲线（runs/ 目录）

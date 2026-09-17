@@ -1,0 +1,67 @@
+name: gpu
+
+# GPU 通道：**只能手动触发**，且跑在自托管的 GPU 机器上。
+#
+# 为什么不挂在 push/PR 上：
+# 1) GitHub 托管的 runner 没有 GPU，这类 job 只会永远 pending；
+# 2) 本仓库是 PUBLIC，而自托管 runner 一旦响应 PR 事件，就相当于允许外部代码
+#    在这台机器上执行 —— workflow_dispatch 只有写权限的人能触发，才谈得上安全。
+#
+# 注册自托管 runner（一次性，在 GPU 那台机器上执行）：
+#
+#   gh api -X POST /repos/<owner>/<repo>/actions/runners/registration-token --jq .token
+#   # 下载 actions-runner-win-x64-*.zip 解压后：
+#   ./config.cmd --url https://github.com/<owner>/<repo> --token <上面的 token> \
+#                --labels windows,gpu --name ayt-gpu-01
+#   ./run.cmd            # 前台跑；装服务用 `svc.cmd install` + `svc.cmd start`
+#
+# runner 机器需要已经具备：Python 3.12 + torch(CUDA) + ultralytics（即本项目
+# 的 GPU 环境），因为下面的步骤直接用机器上的 python。
+on:
+  workflow_dispatch:
+    inputs:
+      epochs:
+        description: "GPU 烟雾训练的轮数"
+        default: "2"
+      skip_training:
+        description: "只做环境/kernel 检查（不跑训练）"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gpu-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gpu-smoke:
+    runs-on: [self-hosted, windows, gpu]
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Report interpreter
+        run: |
+          python -c "import sys, torch; print('python', sys.version.split()[0]); print('torch', torch.__version__, '| CUDA', torch.version.cuda, '| available', torch.cuda.is_available())"
+
+      # 先跑标记用例（秒级失败比等训练快得多）：驱动/算力/kernel 一旦不对，
+      # 这里就会红，而不用等到训练跑到一半。
+      - name: GPU-marked pytest cases
+        run: python -m pytest -m gpu -v --tb=short
+
+      - name: GPU smoke (真跑一次 CUDA 训练)
+        run: |
+          python scripts/gpu_smoke.py --json --epochs ${{ inputs.epochs }} ${{ inputs.skip_training && '--skip-training' || '' }} > gpu-smoke.json
+          python -c "import json;d=json.load(open('gpu-smoke.json',encoding='utf-8'));print(json.dumps(d.get('checks'),indent=2,ensure_ascii=False));assert d['passed'], d['checks']"
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpu-smoke-report
+          path: gpu-smoke.json
+          if-no-files-found: warn

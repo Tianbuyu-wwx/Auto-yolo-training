@@ -50,14 +50,19 @@ def test_docs_readme_is_in_sync_with_root_readme() -> None:
 # 2. README 里的测试数字 == 测试套件实际收集到的数量
 # ----------------------------------------------------------------------
 def _collected_test_count() -> int:
-    """按 README 记载的同一条命令收集测试（`-m "not gpu and not training"`）"""
+    """按 README 记载的同一条命令收集测试（`-m "not gpu and not training"`）
+
+    注意 pytest 的两种输出形态：标记全选时是 ``372 tests collected``，一旦有被标记
+    排除的用例就变成 ``358/361 tests collected (3 deselected)`` —— 要取斜杠**前面**
+    那个数（本命令实际会跑的规模），取后面会把 GPU 用例也算进「CPU-safe 套件」。
+    """
     result = subprocess.run(
         [sys.executable, "-m", "pytest", "test/", "--collect-only", "-q",
          "-m", "not gpu and not training", "-p", "no:cacheprovider"],
         cwd=REPO_ROOT, capture_output=True, text=True,
         encoding="utf-8", errors="replace", timeout=300,
     )
-    match = re.search(r"(\d+)\s+tests?\s+collected", result.stdout)
+    match = re.search(r"(\d+)(?:/\d+)?\s+tests?\s+collected", result.stdout)
     if match is None:
         pytest.fail(f"无法从 pytest --collect-only 输出里解析收集数量：\n{result.stdout[-800:]}")
     return int(match.group(1))
