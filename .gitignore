@@ -21,6 +21,9 @@ env/
 build/
 dist/
 *.egg-info/
+# 打包时由 scripts/stage_frontend_assets.py 装填的包内前端产物：
+# wheel 里必须有，仓库里不该有（构建产物，且会与 frontend/dist 漂移）
+src/api/static/
 
 # MkDocs 构建产物。site_dir 原先写作 ../site，产物落在仓库外所以从未暴露；
 # 修正为 site 后必须在这里忽略，否则文档站会被整站提交入库。

@@ -218,6 +218,23 @@ docker-train:  ## 在容器里跑训练（替换 dataset_name 与 epochs）
 	 $(DOCKER_IMAGE):$(DOCKER_TAG) \
 	 ayt-train $(DATASET) --model yolov8s.pt --epochs $(EPOCHS)
 
+# ---------- 打包发布（PyPI）----------
+# 顺序不能省：先构建前端 → 装填进包内 src/api/static/ → 再 build。
+# 少了中间那步，wheel 装出来的控制台只有 API，首页是段 JSON 提示。
+.PHONY: dist-assets
+dist-assets:  ## 构建前端并把产物装填进包内（src/api/static/）
+	cd frontend && $(PNPM) install --frozen-lockfile && $(PNPM) build
+	$(PYTHON) scripts/stage_frontend_assets.py
+
+.PHONY: dist
+dist: dist-assets  ## 打包 sdist + wheel 并做 twine check（产物在 dist/）
+	$(PYTHON) -m build
+	$(PYTHON) -m twine check dist/*
+
+.PHONY: dist-check
+dist-check:  ## 校验包内静态资源与 frontend/dist 是否一致（CI 用）
+	$(PYTHON) scripts/stage_frontend_assets.py --check
+
 # ---------- Pre-commit ----------
 .PHONY: pre-commit-install
 pre-commit-install:  ## 安装 git pre-commit hook

@@ -95,6 +95,9 @@ scripts/
 #   - dist 是本地陈旧产物，镜像内必须现构建，否则会发布过期的界面
 frontend/node_modules/
 frontend/dist/
+# 镜像内现构建前端；本地装填的包内副本若带进去，resolve_frontend_dist 会优先用它
+# —— 那就等于把过期的界面打进镜像
+src/api/static/
 
 # 注意：test/ 不在本文件中，因为 Dockerfile 会 COPY test/ 进镜像。
 #       排除它会导致同样的 "excluded by .dockerignore" 构建失败。

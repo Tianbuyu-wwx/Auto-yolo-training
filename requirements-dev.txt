@@ -10,3 +10,7 @@ pytest
 pytest-cov
 httpx
 ruff
+
+# 打包与发布（make dist / release workflow）
+build
+twine

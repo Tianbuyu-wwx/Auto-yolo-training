@@ -2,7 +2,7 @@
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-357%20passed-brightgreen.svg)](#测试)
+[![Tests](https://img.shields.io/badge/tests-370%20passed-brightgreen.svg)](#测试)
 [![Ruff](https://img.shields.io/badge/lint-ruff-blue.svg)](https://github.com/astral-sh/ruff)
 [![Docker](https://img.shields.io/badge/docker-cpu%20%7C%20cu128-2496ED.svg)](Dockerfile)
 
@@ -25,13 +25,17 @@
 | **模型** | 27 个预训练权重（4 家族 × 5 尺寸 + 4 任务），自动识别 + 一键下载 |
 | **接口** | **Web 控制台（Vue 3 SPA，7 页）** + CLI（`ayt-web` / `ayt-train` 等 9 个）+ FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
 | **部署** | Dockerfile（CPU + cu128 双 tag，含前端构建阶段） + docker-compose（4 profile） + Makefile（35 目标） |
-| **质量** | pytest 357 passed / 1 skipped（Windows + Linux 双平台）+ 覆盖率门禁 ≥69% + ruff 全量规则 + Vitest 组件测试 55 条 + pip-audit 依赖审计 + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
+| **质量** | pytest 370 passed / 1 skipped（Windows + Linux 双平台）+ 覆盖率门禁 ≥69% + ruff 全量规则 + Vitest 组件测试 55 条 + pip-audit 依赖审计 + 打包链路（wheel 内含控制台界面，twine check + 装后自检） + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
 
 ---
 
 ## 🚀 快速开始（5 分钟）
 
 ### 方式 A：pip 安装（推荐开发）
+
+> 尚未发布到 PyPI（`auto-yolo-training` 名称已确认可用）。发布通路已就绪：
+> `make dist` 本地打包 + `.github/workflows/release.yml`（Trusted Publishing），
+> 流程见 [打包与发布](docs/publishing.md)。发布后即为 `pip install auto-yolo-training`。
 
 ```bash
 # 克隆仓库
@@ -106,8 +110,10 @@ make web                     # 等价于 python -m src.api.admin --host 127.0.0.
 # 打开 http://127.0.0.1:8080
 ```
 
-后端在 `frontend/dist` 存在时自动静态托管并启用 SPA 回退；
-**目录不存在时 `/` 只会返回一段 JSON 提示**——界面空白先查这里。
+后端按 `包内 static/ → 仓库 frontend/dist` 的顺序找界面（源码运行走后者，
+`pip` 装出来的 wheel 走前者 —— 打包时已把前端产物装进 `src/api/static/`），
+找到后静态托管并启用 SPA 回退；**两处都没有时 `/` 只返回一段 JSON 提示**——
+界面空白先查这里。
 
 ### 开发模式（热更新）
 
@@ -170,6 +176,7 @@ frontend/
 | [快速开始](docs/quickstart.md) | 5 分钟跑通指南 |
 | [数据集](docs/datasets.md) | YOLO / 分类 / Roboflow 格式 + 转换 |
 | [API 推理服务](docs/api.md) | FastAPI 端点 + 路径白名单 + Python 客户端示例 |
+| [打包与发布](docs/publishing.md) | 维护者视角：wheel 里的界面、发版流程、Trusted Publishing 配置 |
 | [第一阶段可信基线](docs/第一阶段可信基线实施记录与后续方案.md) | 项目演进历史 |
 
 ---
@@ -180,7 +187,7 @@ frontend/
 |---|---|
 | `make help` | 显示所有目标 |
 | `make install` | 安装运行时 + 开发依赖 |
-| `make test` | 跑测试套件（358 tests） |
+| `make test` | 跑测试套件（371 tests） |
 | `make test-cov-gate` | 覆盖率门禁（CI 同款：地板 69%，基线 73%） |
 | `make audit` | 依赖安全审计（pip-audit，本地看全量） |
 | `make lint` | ruff 检查 |
@@ -197,6 +204,8 @@ frontend/
 | `make frontend-check` | 构建前端并校验产物预算（CI 同款门禁） |
 | `make frontend-check-all` | 前端全套门禁：测试 + 构建 + 产物预算 |
 | `make web` | 启动控制台（后端 + 已构建的前端，http://127.0.0.1:8080） |
+| `make dist` | 打包 sdist + wheel（含前端产物）并 twine check |
+| `make dist-check` | 校验包内静态资源与 `frontend/dist` 是否一致 |
 | `make docs-install` | 安装 MkDocs 依赖 |
 | `make docs` | 本地启动 MkDocs 预览（http://127.0.0.1:8000） |
 | `make docs-build` | 构建 MkDocs 静态站点（`site/`） |
@@ -333,7 +342,7 @@ python ayt_models.py download yolov8n.pt
 ## 🧪 测试
 
 ```bash
-# 跑全部 CPU-safe 测试（358 tests）
+# 跑全部 CPU-safe 测试（371 tests）
 make test
 
 # 跑单个文件
@@ -343,7 +352,7 @@ python -m pytest test/test_data_validator.py -v
 make test-cov
 ```
 
-**测试统计**：357 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
+**测试统计**：370 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
 
 > **GPU 通道**：`gpu` 标记的用例不在上面这条命令里（GitHub 托管的 runner 没有 GPU）。
 > 本机验证用 `make gpu-smoke` —— 它先跑标记用例（驱动可见性、算力、**真算一遍 CUDA

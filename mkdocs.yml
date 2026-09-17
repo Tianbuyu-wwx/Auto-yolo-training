@@ -86,6 +86,7 @@ nav:
   - Web 控制台: console.md
   - 数据集: datasets.md
   - API 推理服务: api.md
+  - 打包与发布: publishing.md
   - 项目演进:
       - 可信基线记录: 第一阶段可信基线实施记录与后续方案.md
   - 关于:

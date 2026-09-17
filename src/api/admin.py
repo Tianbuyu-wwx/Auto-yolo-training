@@ -50,6 +50,42 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+# SPA 产物的两个可能位置：
+#   - 包内 src/api/static/ —— wheel 装出来的布局（构建时由 scripts/stage_frontend_assets.py 装填）
+#   - 仓库 frontend/dist/  —— 源码布局（pnpm build 的产物）
+PACKAGED_STATIC_DIR = Path(__file__).resolve().parent / "static"
+SOURCE_STATIC_DIR = PROJECT_ROOT / "frontend" / "dist"
+
+
+def default_base_dir() -> Path:
+    """CLI 的默认工作目录：**源码运行**是仓库根，**安装后**是当前工作目录。
+
+    安装后不能继续用 ``PROJECT_ROOT`` —— 那是 site-packages，用户的 ``runs/``、
+    ``dataset/``、``logs/`` 会写进 Python 环境里：升级/重装即丢，权限也未必允许，
+    而且 ``pip uninstall`` 会把训练产物一起删掉。
+
+    判据用「仓库根同时有 pyproject.toml 与 src/api/admin.py」：源码布局成立，
+    否则（wheel 装出来的 site-packages）退回当前目录。
+    """
+    source_layout = (PROJECT_ROOT / "pyproject.toml").is_file() and (
+        PROJECT_ROOT / "src" / "api" / "admin.py"
+    ).is_file()
+    return PROJECT_ROOT if source_layout else Path.cwd()
+
+
+def resolve_frontend_dist(override: str | Path | None = None) -> Path | None:
+    """定位 SPA 产物目录；三处都没有则返回 ``None``。
+
+    顺序：显式指定 > 包内 ``static/``（安装后）> 仓库 ``frontend/dist``（源码运行）。
+    判据用 ``index.html`` 而不是目录是否存在 —— 空目录或只跑了一半的构建会让
+    控制台挂上一个什么都没有的静态目录，表现是首页 404，比直接给提示更难查。
+    """
+    candidates = ([Path(override)] if override else []) + [PACKAGED_STATIC_DIR, SOURCE_STATIC_DIR]
+    for candidate in candidates:
+        if (candidate / "index.html").is_file():
+            return candidate
+    return None
+
 def weights_missing(model_path: str | None) -> bool:
     """版本记录里的权重是否已不在磁盘上。
 
@@ -210,7 +246,7 @@ def create_admin_app(
     控制台默认只监听 127.0.0.1；要对外提供访问请自己加反向代理（basic auth /
     Cloudflare Tunnel）或走 VPN，别直接把绑定地址改成 0.0.0.0 当公网服务用。
     """
-    base = Path(base_dir).resolve() if base_dir else PROJECT_ROOT
+    base = Path(base_dir).resolve() if base_dir else default_base_dir()
     paths = ProjectPaths(base)
 
     log_svc = LogService()
@@ -739,8 +775,8 @@ def create_admin_app(
     # ------------------------------------------------------------------
     # 前端静态托管（vite build 产物存在时，SPA 回退到 index.html）
     # ------------------------------------------------------------------
-    dist = Path(frontend_dist) if frontend_dist else PROJECT_ROOT / "frontend" / "dist"
-    if dist.exists():
+    dist = resolve_frontend_dist(frontend_dist)
+    if dist is not None:
         app.mount("/", SPAStaticFiles(directory=str(dist), html=True), name="frontend")
     else:
 
@@ -749,7 +785,8 @@ def create_admin_app(
             return JSONResponse(
                 {
                     "service": "AYT Admin API",
-                    "hint": "前端未构建：cd frontend && pnpm install && pnpm build",
+                    "hint": "前端未构建：cd frontend && pnpm install && pnpm build"
+                            "（源码运行），或安装带界面的发行包",
                     "api_docs": "/api/docs",
                 }
             )
@@ -769,6 +806,7 @@ def main():
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
+    logger.info("工作目录（dataset/ runs/ exports/ 都在这里）: %s", default_base_dir())
 
     # 没有认证层是设计选择（个人训练器），绑定地址就是唯一的访问边界：一旦监听
     # 非回环地址，同一网络里任何人都能启停训练、上传数据集、下载权重。

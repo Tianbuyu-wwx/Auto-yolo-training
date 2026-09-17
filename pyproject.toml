@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]   # SPDX license 表达式需要 >=77
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,8 @@ name = "auto-yolo-training"
 version = "0.1.0"
 description = "通用 YOLO 模型自动训练平台：数据校验、训练、评估、导出、推理一体化"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12,<3.13"
 keywords = ["yolo", "ultralytics", "object-detection", "training", "mlops"]
 authors = [
@@ -18,7 +19,6 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -65,6 +65,9 @@ dev = [
     "ruff>=0.14",
     "pre-commit>=3.0",
     "mypy>=1.10",
+    # 打包与发布（make dist / release workflow）
+    "build>=1.2",
+    "twine>=5.0",
 ]
 # 文档构建（阶段 B 末）
 docs = ["mkdocs>=1.5", "mkdocs-material>=9"]
@@ -100,6 +103,12 @@ py-modules = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
+
+# 前端产物装进包内（src/api/static/），由 scripts/stage_frontend_assets.py 在打包前
+# 装填。否则 pip 装出来的只有 API，控制台首页是个 JSON 提示 —— 而这个工具的产品
+# 形态就是「控制台 + API」。
+[tool.setuptools.package-data]
+"src.api" = ["static/*", "static/**/*"]
 
 [project.scripts]
 # 阶段 B3：安装后系统 PATH 可直接调用
