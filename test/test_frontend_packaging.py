@@ -40,13 +40,25 @@ class TestResolveFrontendDist:
         monkeypatch.setattr(module, "SOURCE_STATIC_DIR", tmp_path / "dist")
         return module
 
-    def test_prefers_packaged_static(self, admin, tmp_path):
-        pkg, _ = self._layout(tmp_path, packaged=True, source=True)
+    def test_source_checkout_prefers_fresh_dist(self, admin, tmp_path):
+        """仓库检出里 frontend/dist 必须优先于包内 static 快照 —— 否则改完界面
+        刷新浏览器还是旧 UI（打包快照是冻结的）。"""
+        pkg, src = self._layout(tmp_path, packaged=True, source=True)
+        assert admin.resolve_frontend_dist() == src
+
+    def test_falls_back_to_packaged_when_dist_missing(self, admin, tmp_path):
+        pkg, _ = self._layout(tmp_path, packaged=True, source=False)
         assert admin.resolve_frontend_dist() == pkg
 
-    def test_falls_back_to_source_dist(self, admin, tmp_path):
-        _, src = self._layout(tmp_path, packaged=False, source=True)
-        assert admin.resolve_frontend_dist() == src
+    def test_installed_layout_prefers_packaged_static(self, tmp_path, monkeypatch):
+        """从 wheel 装出来时（PROJECT_ROOT 不是仓库）反过来：包内 static 优先"""
+        from src.api import admin as module
+
+        pkg, src = self._layout(tmp_path, packaged=True, source=True)
+        monkeypatch.setattr(module, "PACKAGED_STATIC_DIR", pkg)
+        monkeypatch.setattr(module, "SOURCE_STATIC_DIR", src)
+        monkeypatch.setattr(module, "PROJECT_ROOT", tmp_path / "site-packages")
+        assert module.resolve_frontend_dist() == pkg
 
     def test_explicit_override_wins(self, admin, tmp_path):
         self._layout(tmp_path, packaged=True, source=True)

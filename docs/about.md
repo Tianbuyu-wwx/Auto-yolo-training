@@ -35,7 +35,7 @@
 
 ## 开发者文档
 
-- **测试**：`make test`（`pytest -m "not gpu and not training"`，370 passed / 1 skipped）
+- **测试**：`make test`（`pytest -m "not gpu and not training"`，371 passed / 1 skipped）
 - **Lint / 格式化**：`make lint` / `make lint-fix` / `make format`（ruff 全量规则）
 - **前端**：`make frontend-dev`（Vite 5173）· `make frontend-build` · `make frontend-check`（产物体积预算门禁）
 - **控制台**：`make web` → <http://127.0.0.1:8080>（Vue 3 SPA + 管理面 API）

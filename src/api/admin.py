@@ -73,14 +73,30 @@ def default_base_dir() -> Path:
     return PROJECT_ROOT if source_layout else Path.cwd()
 
 
+def _is_source_checkout() -> bool:
+    """是否在仓库检出里运行（而不是从 wheel 装出来）"""
+    return (PROJECT_ROOT / "pyproject.toml").is_file() and (
+        PROJECT_ROOT / "src" / "api" / "admin.py"
+    ).is_file()
+
+
 def resolve_frontend_dist(override: str | Path | None = None) -> Path | None:
     """定位 SPA 产物目录；三处都没有则返回 ``None``。
 
-    顺序：显式指定 > 包内 ``static/``（安装后）> 仓库 ``frontend/dist``（源码运行）。
+    顺序：显式指定 > **当前布局下的首选目录** > 另一个。
+    首选目录按「谁是新鲜的」定：
+
+    - 仓库检出：``frontend/dist``（每次 pnpm build 都会重写它）优先。包内
+      ``src/api/static/`` 只是打包时的快照，若让它优先，改完界面刷新浏览器
+      还是旧 UI —— 这个坑实测踩过一次（改完样式看不到效果，查了半天）。
+    - wheel 安装：包内 ``static/`` 优先（仓库里那份根本不存在）。
+
     判据用 ``index.html`` 而不是目录是否存在 —— 空目录或只跑了一半的构建会让
     控制台挂上一个什么都没有的静态目录，表现是首页 404，比直接给提示更难查。
     """
-    candidates = ([Path(override)] if override else []) + [PACKAGED_STATIC_DIR, SOURCE_STATIC_DIR]
+    candidates = [Path(override)] if override else []
+    packaged, source = PACKAGED_STATIC_DIR, SOURCE_STATIC_DIR
+    candidates += [source, packaged] if _is_source_checkout() else [packaged, source]
     for candidate in candidates:
         if (candidate / "index.html").is_file():
             return candidate

@@ -2,7 +2,7 @@
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-370%20passed-brightgreen.svg)](#测试)
+[![Tests](https://img.shields.io/badge/tests-371%20passed-brightgreen.svg)](#测试)
 [![Ruff](https://img.shields.io/badge/lint-ruff-blue.svg)](https://github.com/astral-sh/ruff)
 [![Docker](https://img.shields.io/badge/docker-cpu%20%7C%20cu128-2496ED.svg)](Dockerfile)
 
@@ -25,7 +25,7 @@
 | **模型** | 27 个预训练权重（4 家族 × 5 尺寸 + 4 任务），自动识别 + 一键下载 |
 | **接口** | **Web 控制台（Vue 3 SPA，7 页）** + CLI（`ayt-web` / `ayt-train` 等 9 个）+ FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
 | **部署** | Dockerfile（CPU + cu128 双 tag，含前端构建阶段） + docker-compose（4 profile） + Makefile（35 目标） |
-| **质量** | pytest 370 passed / 1 skipped（Windows + Linux 双平台）+ 覆盖率门禁 ≥69% + ruff 全量规则 + Vitest 组件测试 55 条 + pip-audit 依赖审计 + 打包链路（wheel 内含控制台界面，twine check + 装后自检） + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
+| **质量** | pytest 371 passed / 1 skipped（Windows + Linux 双平台）+ 覆盖率门禁 ≥69% + ruff 全量规则 + Vitest 组件测试 55 条 + pip-audit 依赖审计 + 打包链路（wheel 内含控制台界面，twine check + 装后自检） + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
 
 ---
 
@@ -187,7 +187,7 @@ frontend/
 |---|---|
 | `make help` | 显示所有目标 |
 | `make install` | 安装运行时 + 开发依赖 |
-| `make test` | 跑测试套件（371 tests） |
+| `make test` | 跑测试套件（372 tests） |
 | `make test-cov-gate` | 覆盖率门禁（CI 同款：地板 69%，基线 73%） |
 | `make audit` | 依赖安全审计（pip-audit，本地看全量） |
 | `make lint` | ruff 检查 |
@@ -342,7 +342,7 @@ python ayt_models.py download yolov8n.pt
 ## 🧪 测试
 
 ```bash
-# 跑全部 CPU-safe 测试（371 tests）
+# 跑全部 CPU-safe 测试（372 tests）
 make test
 
 # 跑单个文件
@@ -352,7 +352,7 @@ python -m pytest test/test_data_validator.py -v
 make test-cov
 ```
 
-**测试统计**：370 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
+**测试统计**：371 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
 
 > **GPU 通道**：`gpu` 标记的用例不在上面这条命令里（GitHub 托管的 runner 没有 GPU）。
 > 本机验证用 `make gpu-smoke` —— 它先跑标记用例（驱动可见性、算力、**真算一遍 CUDA
