@@ -5,6 +5,14 @@ import vue from '@vitejs/plugin-vue'
 // 生产期：vite build 产物由 FastAPI 静态托管，同源无代理问题
 export default defineConfig({
   plugins: [vue()],
+  // Vitest：组件测试跑在 jsdom 里（node 环境没有 DOM / WebSocket / localStorage）。
+  // include 只收 *.test.js —— 免得把将来可能出现的 *.spec.js 误当测试或反之。
+  test: {
+    environment: 'jsdom',
+    include: ['src/**/*.test.js'],
+    setupFiles: ['./test/setup.js'],
+    restoreMocks: true,
+  },
   server: {
     port: 5173,
     proxy: {

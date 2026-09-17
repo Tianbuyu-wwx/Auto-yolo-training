@@ -11,6 +11,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "check-bundle": "node scripts/check-bundle.mjs"
   },
   "dependencies": {
@@ -20,6 +22,9 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
-    "vite": "^6.0.7"
+    "@vue/test-utils": "^2.5.1",
+    "jsdom": "^30.0.1",
+    "vite": "^6.0.7",
+    "vitest": "^5.0.1"
   }
 }
