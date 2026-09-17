@@ -179,7 +179,7 @@ class TrainingService:
 
         try:
             self.training_proc = subprocess.Popen(
-                [sys.executable, "-m", "src.gradio_app.worker", str(payload_path)],
+                [sys.executable, "-m", "src.worker", str(payload_path)],
                 cwd=str(_PROJECT_ROOT),
                 env=env,
                 stdout=subprocess.DEVNULL,

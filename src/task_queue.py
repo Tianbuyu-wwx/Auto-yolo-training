@@ -3,7 +3,7 @@ SQLite 任务队列（阶段 F 前置：训练任务排队 / 持久化 / 崩溃�
 
 设计：
 - 队列表 tasks 持久化到 SQLite（默认 logs/task_queue.db），Web 重启不丢任务
-- 任务执行复用 gradio_app.worker 子进程（进程隔离 + 日志文件 + 停止握手）
+- 任务执行复用 src.worker 子进程（进程隔离 + 日志文件 + 停止握手）
 - QueueRunner 在后台线程排队执行（默认串行，GPU 任务并发=1）
 - 取消：queued → 直接 cancelled；running → 写 stop 标志，worker 优雅停止
 
@@ -223,7 +223,7 @@ class QueueRunner:
 
         logger.info("[QUEUE] 启动任务 %s (dataset=%s)", task["id"], task["dataset_name"])
         proc = subprocess.Popen(
-            [sys.executable, "-m", "src.gradio_app.worker", str(payload_path)],
+            [sys.executable, "-m", "src.worker", str(payload_path)],
             cwd=str(project_root), env=env,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
