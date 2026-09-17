@@ -7,7 +7,6 @@
 使用方式：
     from src.settings import get_settings
     s = get_settings()
-    s.api.api_key        # YOLO_API_KEY
     s.brand.api_title    # YOLO_API_TITLE
     s.runtime.device     # 默认 'auto'（Ultralytics 兼容字符串）
 
@@ -59,10 +58,6 @@ class RuntimeSettings(BaseModel):
 class ApiSettings(BaseModel):
     """FastAPI 服务配置。"""
 
-    # API Key 认证；空字符串 = 禁用认证
-    api_key: str = ""
-    # 是否启用 API Key 认证（当 api_key 非空时自动启用）
-    require_auth: bool = False
     # 允许通过路径推理的目录白名单（逗号分隔环境变量自动转 list）
     allowed_image_dirs: list[str] = Field(default_factory=lambda: ["dataset", "test_images"])
     allowed_model_dirs: list[str] = Field(default_factory=lambda: ["runs", "basemodels"])
@@ -104,9 +99,7 @@ class AySettings(BaseSettings):
 
     环境变量约定（双下划线 __ 分隔嵌套层级，必须有 YOLO_ 前缀）：
         YOLO_BRAND__API_TITLE=MyFactory API     → brand.api_title
-        YOLO_API__API_KEY=secret123              → api.api_key
         YOLO_RUNTIME__DEVICE=auto                → runtime.device
-        YOLO_API__REQUIRE_AUTH=true              → api.require_auth
 
     注：变量名用双下划线是因为单下划线会被 Pydantic 当作嵌套 delimiter（``_``），
     实际要嵌套得用 ``__``（两个连续下划线）。
@@ -147,17 +140,12 @@ class AySettings(BaseSettings):
                 creds.append((user.strip(), password))
         return creds or None
 
-    def effective_api_auth_required(self) -> bool:
-        """API Key 认证是否实际启用（api_key 非空 OR require_auth 显式开启）。"""
-        return bool(self.api.api_key) or self.api.require_auth
-
     def settings_dict(self) -> dict:
         """以 dict 形式导出（用于 CLI banner / 调试）。"""
         return {
             "version": self.version,
             "brand.name": self.brand.name,
             "runtime.device": self.runtime.device,
-            "api.auth_enabled": self.effective_api_auth_required(),
             "storage.ultralytics_config_dir": str(self.storage.ultralytics_config_dir),
         }
 

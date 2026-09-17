@@ -141,13 +141,11 @@ python serve.py --model runs/detect/my-dataset_auto/weights/best.pt
 - OpenAPI 文档：`http://127.0.0.1:8000/docs`
 - 推理：`POST /predict`（multipart 上传图）
 
-### 启用 API Key
+### 关于认证
 
-```powershell
-$env:YOLO_API_KEY = "your-strong-secret"
-python serve.py --model best.pt
-# 请求时需带 header：X-API-Key: your-strong-secret
-```
+推理服务**不需要凭据**（本工具是个人部署的训练器，没有账号体系）。它默认只监听
+`127.0.0.1`，只有本机能访问；要给局域网 / 公网用，请放到反向代理（加 TLS +
+basic auth）或 VPN 后面，而不是直接 `--host 0.0.0.0`。
 
 ### 方式 B：FastAPI 集成到现有服务
 

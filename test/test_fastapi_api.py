@@ -148,19 +148,6 @@ class TestFastAPIEndpoints(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertEqual(data["total_images"], 2)
 
-    def test_api_key_auth(self):
-        """测试 API Key 认证"""
-        app = create_app(service=self.service, api_key="secret123")
-        client = TestClient(app)
-
-        # 无 Key 应被拒绝
-        resp = client.get("/models")
-        self.assertEqual(resp.status_code, 401)
-
-        # 带正确 Key 可通过
-        resp = client.get("/models", headers={"X-API-Key": "secret123"})
-        self.assertEqual(resp.status_code, 200)
-
 
 if __name__ == "__main__":
     unittest.main()

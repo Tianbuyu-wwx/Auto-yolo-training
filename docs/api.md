@@ -40,7 +40,6 @@ python serve.py --model best.pt --host 0.0.0.0 --port 8000
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict \
-  -H "X-API-Key: your-secret" \
   -F "file=@test.jpg" \
   -F "conf=0.25" \
   -F "iou=0.45" \
@@ -71,7 +70,6 @@ curl -X POST http://127.0.0.1:8000/predict \
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict_base64 \
-  -H "X-API-Key: your-secret" \
   -F "image_base64=$(base64 -w 0 test.jpg)" \
   -F "conf=0.25"
 ```
@@ -80,7 +78,6 @@ curl -X POST http://127.0.0.1:8000/predict_base64 \
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict_batch \
-  -H "X-API-Key: your-secret" \
   -F "files=@img1.jpg" \
   -F "files=@img2.jpg" \
   -F "files=@img3.jpg"
@@ -90,7 +87,6 @@ curl -X POST http://127.0.0.1:8000/predict_batch \
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict_path \
-  -H "X-API-Key: your-secret" \
   -F "image_path=dataset/my-dataset/images/val/img001.jpg"
 ```
 
@@ -103,9 +99,6 @@ curl -X POST http://127.0.0.1:8000/predict_path \
 所有变量以 `YOLO_` 为前缀，嵌套字段用 `__`（双下划线）：
 
 ```bash
-# API Key 认证
-export YOLO_API__API_KEY="replace-strong-secret"
-
 # API 服务标题（用于企业定制）
 export YOLO_BRAND__API_TITLE="MyFactory Detection API"
 
@@ -127,7 +120,6 @@ python serve.py --help
 --run RUN, -r        训练运行目录（自动查找weights/best.pt）
 --host HOST          监听地址（默认 127.0.0.1）
 --port PORT, -p      端口（默认 8000）
---api-key KEY        API Key（优先级 > 环境变量）
 ```
 
 ---
@@ -147,32 +139,20 @@ export YOLO_API__ALLOWED_MODEL_DIRS='["runs","basemodels","custom_models"]'
 
 ---
 
-## API Key 认证
+## 认证（无）
 
-### 启用
+推理服务和管理面控制台**都没有认证层** —— AYT 是「下载到自己机器上跑」的个人
+训练器，不是多租户平台，因此不引入账号 / 密钥体系。安全边界是监听地址：
 
-```bash
-export YOLO_API__API_KEY="your-strong-secret"
-python serve.py --model best.pt
-```
-
-### 调用
-
-所有受保护接口必须带 `X-API-Key` 请求头：
-
-```bash
-curl -H "X-API-Key: your-strong-secret" http://127.0.0.1:8000/models
-```
-
-### 未启用
-
-`YOLO_API__API_KEY` 为空字符串时，**不启用认证**（任何客户端可调用）。生产部署强烈建议启用。
+- 默认 `127.0.0.1`：只有本机能访问；
+- 确实需要局域网 / 公网访问时，不要直接把 `--host` 改成 `0.0.0.0`，而是放到
+  反向代理（Nginx / Caddy）后面加 TLS 与 basic auth，或走 VPN / 隧道。
 
 ---
 
 ## 安全建议
 
-1. **不要在公网监听**（`--host 0.0.0.0`）+ 不带 API Key
+1. **默认只监听 `127.0.0.1`**：本服务没有认证层（个人训练器定位），对外暴露请用反向代理加 basic auth，而不是直接 `--host 0.0.0.0`
 2. **通过反向代理提供 TLS**（Nginx / Caddy）
 3. **限制上传大小**：Nginx `client_max_body_size 10M`
 4. **限流**：Nginx `limit_req_zone`
@@ -187,7 +167,6 @@ import requests
 
 resp = requests.post(
     "http://127.0.0.1:8000/predict",
-    headers={"X-API-Key": "your-secret"},
     files={"file": open("test.jpg", "rb")},
     data={"conf": 0.25, "iou": 0.45, "imgsz": 640},
 )
@@ -203,7 +182,6 @@ import httpx
 async with httpx.AsyncClient() as client:
     resp = await client.post(
         "http://127.0.0.1:8000/predict",
-        headers={"X-API-Key": "your-secret"},
         files={"file": open("test.jpg", "rb")},
         data={"conf": 0.25},
     )
@@ -240,6 +218,3 @@ FastAPI app 通过 `create_app()` 工厂函数构建。所有 5 个端点用 `Se
 
 ### "Access denied: path outside allowed directories"
 路径不在白名单。检查 `YOLO_API__ALLOWED_IMAGE_DIRS` 环境变量，或用 multipart 上传代替路径推理。
-
-### "401 Invalid API Key"
-检查 `X-API-Key` 请求头是否与 `YOLO_API__API_KEY` 完全一致。

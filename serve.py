@@ -3,7 +3,6 @@ YOLO推理服务启动脚本
 提供FastAPI模型推理服务
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -60,12 +59,6 @@ def main():
         help="端口 (默认: 8000)"
     )
 
-    parser.add_argument(
-        "--api-key",
-        default=os.environ.get("YOLO_API_KEY"),
-        help="API认证密钥（默认读取环境变量 YOLO_API_KEY，命令行参数优先级更高）"
-    )
-
     args = parser.parse_args()
 
     # 确定模型路径
@@ -105,7 +98,6 @@ def main():
         model_path=model_path,
         host=args.host,
         port=args.port,
-        api_key=args.api_key,
     )
 
 

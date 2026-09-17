@@ -5,7 +5,6 @@ FastAPI推理服务
 
 import base64
 import io
-import os
 import sys
 import threading
 from datetime import datetime
@@ -21,17 +20,14 @@ from src.utils import is_path_allowed
 try:
     import uvicorn
     from fastapi import (
-        Depends,
         FastAPI,
         File,
         Form,
         HTTPException,
         Response,
-        Security,
         UploadFile,
     )
     from fastapi.concurrency import run_in_threadpool
-    from fastapi.security import APIKeyHeader
     from pydantic import BaseModel, Field
     HAS_FASTAPI = True
 except ImportError:
@@ -336,7 +332,6 @@ class InferenceService:
 def create_app(
     model_path: str | None = None,
     base_dir: str | None = None,
-    api_key: str | None = None,
     service: InferenceService | None = None,
 ) -> FastAPI:
     """创建FastAPI应用"""
@@ -346,17 +341,6 @@ def create_app(
     app = FastAPI(**get_api_metadata())
 
     service = service or InferenceService(model_path, base_dir)
-
-    # API Key认证（可选）
-    api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-    async def verify_api_key(key: str | None = Security(api_key_header)):
-        """验证API Key（如果配置了的话）"""
-        if not api_key:
-            return True  # 未配置API Key时不需要认证
-        if key != api_key:
-            raise HTTPException(status_code=401, detail="Invalid API Key")
-        return True
 
     @app.get("/")
     async def root():
@@ -378,12 +362,12 @@ def create_app(
         }
 
     @app.get("/models", response_model=list[ModelInfo])
-    async def list_models(authenticated: bool = Depends(verify_api_key)):
+    async def list_models():
         """列出所有可用模型"""
         return service.get_available_models()
 
     @app.post("/switch_model")
-    async def switch_model_endpoint(model_path: str = Form(...), authenticated: bool = Depends(verify_api_key)):
+    async def switch_model_endpoint(model_path: str = Form(...)):
         """切换当前模型"""
         success = service.switch_model(model_path)
         if not success:
@@ -396,7 +380,6 @@ def create_app(
         conf: float = Form(0.25),
         iou: float = Form(0.45),
         imgsz: int = Form(640),
-        authenticated: bool = Depends(verify_api_key),
     ):
         """单图推理（阻塞推理在线程池执行，不阻塞事件循环）"""
         if service.model is None:
@@ -417,7 +400,6 @@ def create_app(
         conf: float = Form(0.25),
         iou: float = Form(0.45),
         imgsz: int = Form(640),
-        authenticated: bool = Depends(verify_api_key),
     ):
         """单图推理并返回画框后的 JPEG（可视化调试）"""
         if service.model is None:
@@ -436,7 +418,6 @@ def create_app(
         conf: float = Form(0.25),
         iou: float = Form(0.45),
         imgsz: int = Form(640),
-        authenticated: bool = Depends(verify_api_key),
     ):
         """Base64图像推理"""
         if service.model is None:
@@ -457,7 +438,6 @@ def create_app(
         conf: float = Form(0.25),
         iou: float = Form(0.45),
         imgsz: int = Form(640),
-        authenticated: bool = Depends(verify_api_key),
     ):
         """批量推理"""
         if service.model is None:
@@ -488,7 +468,6 @@ def create_app(
         conf: float = Form(0.25),
         iou: float = Form(0.45),
         imgsz: int = Form(640),
-        authenticated: bool = Depends(verify_api_key),
     ):
         """本地路径推理"""
         if service.model is None:
@@ -514,26 +493,13 @@ def run_server(
     host: str = "127.0.0.1",
     port: int = 8000,
     base_dir: str | None = None,
-    api_key: str | None = None,
 ):
     """启动推理服务"""
     if not HAS_FASTAPI:
         print("Error: FastAPI not installed. Run: pip install fastapi uvicorn python-multipart")
         sys.exit(1)
 
-    # 支持环境变量读取 API Key
-    # 阶段 B6：优先从 settings 读，回落到环境变量
-    if api_key is not None:
-        effective_api_key = api_key
-    else:
-        try:
-            from src.settings import get_settings
-
-            settings = get_settings()
-            effective_api_key = settings.api.api_key or os.environ.get("YOLO_API_KEY", "")
-        except Exception:
-            effective_api_key = os.environ.get("YOLO_API_KEY", "")
-    app = create_app(model_path, base_dir, effective_api_key)
+    app = create_app(model_path, base_dir)
 
     brand = get_brand()
     print(f"{brand['name']} v{brand['version']} - Inference Server")
@@ -555,11 +521,6 @@ if __name__ == "__main__":
     parser.add_argument("--host", default="127.0.0.1", help="监听地址")
     parser.add_argument("--port", "-p", type=int, default=8000, help="端口")
     parser.add_argument("--run", "-r", help="训练运行目录（自动查找best.pt）")
-    parser.add_argument(
-        "--api-key",
-        default=os.environ.get("YOLO_API_KEY"),
-        help="API认证密钥（默认读取环境变量 YOLO_API_KEY）",
-    )
 
     args = parser.parse_args()
 
@@ -572,4 +533,4 @@ if __name__ == "__main__":
         else:
             print(f"Warning: Best model not found in {args.run}")
 
-    run_server(model_path, args.host, args.port, api_key=args.api_key)
+    run_server(model_path, args.host, args.port)

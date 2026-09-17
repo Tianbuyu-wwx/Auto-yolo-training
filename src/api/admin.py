@@ -20,7 +20,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
@@ -31,7 +30,6 @@ from fastapi import (
     File,
     Form,
     HTTPException,
-    Request,
     UploadFile,
     WebSocket,
     WebSocketDisconnect,
@@ -52,20 +50,6 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# 认证豁免路径：
-# - /api/health —— 存活探针不该需要凭据；
-# - /api/docs 与 /api/openapi.json —— Swagger UI 由浏览器直接打开，没法给它带
-#   `X-API-Key` 请求头（安全方案未声明时 Swagger 也没有 Authorize 入口）。拦掉
-#   它们只会得到一个「文档页 401」的死链接。schema 本身不是秘密：真正的调用
-#   （Try it out / curl）没有 key 依然 401。
-AUTH_EXEMPT_PATHS = frozenset({
-    "/api/health",
-    "/api/docs",
-    "/api/openapi.json",
-    "/api/docs/oauth2-redirect",
-})
-
-
 def weights_missing(model_path: str | None) -> bool:
     """版本记录里的权重是否已不在磁盘上。
 
@@ -76,26 +60,6 @@ def weights_missing(model_path: str | None) -> bool:
     from src.model_registry import ModelRegistry
 
     return not ModelRegistry.weights_available(model_path)
-
-
-def resolve_api_key(api_key: str | None = None) -> str:
-    """解析管理面 API Key。
-
-    两档语义，与推理服务（``src/inference_service.py``）保持一致：
-
-    - ``None`` —— 调用方没表态，去读 settings / 环境变量；
-    - ``""``  —— 显式关闭认证（测试与非受限环境用）。
-
-    返回空字符串即表示「不校验」。
-    """
-    if api_key is not None:
-        return api_key
-    try:
-        from src.settings import get_settings
-
-        return get_settings().api.api_key or os.environ.get("YOLO_API_KEY", "")
-    except Exception:  # 配置层不可用不应让服务起不来
-        return os.environ.get("YOLO_API_KEY", "")
 
 
 # ----------------------------------------------------------------------
@@ -239,23 +203,15 @@ def create_admin_app(
     use_subprocess: bool = True,
     start_queue_runner: bool = True,
     frontend_dist: str | Path | None = None,
-    api_key: str | None = None,
 ) -> FastAPI:
     """创建管理面 FastAPI 应用（服务层全部注入，测试时可替换）
 
-    ``api_key``：
-    - ``None``（默认）→ 读 settings / ``YOLO_API_KEY``；
-    - 非空 → 校验 ``X-API-Key``；
-    - ``""`` → 显式关闭认证。
-
-    方案 A：未配置 key 时不校验（本地开发零摩擦），但要靠调用方在绑定
-    非回环地址时打警告 —— 见 ``main()``。
+    **没有认证层**：AYT 是「下载到自己机器上跑」的个人训练器，不是多租户平台。
+    控制台默认只监听 127.0.0.1；要对外提供访问请自己加反向代理（basic auth /
+    Cloudflare Tunnel）或走 VPN，别直接把绑定地址改成 0.0.0.0 当公网服务用。
     """
     base = Path(base_dir).resolve() if base_dir else PROJECT_ROOT
     paths = ProjectPaths(base)
-
-    effective_api_key = resolve_api_key(api_key)
-    auth_enabled = bool(effective_api_key)
 
     log_svc = LogService()
     dataset_svc = DatasetService(base)
@@ -267,40 +223,12 @@ def create_admin_app(
 
     app = FastAPI(title="AYT Admin API", docs_url="/api/docs", openapi_url="/api/openapi.json")
     app.state.base_dir = base
-    app.state.auth_enabled = auth_enabled
     app.state.services = {
         "dataset": dataset_svc,
         "training": training_svc,
         "queue": task_queue,
         "queue_runner": queue_runner,
     }
-
-    # ------------------------------------------------------------------
-    # API Key 认证
-    #
-    # 只拦 /api/*，不拦其它路径：静态资源是 SPA 本身，若也拦掉，浏览器连
-    # 「输入 key」的界面都加载不出来。存活探针 /api/health 同样豁免。
-    # ------------------------------------------------------------------
-    @app.middleware("http")
-    async def require_api_key(request: Request, call_next):
-        path = request.url.path
-        if (
-            auth_enabled
-            and path.startswith("/api/")
-            and path not in AUTH_EXEMPT_PATHS
-            and request.headers.get("X-API-Key") != effective_api_key
-        ):
-            return JSONResponse(
-                {"detail": "Invalid or missing API Key"},
-                status_code=401,
-                headers={"WWW-Authenticate": "X-API-Key"},
-            )
-        return await call_next(request)
-
-    logger.info(
-        "[AUTH] 管理面 API Key 认证：%s",
-        "已启用" if auth_enabled else "未启用（未配置 key，任何人可访问）",
-    )
 
     # ------------------------------------------------------------------
     # 数据集
@@ -783,14 +711,7 @@ def create_admin_app(
     # ------------------------------------------------------------------
     @app.websocket("/ws/training")
     async def training_stream(ws: WebSocket):
-        # 浏览器无法给 WebSocket 设自定义请求头，key 只能走查询参数。
-        # 先 accept 再按 1008（policy violation）关闭：Starlette 在未 accept 时
-        # close() 的行为不稳，而这里关闭前一帧数据都没发，不泄露任何东西。
         await ws.accept()
-        if auth_enabled and ws.query_params.get("api_key") != effective_api_key:
-            logger.warning("[WS] API Key 校验失败，拒绝连接")
-            await ws.close(code=1008)
-            return
         try:
             while True:
                 status = training_svc.get_status()
@@ -813,7 +734,6 @@ def create_admin_app(
         return {
             "status": "ok",
             "model_loaded": training_svc.state.is_running,
-            "auth_enabled": auth_enabled,
         }
 
     # ------------------------------------------------------------------
@@ -846,24 +766,20 @@ def main():
     parser = argparse.ArgumentParser(description="AYT 管理面 API + 前端")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8080)
-    parser.add_argument(
-        "--api-key",
-        default=None,
-        help="管理面 API Key；默认读 YOLO_API_KEY / YOLO_API__API_KEY，留空则关闭认证",
-    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
 
-    effective_api_key = resolve_api_key(args.api_key)
-    if not effective_api_key and args.host not in ("127.0.0.1", "localhost", "::1"):
+    # 没有认证层是设计选择（个人训练器），绑定地址就是唯一的访问边界：一旦监听
+    # 非回环地址，同一网络里任何人都能启停训练、上传数据集、下载权重。
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
         logger.warning(
-            "管理面绑定在 %s 且未配置 API Key —— 同一网络内任何人都能启停训练、"
-            "上传数据集、下载权重。请设置 YOLO_API_KEY 或传 --api-key。",
+            "管理面绑定在 %s 且没有认证层 —— 同一网络内任何人都能启停训练、上传"
+            "数据集、下载权重。要对外提供访问请走反向代理（加 basic auth）或 VPN。",
             args.host,
         )
 
-    uvicorn.run(create_admin_app(api_key=effective_api_key), host=args.host, port=args.port)
+    uvicorn.run(create_admin_app(), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
