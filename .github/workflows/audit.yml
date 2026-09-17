@@ -1,0 +1,111 @@
+name: audit
+
+# 依赖安全审计（pip-audit）。与 tests 分开成独立 workflow：它读的是 advisory
+# 数据库，同一份代码在不同时间会得出不同结论（新 CVE 会随时间出现），所以除了
+# push/PR 还挂了每周一次的定时任务 —— 定时那次是用来发现「新 advisory」的。
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+            constraints.txt
+
+      # 审计「实际安装出来的环境」，不是另起一次解析：这样报告的就是部署里真跑的
+      # 那套版本（constraints.txt 锁住的那份），CI 与用户机器一致。
+      - name: Install CPU PyTorch
+        run: >-
+          python -m pip install
+          torch==2.11.0 torchvision==0.26.0
+          --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install application and test dependencies
+        run: python -m pip install --requirement requirements-dev.txt
+
+      - name: Install pip-audit
+        run: python -m pip install --upgrade pip-audit
+
+      # ------------------------------------------------------------------
+      # 忽略清单：只放「已确认、但当前升级路径被上游卡住」的 advisory，每条都写明
+      # 为什么。真正的用途是让**新出现的** advisory 把 CI 打红 —— 忽略旧的没问题，
+      # 忽略新的等于把门禁关掉。
+      #
+      # 1) pillow（35 条，修复 12.1.1+）—— gradio 5.x 声明 `pillow<12.0`。
+      #    gradio 已降为可选 extra，但测试仍要导入 UI 模块，因此没法单方面升级；
+      #    出口是迁移 gradio 6（修复版本 6.6.0+）。
+      # 2) gradio（13 条，修复 6.6.0+）—— 冻结的旧 UI，迁移属独立议题。
+      # 3) starlette（10 条，修复 1.0.1+）—— fastapi 0.139.2 约束 starlette<0.53，
+      #    要升得连 fastapi 一起升。
+      # 4) torch（1 条，修复 2.13.0）—— 轮子（CPU/cu128）与已训产物都需要重验。
+      # 5) setuptools（2 条，修复 83.0.0）—— torch 2.11.0 的依赖约束 setuptools<83，
+      #    钉不上去（实测 ResolutionImpossible）。
+      # ------------------------------------------------------------------
+      - name: Audit installed dependencies
+        run: |
+          python -m pip_audit --skip-editable --format columns \
+            --ignore-vuln PYSEC-2026-165 \
+            --ignore-vuln PYSEC-2026-2249 \
+            --ignore-vuln PYSEC-2026-2250 \
+            --ignore-vuln PYSEC-2026-2251 \
+            --ignore-vuln PYSEC-2026-2252 \
+            --ignore-vuln PYSEC-2026-2253 \
+            --ignore-vuln PYSEC-2026-2254 \
+            --ignore-vuln PYSEC-2026-2255 \
+            --ignore-vuln PYSEC-2026-2256 \
+            --ignore-vuln PYSEC-2026-2257 \
+            --ignore-vuln PYSEC-2026-2874 \
+            --ignore-vuln PYSEC-2026-3451 \
+            --ignore-vuln PYSEC-2026-3453 \
+            --ignore-vuln PYSEC-2026-3454 \
+            --ignore-vuln PYSEC-2026-3493 \
+            --ignore-vuln PYSEC-2026-3494 \
+            --ignore-vuln PYSEC-2026-3495 \
+            --ignore-vuln PYSEC-2026-3496 \
+            --ignore-vuln PYSEC-2026-63 \
+            --ignore-vuln PYSEC-2026-64 \
+            --ignore-vuln PYSEC-2026-65 \
+            --ignore-vuln PYSEC-2026-66 \
+            --ignore-vuln PYSEC-2026-211 \
+            --ignore-vuln PYSEC-2026-2178 \
+            --ignore-vuln PYSEC-2026-2179 \
+            --ignore-vuln PYSEC-2026-161 \
+            --ignore-vuln PYSEC-2026-248 \
+            --ignore-vuln PYSEC-2026-249 \
+            --ignore-vuln PYSEC-2026-2280 \
+            --ignore-vuln PYSEC-2026-2281 \
+            --ignore-vuln PYSEC-2025-194 \
+            --ignore-vuln PYSEC-2026-3447
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "✓ 依赖审计通过：没有超出忽略清单的 advisory" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "说明：" >> $GITHUB_STEP_SUMMARY
+          echo "- 已修复：python-multipart 0.0.22 → 0.0.31、pytest 8.4.2 → 9.1.1" >> $GITHUB_STEP_SUMMARY
+          echo "- 忽略清单见 workflow 内的注释（pillow/gradio/starlette/torch/setuptools 各自的上游约束）" >> $GITHUB_STEP_SUMMARY

@@ -14,7 +14,17 @@ concurrency:
 
 jobs:
   cpu-baseline:
-    runs-on: windows-latest
+    # 双平台（2026-09-17 起）：
+    #   - windows-latest —— 本项目实际使用的环境。反斜杠路径、终端编码这类缺陷
+    #     只在 Windows 上复现（SPA 回退吞 404 就是 starlette 的 os.path.normpath
+    #     把 path 变成 "api\nope" 才触发的，纯 Linux CI 永远看不见）；
+    #   - ubuntu-latest —— Docker 镜像与部署的目标环境。
+    # fail-fast: false：两边都要跑完，不能因为一边先红就看不到另一边的结果。
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
       PYTHONUTF8: "1"
@@ -53,5 +63,18 @@ jobs:
       - name: Check Python source
         run: python -m ruff check .
 
-      - name: Run CPU-safe tests
-        run: python -m pytest -m "not gpu and not training"
+      # 覆盖率门禁：基线 70%（2026-09-17 实测），地板设 69 留一点平台差异余量。
+      # 它是「防退化」用的，不是目标值 —— 掉下来会红，涨上去不用改这里。
+      - name: Run CPU-safe tests with coverage
+        run: >-
+          python -m pytest -m "not gpu and not training"
+          --cov=src --cov-report=term-missing:skip-covered
+          --cov-report=xml:coverage.xml --cov-fail-under=69
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.os }}
+          path: coverage.xml
+          if-no-files-found: warn

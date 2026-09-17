@@ -70,8 +70,17 @@ test-all:  ## 跑全部测试（含标记为 gpu/training 的，跳过实际 GPU
 	$(PYTHON) -m pytest -v --tb=short -m "not gpu"
 
 .PHONY: test-cov
-test-cov:  ## 跑测试 + 生成 coverage 报告
+test-cov:  ## 跑测试 + 生成 coverage 报告（html + 终端）
 	$(PYTHON) -m pytest -m "not gpu and not training" --cov=src --cov-report=html --cov-report=term
+
+.PHONY: test-cov-gate
+test-cov-gate:  ## 覆盖率门禁（CI 同款：地板 69%，基线 70%）
+	$(PYTHON) -m pytest -m "not gpu and not training" \
+	 --cov=src --cov-report=term-missing:skip-covered --cov-fail-under=69
+
+.PHONY: audit
+audit:  ## 依赖安全审计（pip-audit；本地看全量，CI 的忽略清单见 .github/workflows/audit.yml）
+	$(PYTHON) -m pip_audit --skip-editable --format columns
 
 # ---------- Lint / 格式 ----------
 .PHONY: lint
@@ -121,9 +130,17 @@ frontend-dev:  ## 启动前端开发服务器（http://127.0.0.1:5173，/api 与
 frontend-build:  ## 构建前端产物到 frontend/dist
 	cd frontend && $(PNPM) build
 
+.PHONY: frontend-test
+frontend-test:  ## 跑前端组件测试（Vitest）
+	cd frontend && $(PNPM) test
+
 .PHONY: frontend-check
 frontend-check:  ## 构建前端并校验产物预算（CI 同款门禁）
 	cd frontend && $(PNPM) build && $(PNPM) check-bundle
+
+.PHONY: frontend-check-all
+frontend-check-all:  ## 前端全套门禁：测试 + 构建 + 产物预算
+	cd frontend && $(PNPM) test && $(PNPM) build && $(PNPM) check-bundle
 
 .PHONY: frontend-preview
 frontend-preview:  ## 本地预览已构建的前端（需后端另跑 ayt-web）

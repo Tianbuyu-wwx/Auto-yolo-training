@@ -119,6 +119,20 @@ ayt-web = "src.api.admin:main"
 # Windows 菜单项；不影响 Unix
 ayt-gradio-gui = "gradio_app:main"
 
+[tool.coverage.run]
+# 只统计产品代码；test/ 不计入（否则覆盖率会随测试写法波动）
+source = ["src"]
+
+[tool.coverage.report]
+# 这些行不算「未覆盖」：类型检查分支、抽象方法、入口守卫 —— 它们要么只在特定
+# 解释器下执行，要么本就是协议占位。故意保持极短：排除越多，门禁越没意义。
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 100

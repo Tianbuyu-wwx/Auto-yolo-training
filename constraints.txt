@@ -12,7 +12,7 @@ gradio==5.49.1
 fastapi==0.139.2
 starlette==0.52.1
 uvicorn==0.41.0
-python-multipart==0.0.22
+python-multipart==0.0.31   # 0.0.22 有 10 条 PYSEC-2026-30xx（修复自 0.0.26 起）
 pydantic==2.11.9
 pydantic-settings==2.14.2
 optuna==4.9.0
@@ -23,7 +23,7 @@ PyYAML==6.0.2
 pandas==2.3.3
 
 # Development / test
-pytest==8.4.2
-pytest-cov==7.0.0
+pytest==9.1.1        # 8.4.2 有 PYSEC-2026-1845；本机 9.1.1 全量套件已验证
+pytest-cov==7.1.0
 httpx==0.28.1
 ruff==0.14.14

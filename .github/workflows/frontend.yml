@@ -39,6 +39,13 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
+      # 组件测试（Vitest + jsdom）。顺序放在构建之前：逻辑坏了就没必要再等构建。
+      # 覆盖三块：REST/WS 封装的边界、组件判定逻辑、以及「后端空数据时 7 个页面
+      # 都能挂载」的整页冒烟 —— 后者是前端唯一能自动发现整页白屏的手段。
+      - name: Test
+        working-directory: frontend
+        run: pnpm test
+
       - name: Build
         working-directory: frontend
         run: pnpm build

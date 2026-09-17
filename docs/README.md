@@ -4,7 +4,7 @@
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/Tianbuyu-wwx/Auto-yolo-training/blob/main/LICENSE)
-![Tests](https://img.shields.io/badge/tests-371%20passed-brightgreen.svg)
+![Tests](https://img.shields.io/badge/tests-357%20passed-brightgreen.svg)
 [![Ruff](https://img.shields.io/badge/lint-ruff-blue.svg)](https://github.com/astral-sh/ruff)
 [![Docker](https://img.shields.io/badge/docker-cpu%20%7C%20cu128-2496ED.svg)](https://github.com/Tianbuyu-wwx/Auto-yolo-training/blob/main/Dockerfile)
 
@@ -27,7 +27,7 @@
 | **模型** | 27 个预训练权重（4 家族 × 5 尺寸 + 4 任务），自动识别 + 一键下载 |
 | **接口** | **Web 控制台（Vue 3 SPA，7 页）** + CLI（`ayt-web` / `ayt-train` 等 9 个）+ FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
 | **部署** | Dockerfile（CPU + cu128 双 tag，含前端构建阶段） + docker-compose（4 profile） + Makefile（35 目标） |
-| **质量** | pytest 371 passed / 1 skipped + ruff 全量规则 + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
+| **质量** | pytest 357 passed / 1 skipped（Windows + Linux 双平台）+ 覆盖率门禁 ≥69% + ruff 全量规则 + Vitest 组件测试 55 条 + pip-audit 依赖审计 + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
 
 ---
 
@@ -121,9 +121,19 @@ make web                     # 后端 API
 # 打开 http://127.0.0.1:5173
 ```
 
-### 前端产物预算
+### 前端测试与产物预算
 
-前端有产物体积门禁，CI 会跑，本地可单独执行：
+前端有两道门禁。**组件测试**（Vitest + jsdom）：
+
+```bash
+make frontend-test           # 等价于 cd frontend && pnpm test
+```
+
+覆盖 REST/WS 封装的边界（错误转文案、WS 自动重连）、组件判定逻辑
+（占位态、状态→文案映射）、以及**「后端空数据时 7 个页面都能挂载」的整页冒烟**
+—— 后者是前端唯一能自动发现整页白屏的手段。
+
+**产物体积预算**，CI 会跑，本地可单独执行：
 
 ```bash
 make frontend-check          # 构建 + 校验预算
@@ -142,6 +152,7 @@ frontend/
 ├── index.html
 ├── vite.config.js          # 开发代理 + 生产分 chunk 策略
 ├── scripts/check-bundle.mjs# 产物预算门禁
+├── test/                   # Vitest 脚手架（假 api 模块 + 空数据契约）
 └── src/
     ├── main.js  router.js  App.vue
     ├── lib/                # api.js（REST + WS 封装）、toast.js（全局反馈）
@@ -160,7 +171,7 @@ frontend/
 |---|---|
 | [快速开始](quickstart.md) | 5 分钟跑通指南 |
 | [数据集](datasets.md) | YOLO / 分类 / Roboflow 格式 + 转换 |
-| [API 推理服务](api.md) | FastAPI 端点 + 认证 + Python 客户端示例 |
+| [API 推理服务](api.md) | FastAPI 端点 + 路径白名单 + Python 客户端示例 |
 | [第一阶段可信基线](第一阶段可信基线实施记录与后续方案.md) | 项目演进历史 |
 
 ---
@@ -171,7 +182,9 @@ frontend/
 |---|---|
 | `make help` | 显示所有目标 |
 | `make install` | 安装运行时 + 开发依赖 |
-| `make test` | 跑测试套件（372 tests） |
+| `make test` | 跑测试套件（358 tests） |
+| `make test-cov-gate` | 覆盖率门禁（CI 同款：地板 69%，基线 73%） |
+| `make audit` | 依赖安全审计（pip-audit，本地看全量） |
 | `make lint` | ruff 检查 |
 | `make lint-fix` | ruff 自动修复 |
 | `make format` | ruff 自动格式化 |
@@ -180,7 +193,9 @@ frontend/
 | `make frontend-install` | 安装前端依赖（pnpm，严格按 lockfile） |
 | `make frontend-dev` | 启动前端开发服务器（http://127.0.0.1:5173） |
 | `make frontend-build` | 构建前端产物到 `frontend/dist` |
+| `make frontend-test` | 跑前端组件测试（Vitest） |
 | `make frontend-check` | 构建前端并校验产物预算（CI 同款门禁） |
+| `make frontend-check-all` | 前端全套门禁：测试 + 构建 + 产物预算 |
 | `make web` | 启动控制台（后端 + 已构建的前端，http://127.0.0.1:8080） |
 | `make docs-install` | 安装 MkDocs 依赖 |
 | `make docs` | 本地启动 MkDocs 预览（http://127.0.0.1:8000） |
@@ -318,7 +333,7 @@ python ayt_models.py download yolov8n.pt
 ## 🧪 测试
 
 ```bash
-# 跑全部 CPU-safe 测试（372 tests）
+# 跑全部 CPU-safe 测试（358 tests）
 make test
 
 # 跑单个文件
@@ -328,7 +343,7 @@ python -m pytest test/test_data_validator.py -v
 make test-cov
 ```
 
-**测试统计**：371 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
+**测试统计**：357 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
 
 **测试组织**：
 
@@ -341,9 +356,11 @@ make test-cov
 | `test_model_catalog.py` | 模型清单 |
 | `test_model_downloader.py` | 模型下载 |
 | `test_run_artifacts.py` | 训练产物解析 |
+| `test_run_store.py` | run 生命周期（保留 / 回收 / 归档）：精确匹配、可恢复、归档不搬走 run 内权重 |
+| `test_docs_consistency.py` | 文档一致性守卫：站点首页 == 生成器输出、README 数字 == 套件实测、页面数 == 前端实际 |
 | `test_inference_service.py` | FastAPI 推理 |
 | `test_admin_api.py` | 管理面 FastAPI（控制台后端）：数据集 / 训练 / 队列 / 导出端点 |
-| `test_phase3.py` | 阶段 3：任务队列 / AutoBatch / 多 GPU / 代理调参 / 推理 / Gradio 认证 |
+| `test_phase3.py` | 阶段 3：任务队列 / AutoBatch / 多 GPU / 代理调参 / 推理服务 |
 | `test_gradio_services.py` | Gradio 服务层 |
 | `test_training_pipeline.py` | 训练流水线 |
 | `test_fastapi_api.py` | FastAPI 端点 |
@@ -377,9 +394,9 @@ make test-cov
 
 ## 🔐 安全
 
-- **不要提交**：`*.env`、`*.pem`、`*.key`、API Key、模型权重
-- **FastAPI 部署**：必须配置 `YOLO_API__API_KEY`，并由反向代理提供 TLS / 限流
-- **Web 控制台**（`ayt-web`，8080）：与推理服务共用同一把 API Key。未配置 key 时**不校验任何请求**（本地开发零摩擦的取舍），此时绑到 `0.0.0.0` 等于把启停训练、上传数据集、下载权重的权限交给同网段所有人 —— 启动日志会显式警告
+- **本工具没有账号体系**（有意的）：它面向「下载到自己机器上跑」的个人训练器，不是多人共用的平台，所以控制台与推理服务都不做认证。安全边界就是**监听地址**：两者默认都只绑 `127.0.0.1`
+- **要对外提供访问**：不要直接把 `--host` 改成 `0.0.0.0`，请走反向代理（Nginx / Caddy 加 TLS + basic auth）或 VPN/隧道；绑到非回环地址时启动日志会显式警告「任何人都能启停训练、上传数据集、下载权重」
+- **不要提交**：`*.env`、`*.pem`、`*.key`、模型权重
 - **Webhook 通知**：内置 SSRF 防护（`WebhookNotifier._is_safe_url`），白名单 `oapi.dingtalk.com` / `open.feishu.cn` / `qyapi.weixin.qq.com` / `hooks.slack.com`
 - **pre-commit hook** 自动扫描 `api[_-]?key / secret / token / password` 防止误提交敏感信息
 
@@ -403,7 +420,7 @@ make test-cov
 ### 已知限制
 
 - **控制台为桌面专用**：最低 1024px 视口，不做移动/平板适配（窄屏显示提示页）
-- 控制台侧只有**单密钥认证**（`YOLO_API_KEY` / `ayt-web --api-key`），无多用户 / 权限隔离（`ayt-web` 默认只监听 127.0.0.1）
+- 控制台**没有认证层**（个人训练器定位，默认只监听 127.0.0.1）；多用户 / 权限隔离**不在路线图上**——需要多人协作请自行加反向代理鉴权
 - 数据集状态存在两级口径：`is_ready`（扫描级，labels 目录有标注）与
   `is_trainable`（训练级，存在 `data.yaml`）。两者会不一致——例如有完整标注但
   缺 `data.yaml` 的数据集会显示为「缺 data.yaml」且无法选入训练
@@ -420,7 +437,7 @@ make test-cov
 | B 可配置化 | ✅ | pyproject 完整 + ruff 全规则 + Pydantic Settings + 文档 |
 | C 通用能力 | ✅ | 4 任务类型 + 27 模型清单 + CLI 下载器 + 任务抽象 |
 | D 生产化 | ✅ | Dockerfile + docker-compose + Makefile + pre-commit + MkDocs |
-| E CI/CD 多平台 | 计划 | Linux/Mac job + GPU runner + pip-audit + coverage badge |
+| E CI/CD 多平台 | 部分完成 | ✅ Windows+Linux 双平台 job、pip-audit 审计、覆盖率门禁；待做：GPU runner、coverage badge |
 | F 分布式 | 远期 | 任务队列（Redis/Celery）—— 其中断点续训与模型注册中心控制台已提前交付（见 G） |
 | G 控制台能力补全 | ✅ | 断点续训（从检查点恢复）+ 模型注册中心控制台（注册 / 打标 / 对比 / 晋升 / 删除） |
 
