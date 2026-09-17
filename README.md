@@ -2,7 +2,7 @@
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-275%20passed-brightgreen.svg)](#测试)
+[![Tests](https://img.shields.io/badge/tests-348%20passed-brightgreen.svg)](#测试)
 [![Ruff](https://img.shields.io/badge/lint-ruff-blue.svg)](https://github.com/astral-sh/ruff)
 [![Docker](https://img.shields.io/badge/docker-cpu%20%7C%20cu128-2496ED.svg)](Dockerfile)
 
@@ -24,8 +24,8 @@
 | **注册表** | ModelRegistry 自动注册训练产物；控制台可注册版本、打标、对比、晋升生产、删除 |
 | **模型** | 27 个预训练权重（4 家族 × 5 尺寸 + 4 任务），自动识别 + 一键下载 |
 | **接口** | **Web 控制台（Vue 3 SPA，7 页）** + CLI（`ayt-web` / `ayt-train` 等 9 个）+ FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
-| **部署** | Dockerfile（CPU + cu128 双 tag，含前端构建阶段） + docker-compose（4 profile） + Makefile（34 目标） |
-| **质量** | pytest 300 passed / 1 skipped + ruff 全量规则 + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
+| **部署** | Dockerfile（CPU + cu128 双 tag，含前端构建阶段） + docker-compose（4 profile） + Makefile（35 目标） |
+| **质量** | pytest 348 passed / 1 skipped + ruff 全量规则 + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
 
 ---
 
@@ -95,8 +95,8 @@ docker compose --profile gpu up         # 启动 GPU bash 容器
 ## 🖥 Web 控制台
 
 控制台是这套工具的主界面，前端源码在 `frontend/`（Vue 3 + Vite），后端是
-`src/api/admin.py` 的管理面 FastAPI。6 个页面：总览 / 数据集 / 训练配置 /
-训练监控 / 结果 · 模型库 / 任务队列。
+`src/api/admin.py` 的管理面 FastAPI。7 个页面：总览 / 数据集 / 训练配置 /
+训练监控 / 结果 · 模型库 / 模型注册中心 / 任务队列。
 
 ### 生产模式（单进程，同源）
 
@@ -145,7 +145,7 @@ frontend/
     ├── lib/                # api.js（REST + WS 封装）、toast.js（全局反馈）
     ├── styles/tokens.css   # 全部设计 token 与组件样式（单一样式来源）
     ├── components/         # LineChart / LogConsole / ToastHost
-    └── pages/              # 6 个页面 + NotFoundPage
+    └── pages/              # 7 个页面 + NotFoundPage
 ```
 
 ---
@@ -169,7 +169,7 @@ frontend/
 |---|---|
 | `make help` | 显示所有目标 |
 | `make install` | 安装运行时 + 开发依赖 |
-| `make test` | 跑测试套件（275 tests） |
+| `make test` | 跑测试套件（348 tests） |
 | `make lint` | ruff 检查 |
 | `make lint-fix` | ruff 自动修复 |
 | `make format` | ruff 自动格式化 |
@@ -316,7 +316,7 @@ python ayt_models.py download yolov8n.pt
 ## 🧪 测试
 
 ```bash
-# 跑全部 CPU-safe 测试（275 tests）
+# 跑全部 CPU-safe 测试（348 tests）
 make test
 
 # 跑单个文件
@@ -326,7 +326,7 @@ python -m pytest test/test_data_validator.py -v
 make test-cov
 ```
 
-**测试统计**：275 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
+**测试统计**：348 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
 
 **测试组织**：
 
@@ -391,6 +391,8 @@ make test-cov
 2. `make lint` 无错误
 3. `make format` 格式化代码
 4. 重要改动写测试
+5. 改了测试数量或页面数，记得同步本文档里的数字并重跑
+   `python scripts/sync_docs_readme.py`（`test/test_docs_consistency.py` 会检查文档是否同步）
 
 ---
 

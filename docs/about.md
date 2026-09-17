@@ -1,12 +1,14 @@
 # Auto YOLO Training · 文档索引
 
-> **当前定位：** 单机开发与内部验证版。功能完整（训练 / 调参 / 评估 / 导出 / 推理一体化），支持 YOLOv5/v8/v11/YOLO26 全系列检测任务。
+> **当前定位：** 单机开发与内部验证版。功能完整（数据校验 / 训练 / 调参 / 评估 / 导出 / 推理一体化），
+> 支持 YOLOv5 / v8 / v11 / YOLO26 全系列与 4 大任务类型（检测 / 分割 / 姿态 / 分类）。
 
 ---
 
 ## 新用户起点
 
 - 🚀 [quickstart.md](quickstart.md) — **5 分钟跑通指南**（强烈推荐先读）
+- 🖥 [console.md](console.md) — Web 控制台（主界面）：7 个页面、API Key 认证、两级数据口径
 - 📊 [datasets.md](datasets.md) — 数据集格式与转换
 - 🔌 [api.md](api.md) — FastAPI 推理服务
 
@@ -16,35 +18,42 @@
 
 ---
 
-## 通用化进展
-
-本项目已通用化，不再绑定具体业务场景（电缆破损等）。阶段进展：
+## 阶段进展
 
 | 阶段 | 状态 | 关键改动 |
 |---|---|---|
-| A 通用化清场 | ✅ 完成 | branding 模块 + 删 P0 + ModelRegistry 接入 + device=auto |
-| B 可配置化 | ✅ 完成 | pyproject.toml 全量配置 + ruff 全规则 + Pydantic Settings + 文档体系 |
-| C 通用能力扩展 | ⏸ 规划 | 4 任务类型 / 任务队列 / 断点恢复 / DVC |
+| A 通用化清场 | ✅ | branding 模块 + 删 P0 + ModelRegistry 接入 + `device` 语义修正 |
+| B 可配置化 | ✅ | pyproject 完整 + ruff 全规则 + Pydantic Settings + 文档体系 |
+| C 通用能力 | ✅ | 4 任务类型 + 27 个预训练模型清单 + 模型下载 CLI + 任务抽象 |
+| D 生产化 | ✅ | Dockerfile（CPU / cu128 双 tag）+ docker-compose + Makefile + pre-commit + MkDocs |
+| G 控制台能力补全 | ✅ | 断点续训 + 模型注册中心控制台（注册 / 打标 / 对比 / 晋升 / 删除） |
+| 阶段 0 止血 | ✅ | 训练产物改为回收而非删除、注册表权重缺失可见化、SPA 回退 404 修正、管理面认证入库 |
+| E CI/CD 多平台 | 计划 | Linux / macOS job + coverage 门禁 + pip-audit |
+| F 分布式 | 远期 | 多用户 RBAC、数据集与产物版本化、Redis 队列 |
 
 ---
 
 ## 开发者文档
 
-- **测试**：`pytest -m "not gpu and not training"`（95+ tests）
-- **Lint**：`ruff check .`（全量规则启用）
-- **环境变量**：见 `.env.example`
-- **CLI 入口**：`train.py` / `tune.py` / `eval.py` / `export.py` / `serve.py` / `validate_data.py` / `gradio_app.py`
-- **模块**：`src/` 下 16 个核心模块 + `src/gradio_app/` 7 个 UI 模块
+- **测试**：`make test`（`pytest -m "not gpu and not training"`，348 passed / 1 skipped）
+- **Lint / 格式化**：`make lint` / `make lint-fix` / `make format`（ruff 全量规则）
+- **前端**：`make frontend-dev`（Vite 5173）· `make frontend-build` · `make frontend-check`（产物体积预算门禁）
+- **控制台**：`make web` → <http://127.0.0.1:8080>（Vue 3 SPA + 管理面 API）
+- **环境变量**：见 [.env.example](https://github.com/Tianbuyu-wwx/Auto-yolo-training/blob/main/.env.example)
+- **CLI 入口**（`pip install -e .` 后可用）：
+  `ayt-web` · `ayt-train` · `ayt-tune` · `ayt-eval` · `ayt-export` · `ayt-serve` · `ayt-validate` · `ayt-models` · `ayt-gradio`（已冻结）
+- **模块**：`src/` 下 27 个核心模块（含 `src/api/` 管理面）+ `src/gradio_app/`（16 个文件的 Gradio 界面，已冻结）
 
 ---
 
-## 已知限制（README 声明 + 阶段 A/B 缓解）
+## 已知限制
 
-| 限制 | 缓解状态 |
+| 限制 | 状态 |
 |---|---|
-| Web 进程内训练 | 阶段 C：任务队列 + Redis |
-| 多用户/权限隔离 | 阶段 C：JWT + RBAC |
-| 模型/数据集/配置版本化 | 阶段 A 部分：ModelRegistry 接入；阶段 C：DVC |
-| 外部 YAML 绝对路径 | 阶段 A 已修复：相对 YAML 文件路径 |
-| `dataset/data` 验证集无标注 | README 已声明，请优先选择校验通过的数据集 |
-| Polars CPU 检查 | 沙箱环境临时 `POLARS_SKIP_CPU_CHECK=1` |
+| 控制台只有**单密钥认证**（`YOLO_API_KEY` / `ayt-web --api-key`），无多用户 / 权限隔离 | 阶段 F：JWT + RBAC |
+| 训练产物与数据集版本化未集成（注册表已接入，但 `copy_model=False` 的版本会因滚动清理而权重缺失，控制台会标注） | 阶段 F：DVC / RunStore |
+| 任务队列缺崩溃恢复：重启后 `running` / `cancel_requested` 的任务会卡住 | 阶段 2.2 |
+| `dataset/data` 的 val 集没有标注（控制台数据集页的「问题」列会标出） | 数据侧待补 |
+| 控制台为桌面专用（最低 1024px 视口，不做移动 / 平板适配） | 产品决策 |
+| Gradio 界面已冻结，且 gradio 不再默认安装（`pip install -e ".[gradio]"` 可装回） | 设计取舍 |
+| Docker 真机构建与容器内训练尚未验证 | 待 Docker Desktop |
