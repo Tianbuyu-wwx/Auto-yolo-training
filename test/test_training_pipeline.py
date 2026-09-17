@@ -111,5 +111,59 @@ class TestTrainingPipelineRunTraining(unittest.TestCase):
         self.assertIn("Mock training failure", result.message)
 
 
+class TestCleanupOldRuns(unittest.TestCase):
+    """滚动保留必须「回收」而不是「抹掉」（2026-09-17 修复）。
+
+    背景：这是每次训练都会跑的常规动作，``shutil.rmtree`` 一次误判就是永久
+    数据丢失。现在的语义是移入 ``runs/.recycle/``，保留数量不变。
+    """
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.pipeline = TrainingPipeline(base_dir=self.temp_dir)
+        self.runs_dir = Path(self.temp_dir) / "runs" / "detect"
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _make_run(self, name: str, mtime: float) -> Path:
+        import os
+        run = self.runs_dir / name
+        (run / "weights").mkdir(parents=True)
+        (run / "weights" / "best.pt").write_bytes(b"x")
+        os.utime(run, (mtime, mtime))
+        return run
+
+    def test_keeps_newest_and_recycles_the_rest(self):
+        """保留 max_backup_runs 个最新，其余的进回收站（而不是被删掉）"""
+        base = 1_700_000_000
+        for i, name in enumerate(["ds_auto", "ds_auto-2", "ds_auto-3", "ds_auto-4"]):
+            self._make_run(name, base + i)
+
+        self.pipeline._cleanup_old_runs("ds")
+
+        kept = sorted(p.name for p in self.runs_dir.iterdir())
+        self.assertEqual(kept, ["ds_auto-3", "ds_auto-4"], kept)
+        recycle = Path(self.temp_dir) / "runs" / ".recycle"
+        recycled = sorted(p.name for p in recycle.iterdir())
+        self.assertEqual(len(recycled), 2, recycled)
+        self.assertTrue(all(n.startswith("ds_auto") for n in recycled), recycled)
+        for name in recycled:
+            self.assertTrue((recycle / name / "weights" / "best.pt").is_file())
+
+    def test_other_datasets_are_untouched(self):
+        """精确正则：ds 的清理不能碰到 my-ds 的 run"""
+        base = 1_700_000_000
+        for i, name in enumerate(["ds_auto", "ds_auto-2", "ds_auto-3"]):
+            self._make_run(name, base + i)
+        other = self._make_run("my-ds_auto", base + 10)
+
+        self.pipeline._cleanup_old_runs("ds")
+
+        self.assertTrue(other.is_dir(), "别的数据集的 run 被移走/删除了")
+        self.assertTrue((other / "weights" / "best.pt").is_file())
+
+
 if __name__ == "__main__":
     unittest.main()

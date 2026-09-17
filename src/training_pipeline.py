@@ -24,6 +24,7 @@ from src.hyperparameter_tuning import (
 )
 from src.model_exporter import ModelExporter
 from src.notifier import NotifierManager, create_notifier
+from src.utils import recycle_path
 
 # 配置日志
 logger = logging.getLogger("TrainingPipeline")
@@ -954,13 +955,20 @@ class TrainingPipeline:
             )
 
     def _cleanup_old_runs(self, dataset_name: str):
-        """清理旧的训练运行目录，仅保留最新的 max_backup_runs 轮"""
+        """回收旧的训练运行目录，仅保留最新的 max_backup_runs 轮。
+
+        2026-09-17 起改为移入 ``runs/.recycle/`` 而不是 ``shutil.rmtree``：
+        训练产物一旦抹掉就不可恢复，而滚动保留是**每次训练都会跑**的常规动作，
+        代价放大的概率不低。保留数量语义不变（超过 max_backup_runs 的进回收站），
+        用户想彻底清空时自行删回收目录。
+        """
         import re
-        import shutil
 
         runs_dir = self.base_dir / "runs" / "detect"
         if not runs_dir.exists():
             return
+
+        recycle_root = self.base_dir / "runs" / ".recycle"
 
         # 匹配当前数据集的训练目录: {dataset_name}_auto, {dataset_name}_auto-2, {dataset_name}_auto-3, ...
         pattern = re.compile(rf"^{re.escape(dataset_name)}_auto(-\d+)?$")
@@ -990,11 +998,11 @@ class TrainingPipeline:
                     total_runs, keep_count, total_runs - keep_count)
 
         for run_dir, _ in run_dirs[keep_count:]:
-            try:
-                shutil.rmtree(run_dir)
-                logger.info("[Cleanup] Removed old run directory: %s", run_dir.name)
-            except Exception as e:
-                logger.warning("[Cleanup] Failed to remove %s: %s", run_dir.name, e)
+            dest = recycle_path(run_dir, recycle_root)
+            if dest is not None:
+                logger.info("[Cleanup] Recycled old run directory: %s → %s", run_dir.name, dest.name)
+            else:
+                logger.warning("[Cleanup] Failed to recycle %s", run_dir.name)
 
         # 同时清理评估目录（保留最新的一个）
         eval_pattern = re.compile(rf"^{re.escape(dataset_name)}_eval(-\d+)?$")
@@ -1010,11 +1018,11 @@ class TrainingPipeline:
         eval_dirs.sort(key=lambda x: x[1], reverse=True)
         if len(eval_dirs) > 1:
             for eval_dir, _ in eval_dirs[1:]:
-                try:
-                    shutil.rmtree(eval_dir)
-                    logger.info("[Cleanup] Removed old eval directory: %s", eval_dir.name)
-                except Exception as e:
-                    logger.warning("[Cleanup] Failed to remove eval %s: %s", eval_dir.name, e)
+                dest = recycle_path(eval_dir, recycle_root)
+                if dest is not None:
+                    logger.info("[Cleanup] Recycled old eval directory: %s → %s", eval_dir.name, dest.name)
+                else:
+                    logger.warning("[Cleanup] Failed to recycle eval %s", eval_dir.name)
 
     def _finalize(self, success: bool):
         """完成流水线，生成最终报告"""

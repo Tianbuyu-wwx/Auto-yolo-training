@@ -3,6 +3,9 @@
 消除各模块间的重复代码
 """
 
+import logging
+import shutil
+from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -105,6 +108,37 @@ def find_images(directory: Path, recursive: bool = True) -> list[Path]:
         return []
     glob_fn = directory.rglob if recursive else directory.glob
     return sorted([f for f in glob_fn("*") if f.suffix.lower() in SUPPORTED_IMAGE_EXTS and f.is_file()])
+
+
+logger = logging.getLogger(__name__)
+
+
+def recycle_path(path: Path, recycle_root: Path) -> Path | None:
+    """把文件/目录移入回收站（`<recycle_root>/<原名>_<时间戳>`），返回新路径。
+
+    训练产物、数据集这类东西一旦 ``shutil.rmtree`` 就不可恢复，而控制台上一次
+    误点就足以触发。项目统一约定：**清理 = 移走，不是抹掉** —— `dataset/.recycle`
+    与 `runs/.recycle` 都是这个思路，用户想彻底清空时自行删回收目录即可。
+
+    同名目标已存在时追加 ``_2``、``_3``……；任何 OSError 只记日志并返回 ``None``，
+    让调用方知道「回收失败」而不是让清理动作把主流程带崩。
+    """
+    source = Path(path)
+    if not source.exists():
+        return None
+    try:
+        recycle_root.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        dest = recycle_root / f"{source.name}_{stamp}"
+        seq = 2
+        while dest.exists():
+            dest = recycle_root / f"{source.name}_{stamp}_{seq}"
+            seq += 1
+        shutil.move(str(source), str(dest))
+        return dest
+    except OSError as exc:
+        logger.warning("[RECYCLE] 移入回收站失败 %s: %s", source, exc)
+        return None
 
 
 def is_tensorboard_available() -> bool:

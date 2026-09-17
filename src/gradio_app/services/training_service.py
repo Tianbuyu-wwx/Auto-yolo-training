@@ -30,6 +30,7 @@ from src.task_metrics import (
     primary_metric_labels,
     primary_metrics_from_row,
 )
+from src.utils import recycle_path
 
 logger = logging.getLogger(__name__)
 
@@ -631,8 +632,59 @@ class TrainingService:
         except Exception as e:
             logger.debug("[RESULTS] 回填最终指标失败: %s", e)
 
+    # 旧报告的归宿：runs/.recycle/_reports/（与 dataset/.recycle 同思路）
+    RECYCLE_DIR_NAME = ".recycle"
+
+    @property
+    def runs_recycle_dir(self) -> Path:
+        return self.paths.base_dir / "runs" / self.RECYCLE_DIR_NAME
+
+    def _recycle_stale_reports(self, dataset_name: str) -> list[Path]:
+        """把本数据集的旧报告移入回收站；最新一份留在原位。
+
+        报告名由 pipeline / evaluator 机械生成：``pipeline_<dataset>_<时间戳>.json``
+        与 ``<dataset>_best_eval_<时间戳>.json``。用**前缀精确匹配**，而不是
+        ``dataset_name in 文件名`` —— 后者会把名字里含同一子串的别的数据集的报告
+        一起删掉（``data``、``_smoke_test`` 这类短名字尤其容易撞）。
+        """
+        if not self.reports_dir.exists():
+            return []
+        prefixes = (f"pipeline_{dataset_name}_", f"{dataset_name}_best_eval_")
+        matches = [
+            p for p in self.reports_dir.iterdir()
+            if p.is_file() and p.name.startswith(prefixes)
+        ]
+        if len(matches) < 2:
+            return []
+        matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        recycle_root = self.runs_recycle_dir / "_reports"
+        recycled: list[Path] = []
+        for path in matches[1:]:
+            dest = recycle_path(path, recycle_root)
+            if dest is not None:
+                recycled.append(dest)
+        return recycled
+
     def _export_best_model_and_cleanup(self, dataset_name: str):
-        """导出最佳模型并清理临时文件"""
+        """导出最佳模型到 exports/，并把本数据集的旧报告移入回收站。
+
+        2026-09-17 修复三处不可恢复的数据丢失（旧实现）：
+
+        1. 删除判据是子串匹配（``dataset_name in item.name``）—— 实测
+           ``dataset="mine"`` 会连带删掉 ``my-mine-other_auto``（另一个数据集的
+           全部训练产物：权重、results.csv、全部曲线图）；
+        2. ``shutil.move(best.pt → exports/)`` 把权重从 run 里搬走，同时
+           ``rmtree`` 掉整个 run 目录 —— ``last.pt`` 随之消失，该 run 不再可续训，
+           结果页 / 下载 / 按 run 注册随之全部失效；
+        3. 同一次调用还会删掉本次训练刚写出的 pipeline 报告。
+
+        现在的语义：**只导出、只回收报告，不碰 run 目录**。
+        - ``copy2`` 导出到 ``exports/<dataset>.pt``，run 原位保留（仍是活的 run）；
+        - 旧报告移入 ``runs/.recycle/_reports/``，最新一份留在原位；
+        - run 的滚动保留统一由 ``TrainingPipeline._cleanup_old_runs`` 负责
+          （精确正则 + 只留 max_backup_runs 个，同样是回收而非抹掉）。本方法
+          不再自带一套保留策略 —— 两套口径互相打架正是这次事故的成因。
+        """
         self.exports_dir.mkdir(parents=True, exist_ok=True)
 
         best_model_path = Path(self.state.best_model_path)
@@ -645,36 +697,20 @@ class TrainingService:
 
         try:
             if target_path.exists():
-                target_path.unlink()
                 logger.info("[EXPORT] 已覆盖已有模型: %s", target_name)
-
-            shutil.move(str(best_model_path), str(target_path))
-            logger.info("[EXPORT] 最佳模型已导出: %s", target_path)
+            # copy2 而不是 move：run 目录保持完整，断点续训与结果页都还指着它
+            shutil.copy2(best_model_path, target_path)
+            logger.info("[EXPORT] 最佳模型已导出: %s（run 原位保留: %s）",
+                        target_path, best_model_path)
             self.state.update(best_model_path=str(target_path))
 
-            # 清理 runs 目录
-            for runs_sub in ["detect", "train"]:
-                runs_dir = self.paths.base_dir / "runs" / runs_sub
-                if runs_dir.exists():
-                    for item in runs_dir.iterdir():
-                        if item.is_dir() and dataset_name in item.name:
-                            try:
-                                shutil.rmtree(item)
-                                logger.info("[CLEANUP] 已删除: %s", item.name)
-                            except Exception as e:
-                                logger.warning("[CLEANUP] 删除失败 %s: %s", item.name, e)
-
-            # 清理 reports
-            if self.reports_dir.exists():
-                for item in self.reports_dir.iterdir():
-                    if item.is_file() and dataset_name in item.name:
-                        try:
-                            item.unlink()
-                        except Exception as e:
-                            logger.warning("[CLEANUP] 删除报告失败 %s: %s", item.name, e)
+            recycled_reports = self._recycle_stale_reports(dataset_name)
+            if recycled_reports:
+                logger.info("[CLEANUP] %d 份旧报告已移入回收站: %s",
+                            len(recycled_reports), self.runs_recycle_dir / "_reports")
 
         except Exception as e:
-            logger.error("[EXPORT] 模型导出与清理失败: %s", e)
+            logger.error("[EXPORT] 模型导出与回收失败: %s", e)
 
     def _update_from_results(self):
         """从results.csv增量读取最新进度"""
