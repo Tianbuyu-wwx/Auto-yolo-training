@@ -18,8 +18,14 @@ from src.api.admin import create_admin_app
 
 @pytest.fixture()
 def client(tmp_path):
-    """管理面应用（进程内训练模式 + 队列 runner 不启动，保证测试确定性）"""
-    app = create_admin_app(base_dir=tmp_path, use_subprocess=False, start_queue_runner=False)
+    """管理面应用（进程内训练模式 + 队列 runner 不启动，保证测试确定性）
+
+    ``api_key=""`` 是显式关闭认证：不显式传的话会去读 ``YOLO_API_KEY`` /
+    settings，于是「本机导出了 key」的开发机上整套测试会突然 401。
+    """
+    app = create_admin_app(
+        base_dir=tmp_path, use_subprocess=False, start_queue_runner=False, api_key=""
+    )
     with TestClient(app) as c:
         yield c
 
@@ -41,8 +47,6 @@ def dummy_dataset(client, tmp_path):
         "nc: 1\nnames: [cat]\n", encoding="utf-8"
     )
     return "api-ds"
-
-
 # ----------------------------------------------------------------------
 # 数据集
 # ----------------------------------------------------------------------
@@ -642,6 +646,109 @@ class TestRecycleBin:
 
 
 # ----------------------------------------------------------------------
+# 管理面 API Key 认证（G-2 · 方案 A）
+# ----------------------------------------------------------------------
+AUTH_KEY = "s3cret-key"
+
+
+@pytest.fixture()
+def auth_client(tmp_path):
+    """开启了 API Key 认证的管理面应用"""
+    app = create_admin_app(
+        base_dir=tmp_path, use_subprocess=False, start_queue_runner=False, api_key=AUTH_KEY
+    )
+    with TestClient(app) as c:
+        yield c
+
+
+class TestAdminAuth:
+    """方案 A：未配置 key 则不校验；配了 key 就拦下所有 /api/* 与 WS"""
+
+    def test_unconfigured_key_means_no_auth(self, client):
+        """未配置 key 时一个受保护端点也不该拦 —— 本地开发零摩擦是这条方案的取舍"""
+        assert client.get("/api/datasets").status_code == 200
+        assert client.get("/api/health").json()["auth_enabled"] is False
+
+    def test_api_requires_key_when_configured(self, auth_client):
+        r = auth_client.get("/api/datasets")
+        assert r.status_code == 401, r.text
+        assert r.json()["detail"] == "Invalid or missing API Key"
+
+    def test_correct_key_is_accepted(self, auth_client):
+        r = auth_client.get("/api/datasets", headers={"X-API-Key": AUTH_KEY})
+        assert r.status_code == 200, r.text
+
+    def test_wrong_key_is_rejected(self, auth_client):
+        r = auth_client.get("/api/datasets", headers={"X-API-Key": "nope"})
+        assert r.status_code == 401
+
+    def test_health_stays_open(self, auth_client):
+        """存活探针不该需要凭据，否则外部无法判断服务是否起来"""
+        r = auth_client.get("/api/health")
+        assert r.status_code == 200
+        assert r.json()["auth_enabled"] is True
+
+    def test_write_endpoints_are_also_guarded(self, auth_client, dummy_dataset):
+        """启停训练、删除数据集这些有副作用的端点必须跟读端点一样被拦"""
+        assert auth_client.post("/api/trainings/stop").status_code == 401
+        assert auth_client.delete("/api/datasets/api-ds").status_code == 401
+        # 被拦下就不能真的删掉
+        assert (auth_client.app.state.base_dir / "dataset" / "api-ds").is_dir()
+
+    def test_api_docs_are_reachable_without_key(self, auth_client):
+        """Swagger UI 由浏览器直接打开，带不了请求头 —— 拦掉等于给一个死链接"""
+        assert auth_client.get("/api/docs").status_code == 200
+        assert auth_client.get("/api/openapi.json").status_code == 200
+
+    def test_spa_shell_is_not_guarded(self, auth_client):
+        """静态资源是 SPA 本身，拦掉的话浏览器连输入 key 的界面都加载不出来"""
+        r = auth_client.get("/")
+        assert r.status_code != 401
+
+    def test_ws_requires_key(self, auth_client):
+        from starlette.websockets import WebSocketDisconnect
+
+        with pytest.raises(WebSocketDisconnect) as exc:
+            with auth_client.websocket_connect("/ws/training") as ws:
+                ws.receive_text()
+        assert exc.value.code == 1008
+
+    def test_ws_accepts_key_via_query_param(self, auth_client):
+        """浏览器没法给 WebSocket 设请求头，只能走查询参数"""
+        with auth_client.websocket_connect(f"/ws/training?api_key={AUTH_KEY}") as ws:
+            msg = ws.receive_json()
+            assert msg["type"] == "training"
+
+    def test_ws_rejects_wrong_query_key(self, auth_client):
+        from starlette.websockets import WebSocketDisconnect
+
+        with pytest.raises(WebSocketDisconnect):
+            with auth_client.websocket_connect("/ws/training?api_key=wrong") as ws:
+                ws.receive_text()
+
+    def test_resolve_api_key_semantics(self, monkeypatch):
+        """None = 去读环境；"" = 显式关闭 —— 这两档不能混"""
+        from src.api.admin import resolve_api_key
+
+        assert resolve_api_key("") == ""
+        assert resolve_api_key("given") == "given"
+
+        monkeypatch.setenv("YOLO_API_KEY", "from-env")
+        assert resolve_api_key(None) == "from-env"
+
+    def test_env_key_enables_auth_by_default(self, tmp_path, monkeypatch):
+        """只设环境变量、不传参数时也必须真的生效 —— 否则方案 A 形同虚设"""
+        monkeypatch.setenv("YOLO_API_KEY", "env-key")
+        app = create_admin_app(
+            base_dir=tmp_path, use_subprocess=False, start_queue_runner=False, api_key=None
+        )
+        with TestClient(app) as c:
+            assert c.get("/api/health").json()["auth_enabled"] is True
+            assert c.get("/api/datasets").status_code == 401
+            assert c.get("/api/datasets", headers={"X-API-Key": "env-key"}).status_code == 200
+
+
+# ----------------------------------------------------------------------
 # WebSocket + 静态托管
 # ----------------------------------------------------------------------
 class TestWsAndStatic:
@@ -659,3 +766,4 @@ class TestWsAndStatic:
             assert "frontend" in r.json()["hint"]
         else:
             assert r.status_code == 200
+

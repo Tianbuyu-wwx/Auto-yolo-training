@@ -153,7 +153,29 @@ body {
 /* TrainMonitorPage 的空闲态输出 <span class="dot idle">，此前该类没有定义，
    渲染成 8×8px 透明方块，在徽标里留下一个无意义的空隙。 */
 .dot.idle { background: var(--text-muted); opacity: .55; }
+/* 「需要注意但没坏」：目前只用于顶栏「API 需要密钥」。刻意不做脉冲 ——
+   .dot.run 的呼吸动效携带的是「训练正在进行」，借来这里会让两个状态撞车。 */
+.dot.warn { background: var(--amber); }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+/* ---- 管理面密钥（G-2 方案 A）----
+   后端未配置 YOLO_API_KEY 时不校验；一旦配了，所有 /api/* 与 WebSocket 都要
+   带凭据，浏览器端必须有个地方能把它填进去。放在顶栏而不是单开一页：它是
+   全局凭据，与旁边的「API 在线」同属整站状态。 */
+.key-ctl { position: relative; }
+.key-ctl .btn { gap: 7px; color: var(--text-muted); }
+.key-ctl .btn:hover { color: var(--text); }
+.key-ctl .dot { width: 6px; height: 6px; }
+.key-pop {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 30;
+  width: 288px; padding: 14px;
+  background: var(--bg-card); border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--edge-top), 0 18px 40px -20px rgba(0, 0, 0, .95);
+}
+.key-pop .hint { margin-top: 9px; }
+.key-pop .hint code { font-family: var(--mono); font-size: 11px; color: var(--text); }
+.key-actions { display: flex; gap: 8px; margin-top: 12px; }
 
 /* ---- 通用组件 ---- */
 /* 内容面：近实色 + 顶部内高光 + 白系细描边。

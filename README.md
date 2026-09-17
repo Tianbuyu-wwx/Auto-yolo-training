@@ -377,6 +377,7 @@ make test-cov
 
 - **不要提交**：`*.env`、`*.pem`、`*.key`、API Key、模型权重
 - **FastAPI 部署**：必须配置 `YOLO_API__API_KEY`，并由反向代理提供 TLS / 限流
+- **Web 控制台**（`ayt-web`，8080）：与推理服务共用同一把 API Key。未配置 key 时**不校验任何请求**（本地开发零摩擦的取舍），此时绑到 `0.0.0.0` 等于把启停训练、上传数据集、下载权重的权限交给同网段所有人 —— 启动日志会显式警告
 - **Webhook 通知**：内置 SSRF 防护（`WebhookNotifier._is_safe_url`），白名单 `oapi.dingtalk.com` / `open.feishu.cn` / `qyapi.weixin.qq.com` / `hooks.slack.com`
 - **pre-commit hook** 自动扫描 `api[_-]?key / secret / token / password` 防止误提交敏感信息
 
@@ -398,7 +399,7 @@ make test-cov
 ### 已知限制
 
 - **控制台为桌面专用**：最低 1024px 视口，不做移动/平板适配（窄屏显示提示页）
-- 控制台侧尚无多用户认证 / 权限隔离（`ayt-web` 默认只监听 127.0.0.1）
+- 控制台侧只有**单密钥认证**（`YOLO_API_KEY` / `ayt-web --api-key`），无多用户 / 权限隔离（`ayt-web` 默认只监听 127.0.0.1）
 - 数据集状态存在两级口径：`is_ready`（扫描级，labels 目录有标注）与
   `is_trainable`（训练级，存在 `data.yaml`）。两者会不一致——例如有完整标注但
   缺 `data.yaml` 的数据集会显示为「缺 data.yaml」且无法选入训练
