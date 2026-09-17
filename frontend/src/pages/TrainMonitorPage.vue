@@ -51,6 +51,16 @@ const etaText = computed(() => {
 const labels = computed(() => status.value?.metric_labels || ['mAP@50', 'mAP@50-95'])
 
 /**
+ * 训练结束后后端给的一句话产物去向（best.pt 归档到 exports/、断点留在 run 内）。
+ * 只在「跑完且没在跑」时显示：一次新训练会重置 state，但训练中读到的仍是上一次的值。
+ */
+const artifactNote = computed(() => {
+  const s = status.value
+  if (!s || s.is_running || !s.artifact_note) return ''
+  return s.artifact_note
+})
+
+/**
  * 与总览页同一判据：后端字段默认值就是 0，且 WS 每秒推送让 status 恒非空，
  * 所以 `status ? 值 : '—'` 兜底永远不触发 —— 空闲时四张卡显示 0/0 与 0.0000×3。
  */
@@ -96,6 +106,12 @@ onBeforeUnmount(() => closeWs && closeWs())
         <span>{{ progressPct.toFixed(1) }}%</span>
         <span class="eta">{{ etaText }}</span>
       </div>
+    </div>
+
+    <!-- 产物去向：训练跑完告诉用户"东西放哪了"，不用去猜 runs 路径 -->
+    <div v-if="artifactNote" class="card" style="margin-bottom:16px">
+      <h3>产物去向</h3>
+      <p class="muted" style="font-size:12.5px;margin:0">{{ artifactNote }}完整清单见「结果 · 模型库 → 产物去向」。</p>
     </div>
 
     <!-- 指标卡 -->

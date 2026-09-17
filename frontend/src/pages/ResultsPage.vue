@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
 import { toastErr, toastOk } from '../lib/toast.js'
 import MetricCard from '../components/MetricCard.vue'
@@ -7,6 +7,9 @@ import MetricCard from '../components/MetricCard.vue'
 const runs = ref([])
 const selected = ref('')
 const results = ref(null)
+// 产物去向：每个 run 的 best/last/results 是否还在、有没有数据集级导出件
+// （后端 RunStore 的只读快照，随 /api/trainings/runs 一起下发）
+const artifacts = ref({ runs: [], exports: {}, recycled_count: 0, recycle_dir: '' })
 const exportFmt = ref('onnx')
 const exporting = ref(false)
 const compareMd = ref('')
@@ -21,6 +24,7 @@ async function refreshRuns(selectAfter) {
   try {
     const r = await api.get('/api/trainings/runs')
     runs.value = r.runs
+    artifacts.value = r.artifacts || { runs: [], exports: {}, recycled_count: 0, recycle_dir: '' }
     if (selectAfter && runs.value.includes(selectAfter)) selected.value = selectAfter
     if (!selected.value && runs.value.length) selected.value = runs.value[0]
     await loadResults()
@@ -28,6 +32,7 @@ async function refreshRuns(selectAfter) {
     // 不能退化成「暂无训练产物」——那是"跑过但没产物"，与"接口挂了"是两回事
     loadError.value = errMsg(e)
     runs.value = []; results.value = null
+    artifacts.value = { runs: [], exports: {}, recycled_count: 0, recycle_dir: '' }
   } finally {
     loading.value = false
   }
@@ -60,6 +65,22 @@ onMounted(async () => {
 })
 
 const fmt4 = (v) => (v == null ? '—' : Number(v).toFixed(4))
+
+const artifact = computed(() => (artifacts.value.runs || []).find(a => a.run === selected.value) || null)
+const exportInfo = computed(() => {
+  const ds = artifact.value?.dataset
+  return ds ? (artifacts.value.exports || {})[ds] || null : null
+})
+/**
+ * best.pt 不在 run 内时要说清楚为什么、以及还能怎么办 —— 旧界面上这里只有一句
+ * "无权重"，用户看到的是「明明训练成功了却说没有权重」。
+ */
+const weightsHint = computed(() => {
+  if (!results.value || results.value.has_weights) return ''
+  return exportInfo.value
+    ? `本 run 的 best.pt 已不在原位。${exportInfo.value.path} 是该数据集最近一次训练的副本（不一定来自本 run）；要本 run 的权重可从回收站恢复或重新训练。`
+    : '本 run 的 best.pt 已不在原位，也没有数据集级副本；需要权重请重新训练该数据集。'
+})
 </script>
 
 <template>
@@ -96,6 +117,42 @@ const fmt4 = (v) => (v == null ? '—' : Number(v).toFixed(4))
       </div>
 
       <div class="card" style="margin-bottom:16px">
+        <h3>产物去向</h3>
+        <table v-if="artifact" class="tbl">
+          <thead><tr><th>产物</th><th>状态</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>best.pt</td>
+              <td><span class="badge" :class="artifact.has_best ? 'ok' : 'idle'">{{ artifact.has_best ? '在 run 内' : '不在 run 内' }}</span></td>
+              <td class="muted">{{ artifact.has_best ? '下载 / 导出 / 按 run 注册读的就是它' : (exportInfo ? '可用数据集级副本兜底' : '无任何副本') }}</td>
+            </tr>
+            <tr>
+              <td>last.pt（断点）</td>
+              <td><span class="badge" :class="artifact.has_last ? 'ok' : 'idle'">{{ artifact.has_last ? '可续训' : '缺' }}</span></td>
+              <td class="muted">{{ artifact.has_last ? '「训练配置 → 断点续训」可从本 run 恢复' : '本 run 不能续训' }}</td>
+            </tr>
+            <tr>
+              <td>results.csv</td>
+              <td><span class="badge" :class="artifact.has_results ? 'ok' : 'idle'">{{ artifact.has_results ? '有' : '无' }}</span></td>
+              <td class="muted">逐 epoch 指标与曲线图的来源</td>
+            </tr>
+            <tr>
+              <td>导出件</td>
+              <td><span class="badge" :class="exportInfo ? 'ok' : 'idle'">{{ exportInfo ? '有' : '无' }}</span></td>
+              <td class="muted">{{ exportInfo ? `${exportInfo.path} · ${exportInfo.size_mb} MB · ${exportInfo.modified}` : '训练完成时自动归档为 exports/&lt;数据集&gt;.pt' }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-if="artifact" class="muted" style="font-size:12.5px;margin:10px 0 0">
+          run 目录 <code class="mono">{{ artifact.path }}</code> · {{ artifact.size_mb }} MB · {{ artifact.modified }}
+          <template v-if="artifacts.recycled_count">
+            <br />回收站有 {{ artifacts.recycled_count }} 项可恢复（<code class="mono">{{ artifacts.recycle_dir }}</code>）
+          </template>
+        </p>
+        <p v-else class="muted" style="font-size:12.5px">该 run 无产物记录（可能已被回收）。</p>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
         <h3>模型操作</h3>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <code class="mono">{{ results.download_url ? `runs/detect/${results.run_name}/weights/best.pt` : '尚无 best.pt' }}</code>
@@ -109,6 +166,7 @@ const fmt4 = (v) => (v == null ? '—' : Number(v).toFixed(4))
           </button>
           <a v-if="results.download_url" class="btn" :href="results.download_url">下载 best.pt</a>
         </div>
+        <p v-if="weightsHint" class="muted" style="font-size:12.5px;margin:10px 0 0">{{ weightsHint }}</p>
       </div>
     </template>
 

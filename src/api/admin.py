@@ -488,6 +488,9 @@ def create_admin_app(
             "runs": training_svc.list_runs(),
             "checkpoints": [d["path"] for d in details],
             "checkpoint_details": details,
+            # 产物去向：每个 run 的 best/last/results 是否还在、有没有数据集级导出件、
+            # 回收站里有多少可恢复项 —— 结果页据此显示「产物状态」并解释按钮为何禁用
+            "artifacts": training_svc.list_run_details(),
         }
 
     @app.get("/api/trainings/results")

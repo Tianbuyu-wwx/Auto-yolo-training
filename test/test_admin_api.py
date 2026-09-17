@@ -887,3 +887,56 @@ class TestSpaFallback:
         r = spa_client.get("/assets/app.js")
         assert r.status_code == 200
         assert "console.log" in r.text
+
+
+# ----------------------------------------------------------------------
+# 产物去向（结果页的「产物状态」卡）
+# ----------------------------------------------------------------------
+class TestRunArtifacts:
+    """控制台要能回答「我的产物去哪了」：权重/断点/指标在不在、有没有导出副本。"""
+
+    @pytest.fixture()
+    def run_with_artifacts(self, client):
+        base = client.app.state.base_dir
+        run = base / "runs" / "detect" / "artds_auto"
+        (run / "weights").mkdir(parents=True)
+        (run / "weights" / "best.pt").write_bytes(b"B" * 128)
+        (run / "weights" / "last.pt").write_bytes(b"L" * 128)
+        (run / "results.csv").write_text("epoch,mAP50\n1,0.9\n", encoding="utf-8")
+        (run / "args.yaml").write_text("data: data_artds.yaml\nepochs: 2\n", encoding="utf-8")
+        return run
+
+    def _row(self, client, run="artds_auto"):
+        body = client.get("/api/trainings/runs").json()
+        return body["artifacts"], next(r for r in body["artifacts"]["runs"] if r["run"] == run)
+
+    def test_artifact_flags(self, client, run_with_artifacts):
+        _, row = self._row(client)
+        assert row["has_best"] is True
+        assert row["has_last"] is True
+        assert row["has_results"] is True
+        assert row["resumable"] is True
+        assert row["dataset"] == "artds"          # 由 args.yaml 反推
+        assert row["exported_copy"] is False      # 尚未归档
+        assert row["size_bytes"] > 0
+
+    def test_export_copy_is_reported(self, client, run_with_artifacts):
+        base = client.app.state.base_dir
+        (base / "exports").mkdir(exist_ok=True)
+        (base / "exports" / "artds.pt").write_bytes(b"x" * 256)
+
+        artifacts, row = self._row(client)
+
+        assert row["exported_copy"] is True
+        assert artifacts["exports"]["artds"]["size_bytes"] == 256
+        assert artifacts["exports"]["artds"]["path"].endswith("artds.pt")
+
+    def test_recycle_summary_is_exposed(self, client, run_with_artifacts):
+        artifacts, _ = self._row(client)
+        assert artifacts["recycle_dir"].endswith(".recycle")
+        assert artifacts["recycled_count"] == 0
+
+    def test_eval_dirs_are_not_runs(self, client, run_with_artifacts):
+        (client.app.state.base_dir / "runs" / "detect" / "artds_eval").mkdir(parents=True)
+        artifacts, _ = self._row(client)
+        assert "artds_eval" not in [r["run"] for r in artifacts["runs"]]
