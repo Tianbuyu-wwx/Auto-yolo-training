@@ -139,5 +139,33 @@ class TestModelRegistry(unittest.TestCase):
         self.assertTrue(src.is_file())
 
 
+class TestWeightsAvailable(unittest.TestCase):
+    """注册表要能说出「权重还在不在磁盘上」。
+
+    copy_model=False（默认）的版本只记路径，训练产物被滚动清理后就会失效 ——
+    这个状态必须可查询，否则控制台与取用生产模型的服务都无从察觉。
+    """
+
+    def test_file_states(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            weights = Path(tmp) / "best.pt"
+            weights.write_bytes(b"x")
+            self.assertTrue(ModelRegistry.weights_available(str(weights)))
+            weights.unlink()
+            self.assertFalse(ModelRegistry.weights_available(str(weights)))
+
+    def test_empty_and_none(self):
+        self.assertFalse(ModelRegistry.weights_available(""))
+        self.assertFalse(ModelRegistry.weights_available(None))
+
+    def test_directory_is_not_a_weight_file(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertFalse(ModelRegistry.weights_available(tmp))
+
+
 if __name__ == "__main__":
     unittest.main()

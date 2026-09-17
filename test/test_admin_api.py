@@ -332,24 +332,30 @@ class TestModelAndRegistry:
 # ----------------------------------------------------------------------
 # 模型注册表写端点（G-4）
 # ----------------------------------------------------------------------
-class TestRegistryEndpoints:
-    @pytest.fixture()
-    def reg_run(self, client):
-        """造一个带 best.pt / last.pt / results.csv 的 run"""
-        base = client.app.state.base_dir
-        run = base / "runs" / "detect" / "reg_run"
-        (run / "weights").mkdir(parents=True)
-        (run / "weights" / "best.pt").write_bytes(b"fake-best")
-        (run / "weights" / "last.pt").write_bytes(b"fake-last")
-        (run / "results.csv").write_text(
-            "epoch,time,metrics/precision(B),metrics/recall(B),"
-            "metrics/mAP50(B),metrics/mAP50-95(B)\n"
-            "1,1.0,0.5,0.4,0.50,0.30\n"
-            "2,2.0,0.7,0.6,0.80,0.60\n",
-            encoding="utf-8",
-        )
-        return "reg_run"
+@pytest.fixture()
+def reg_run(client):
+    """造一个带 best.pt / last.pt / results.csv 的 run。
 
+    模块级（不是挂在某个测试类里）：注册表的两组用例都要用它 ——
+    ``TestRegistryEndpoints`` 的读写，以及 ``TestRegistryWeightsMissing``
+    的「权重被清理后」状态。
+    """
+    base = client.app.state.base_dir
+    run = base / "runs" / "detect" / "reg_run"
+    (run / "weights").mkdir(parents=True)
+    (run / "weights" / "best.pt").write_bytes(b"fake-best")
+    (run / "weights" / "last.pt").write_bytes(b"fake-last")
+    (run / "results.csv").write_text(
+        "epoch,time,metrics/precision(B),metrics/recall(B),"
+        "metrics/mAP50(B),metrics/mAP50-95(B)\n"
+        "1,1.0,0.5,0.4,0.50,0.30\n"
+        "2,2.0,0.7,0.6,0.80,0.60\n",
+        encoding="utf-8",
+    )
+    return "reg_run"
+
+
+class TestRegistryEndpoints:
     def _register(self, client, dataset="regds", run="reg_run", **kw):
         r = client.post(
             "/api/registry/register", json={"dataset_name": dataset, "run_name": run, **kw}
@@ -767,3 +773,64 @@ class TestWsAndStatic:
         else:
             assert r.status_code == 200
 
+
+# ----------------------------------------------------------------------
+# 权重被清理后的注册表状态（2026-09-17）
+# ----------------------------------------------------------------------
+class TestRegistryWeightsMissing:
+    """记录在、权重没了 —— 注册表必须显式说出来。
+
+    真实背景：仓库自己的 model_registry/versions.json 里就有 1/4 条记录指向已被
+    滚动清理的 run（copy_model=False 是默认注册方式，而 runs/ 只保留最近若干轮）。
+    这类死链接不会让任何测试变红，只能靠显式标注 + 拒绝晋升来暴露。
+    """
+
+    @pytest.fixture()
+    def stale_version(self, client, reg_run):
+        """注册一个版本，然后把该 run 删掉，模拟「训练产物被滚动清理」"""
+        import shutil
+
+        r = client.post(
+            "/api/registry/register", json={"dataset_name": "regds", "run_name": reg_run}
+        )
+        assert r.status_code == 200, r.text
+        version = r.json()["version"]
+        shutil.rmtree(client.app.state.base_dir / "runs" / "detect" / reg_run)
+        return version
+
+    def _register_live(self, client, reg_run):
+        r = client.post(
+            "/api/registry/register", json={"dataset_name": "regds", "run_name": reg_run}
+        )
+        assert r.status_code == 200, r.text
+        return r.json()["version"]
+
+    def test_healthy_version_is_not_flagged(self, client, reg_run):
+        self._register_live(client, reg_run)
+        versions = client.get("/api/registry/regds").json()["versions"]
+        assert versions[0]["weights_missing"] is False
+
+    def test_listing_flags_missing_weights(self, client, stale_version):
+        """列表与详情两个入口都要标出来（控制台两处都会渲染）"""
+        datasets = client.get("/api/registry").json()["datasets"]
+        assert datasets["regds"][0]["weights_missing"] is True
+
+        body = client.get("/api/registry/regds").json()
+        assert body["versions"][0]["weights_missing"] is True
+        assert body["production_model_available"] is False
+
+    def test_promote_refuses_when_weights_are_gone(self, client, stale_version):
+        """晋升必须被挡下：否则生产指针指向一个加载不了的路径，而且不会报错"""
+        r = client.post(f"/api/registry/regds/{stale_version['version_id']}/promote")
+        assert r.status_code == 409, r.text
+        assert "权重" in r.json()["detail"]
+        assert client.get("/api/registry/regds").json()["production_model"] is None
+
+    def test_promote_still_works_for_a_live_version(self, client, reg_run):
+        """守卫不能误伤：权重还在的版本照常晋升，且生产可用性为真"""
+        version = self._register_live(client, reg_run)
+        assert (
+            client.post(f"/api/registry/regds/{version['version_id']}/promote").status_code == 200
+        )
+        body = client.get("/api/registry/regds").json()
+        assert body["production_model_available"] is True

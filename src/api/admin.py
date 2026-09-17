@@ -66,6 +66,18 @@ AUTH_EXEMPT_PATHS = frozenset({
 })
 
 
+def weights_missing(model_path: str | None) -> bool:
+    """版本记录里的权重是否已不在磁盘上。
+
+    `copy_model=False`（默认）注册的版本只记路径，而 runs/ 下的训练产物会被滚动
+    保留清理 —— 记录在、文件没了。这是注册表的真实状态，界面必须显式说，不能
+    让调用方拿到一个加载不了的路径。
+    """
+    from src.model_registry import ModelRegistry
+
+    return not ModelRegistry.weights_available(model_path)
+
+
 def resolve_api_key(api_key: str | None = None) -> str:
     """解析管理面 API Key。
 
@@ -583,9 +595,16 @@ def create_admin_app(
             raise HTTPException(404, f"版本不存在: {dataset}/{version_id}")
         return version
 
+    def _annotate_weight_state(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """给每条版本记录补上 weights_missing（权重是否还在磁盘上）"""
+        return [{**item, "weights_missing": weights_missing(item.get("model_path"))} for item in items]
+
     @app.get("/api/registry")
     def registry_all():
-        return {"datasets": _registry().list_all()}
+        datasets = _registry().list_all()
+        return {
+            "datasets": {name: _annotate_weight_state(items) for name, items in datasets.items()}
+        }
 
     @app.get("/api/registry/{dataset}")
     def registry_versions(dataset: str):
@@ -593,10 +612,14 @@ def create_admin_app(
         versions = reg.get_versions(dataset)
         if not versions:
             raise HTTPException(404, f"数据集 {dataset} 没有注册版本")
+        production = reg.get_production_model(dataset)
         return {
             "dataset": dataset,
-            "versions": [v.to_dict() for v in versions],
-            "production_model": reg.get_production_model(dataset),
+            "versions": _annotate_weight_state([v.to_dict() for v in versions]),
+            "production_model": production,
+            # 生产版本是调用方真正要拿去加载的东西：指着已被清理的权重时，
+            # 返回路径等于返回一个 404，必须在这里就说清楚
+            "production_model_available": bool(production) and not weights_missing(production),
         }
 
     @app.post("/api/registry/register")
@@ -672,7 +695,13 @@ def create_admin_app(
     def registry_promote(dataset: str, version_id: str):
         """晋升为生产版本（该数据集原有的生产版本会自动转为 archived）"""
         reg = _registry()
-        _require_version(reg, dataset, version_id)
+        version = _require_version(reg, dataset, version_id)
+        if weights_missing(version.model_path):
+            # 生产指针必须能加载：把它指到一个已被清理的权重上，调用方只会拿到 404，
+            # 而且 `get_production_model()` 不会报错 —— 静默失效。
+            raise HTTPException(
+                409, "该版本的权重文件已不存在（训练产物被清理），不能设为生产版本"
+            )
         reg.promote_to_production(dataset, version_id)
         versions = reg.get_versions(dataset)
         return {

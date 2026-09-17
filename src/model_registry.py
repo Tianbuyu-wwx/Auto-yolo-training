@@ -260,6 +260,21 @@ class ModelRegistry:
             for dataset_name, versions in self._versions.items()
         }
 
+    @staticmethod
+    def weights_available(model_path: str | Path | None) -> bool:
+        """版本记录指向的权重文件是否仍在磁盘上。
+
+        ``copy_model=False``（默认）注册的版本只记路径，而 ``runs/`` 下的训练产物
+        会被滚动保留清理 —— 记录还在、权重没了。注册表自身无法察觉，测试也不会变红，
+        因此调用方（控制台、取用生产模型的服务）必须能问出这个事实。
+        """
+        if not model_path:
+            return False
+        try:
+            return Path(model_path).is_file()
+        except OSError:
+            return False
+
     def get_production_model(self, dataset_name: str) -> str | None:
         """获取生产环境模型路径"""
         versions = self._versions.get(dataset_name, [])

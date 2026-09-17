@@ -282,6 +282,10 @@ onMounted(async () => {
           <p class="hint" style="margin-top:8px">
             权重：<code>{{ modeOf(production.model_path) }}</code>
           </p>
+          <p v-if="production.weights_missing" class="hint danger" style="margin-top:6px">
+            该生产版本的权重文件已不在磁盘上（训练产物被滚动清理）——调用方拿到路径也加载不了。
+            请注册一个可用版本并重新「设为生产」。
+          </p>
         </template>
         <p v-else class="muted" style="font-size:12.5px">
           该数据集还没有生产版本 —— 在下方任选一个版本「设为生产」。
@@ -320,6 +324,15 @@ onMounted(async () => {
                   <td>
                     <div class="mono" :title="v.version_id">{{ shortId(v.version_id) }}</div>
                     <div class="hint truncate" :title="v.model_path">{{ modeOf(v.model_path) }}</div>
+                    <!-- 记录在、权重没了：训练产物被滚动清理后 copy_model=false 的版本
+                         就是这个状态，不标出来调用方会拿着死路径去加载 -->
+                    <div
+                      v-if="v.weights_missing"
+                      class="hint danger"
+                      title="训练产物被清理后注册记录仍保留，但权重文件已不在磁盘上"
+                    >
+                      权重已丢失
+                    </div>
                   </td>
                   <td class="mono">{{ fmt4(v.metrics?.mAP50) }}</td>
                   <td class="mono">{{ fmt4(v.metrics?.mAP50_95) }}</td>
@@ -333,7 +346,9 @@ onMounted(async () => {
                   <td class="mono">{{ fmtTime(v.created_at) }}</td>
                   <td>
                     <div style="display:flex;gap:6px;flex-wrap:wrap">
-                      <button class="btn sm" :disabled="busy === v.version_id || v.status === 'production'"
+                      <button class="btn sm"
+                              :disabled="busy === v.version_id || v.status === 'production' || v.weights_missing"
+                              :title="v.weights_missing ? '权重文件已丢失，设为生产只会得到一个加载不了的路径' : ''"
                               @click="act(v, 'promote', '设为生产')">设为生产</button>
                       <button class="btn sm" :disabled="busy === v.version_id || v.status === 'archived'"
                               @click="act(v, 'status', '归档', { status: 'archived' })">归档</button>
