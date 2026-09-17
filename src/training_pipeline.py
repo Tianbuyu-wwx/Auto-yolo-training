@@ -24,7 +24,6 @@ from src.hyperparameter_tuning import (
 )
 from src.model_exporter import ModelExporter
 from src.notifier import NotifierManager, create_notifier
-from src.utils import recycle_path
 
 # 配置日志
 logger = logging.getLogger("TrainingPipeline")
@@ -955,74 +954,19 @@ class TrainingPipeline:
             )
 
     def _cleanup_old_runs(self, dataset_name: str):
-        """回收旧的训练运行目录，仅保留最新的 max_backup_runs 轮。
+        """滚动保留：只留最新的 ``max_backup_runs`` 个 run（其余移入回收站）。
 
-        2026-09-17 起改为移入 ``runs/.recycle/`` 而不是 ``shutil.rmtree``：
-        训练产物一旦抹掉就不可恢复，而滚动保留是**每次训练都会跑**的常规动作，
-        代价放大的概率不低。保留数量语义不变（超过 max_backup_runs 的进回收站），
-        用户想彻底清空时自行删回收目录。
+        2026-09-17 起委托给 :class:`src.run_store.RunStore` —— 保留 / 回收 / 归档的
+        规则收敛到一处。旧实现有两套口径在这条链路上并存（这里精确正则保留 2 个、
+        ``TrainingService`` 那边子串匹配整批删除），正是它把别的数据集的 run 删了。
         """
-        import re
+        from src.run_store import RunStore
 
-        runs_dir = self.base_dir / "runs" / "detect"
-        if not runs_dir.exists():
-            return
-
-        recycle_root = self.base_dir / "runs" / ".recycle"
-
-        # 匹配当前数据集的训练目录: {dataset_name}_auto, {dataset_name}_auto-2, {dataset_name}_auto-3, ...
-        pattern = re.compile(rf"^{re.escape(dataset_name)}_auto(-\d+)?$")
-
-        run_dirs = []
-        for item in runs_dir.iterdir():
-            if item.is_dir() and pattern.match(item.name):
-                # 获取目录修改时间
-                try:
-                    mtime = item.stat().st_mtime
-                    run_dirs.append((item, mtime))
-                except OSError:
-                    continue
-
-        # 按修改时间排序（最新的在前）
-        run_dirs.sort(key=lambda x: x[1], reverse=True)
-
-        # 保留最新的 max_backup_runs 个，删除其余的
-        keep_count = self.max_backup_runs
-        total_runs = len(run_dirs)
-
-        if total_runs <= keep_count:
-            logger.info("[Cleanup] Found %d run(s), keeping all (max_backup=%d)", total_runs, keep_count)
-            return
-
-        logger.info("[Cleanup] Found %d run(s), keeping latest %d, removing %d old run(s)",
-                    total_runs, keep_count, total_runs - keep_count)
-
-        for run_dir, _ in run_dirs[keep_count:]:
-            dest = recycle_path(run_dir, recycle_root)
-            if dest is not None:
-                logger.info("[Cleanup] Recycled old run directory: %s → %s", run_dir.name, dest.name)
-            else:
-                logger.warning("[Cleanup] Failed to recycle %s", run_dir.name)
-
-        # 同时清理评估目录（保留最新的一个）
-        eval_pattern = re.compile(rf"^{re.escape(dataset_name)}_eval(-\d+)?$")
-        eval_dirs = []
-        for item in runs_dir.iterdir():
-            if item.is_dir() and eval_pattern.match(item.name):
-                try:
-                    mtime = item.stat().st_mtime
-                    eval_dirs.append((item, mtime))
-                except OSError:
-                    continue
-
-        eval_dirs.sort(key=lambda x: x[1], reverse=True)
-        if len(eval_dirs) > 1:
-            for eval_dir, _ in eval_dirs[1:]:
-                dest = recycle_path(eval_dir, recycle_root)
-                if dest is not None:
-                    logger.info("[Cleanup] Recycled old eval directory: %s → %s", eval_dir.name, dest.name)
-                else:
-                    logger.warning("[Cleanup] Failed to recycle eval %s", eval_dir.name)
+        store = RunStore(self.base_dir)
+        recycled = store.enforce_retention(dataset_name, keep_runs=self.max_backup_runs)
+        if recycled:
+            logger.info("[Cleanup] 已回收 %d 个旧目录（每个数据集保留最新 %d 个 run）→ %s",
+                        len(recycled), self.max_backup_runs, store.recycle_dir)
 
     def _finalize(self, success: bool):
         """完成流水线，生成最终报告"""

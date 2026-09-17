@@ -27,6 +27,9 @@ class TrainingState:
     error_message: str | None = None
     success: bool = False
     best_model_path: str | None = None
+    # 训练结束后的一句话产物去向（"best.pt → exports/x.pt；断点保留在 …"）。
+    # 结果页是查询入口，监控页需要的是"刚才这次训练的东西放哪了"。
+    artifact_note: str = ""
 
     # 训练曲线数据
     loss_history: list[dict[str, Any]] = field(default_factory=list)
@@ -65,6 +68,7 @@ class TrainingState:
                 "error_message": self.error_message,
                 "success": self.success,
                 "best_model_path": self.best_model_path,
+                "artifact_note": self.artifact_note,
                 "progress": self._calculate_progress(),
             }
 

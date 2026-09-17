@@ -10,7 +10,6 @@ import contextlib
 import json
 import logging
 import os
-import shutil
 import subprocess
 import sys
 import threading
@@ -30,7 +29,6 @@ from src.task_metrics import (
     primary_metric_labels,
     primary_metrics_from_row,
 )
-from src.utils import recycle_path
 
 logger = logging.getLogger(__name__)
 
@@ -632,85 +630,83 @@ class TrainingService:
         except Exception as e:
             logger.debug("[RESULTS] 回填最终指标失败: %s", e)
 
-    # 旧报告的归宿：runs/.recycle/_reports/（与 dataset/.recycle 同思路）
-    RECYCLE_DIR_NAME = ".recycle"
-
-    @property
-    def runs_recycle_dir(self) -> Path:
-        return self.paths.base_dir / "runs" / self.RECYCLE_DIR_NAME
-
-    def _recycle_stale_reports(self, dataset_name: str) -> list[Path]:
-        """把本数据集的旧报告移入回收站；最新一份留在原位。
-
-        报告名由 pipeline / evaluator 机械生成：``pipeline_<dataset>_<时间戳>.json``
-        与 ``<dataset>_best_eval_<时间戳>.json``。用**前缀精确匹配**，而不是
-        ``dataset_name in 文件名`` —— 后者会把名字里含同一子串的别的数据集的报告
-        一起删掉（``data``、``_smoke_test`` 这类短名字尤其容易撞）。
-        """
-        if not self.reports_dir.exists():
-            return []
-        prefixes = (f"pipeline_{dataset_name}_", f"{dataset_name}_best_eval_")
-        matches = [
-            p for p in self.reports_dir.iterdir()
-            if p.is_file() and p.name.startswith(prefixes)
-        ]
-        if len(matches) < 2:
-            return []
-        matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-        recycle_root = self.runs_recycle_dir / "_reports"
-        recycled: list[Path] = []
-        for path in matches[1:]:
-            dest = recycle_path(path, recycle_root)
-            if dest is not None:
-                recycled.append(dest)
-        return recycled
+    def _artifact_note(self, run_dir: Path, exported: Path | None) -> str:
+        """给界面的一句话产物去向（监控页训练结束后显示）"""
+        parts: list[str] = []
+        if exported is not None:
+            parts.append(f"best.pt → {exported}（run 内原件保留）")
+        if (run_dir / "weights" / "last.pt").is_file():
+            parts.append(f"断点 last.pt 在 {run_dir}/weights/")
+        return "；".join(parts) + "。" if parts else ""
 
     def _export_best_model_and_cleanup(self, dataset_name: str):
         """导出最佳模型到 exports/，并把本数据集的旧报告移入回收站。
 
-        2026-09-17 修复三处不可恢复的数据丢失（旧实现）：
+        2026-09-17 起这里只做两件事，且都委托给 :class:`src.run_store.RunStore`：
 
-        1. 删除判据是子串匹配（``dataset_name in item.name``）—— 实测
-           ``dataset="mine"`` 会连带删掉 ``my-mine-other_auto``（另一个数据集的
-           全部训练产物：权重、results.csv、全部曲线图）；
-        2. ``shutil.move(best.pt → exports/)`` 把权重从 run 里搬走，同时
-           ``rmtree`` 掉整个 run 目录 —— ``last.pt`` 随之消失，该 run 不再可续训，
-           结果页 / 下载 / 按 run 注册随之全部失效；
-        3. 同一次调用还会删掉本次训练刚写出的 pipeline 报告。
+        1. ``copy2`` 归档 best.pt → ``exports/<dataset>.pt``（run 原位保留 —— 结果页
+           下载、按 run 注册、导出接口与断点续训都指着 run 里的文件）；
+        2. 旧报告移入 ``runs/.recycle/_reports/``（前缀精确匹配，最新一份留在原位）。
 
-        现在的语义：**只导出、只回收报告，不碰 run 目录**。
-        - ``copy2`` 导出到 ``exports/<dataset>.pt``，run 原位保留（仍是活的 run）；
-        - 旧报告移入 ``runs/.recycle/_reports/``，最新一份留在原位；
-        - run 的滚动保留统一由 ``TrainingPipeline._cleanup_old_runs`` 负责
-          （精确正则 + 只留 max_backup_runs 个，同样是回收而非抹掉）。本方法
-          不再自带一套保留策略 —— 两套口径互相打架正是这次事故的成因。
+        run 目录的滚动保留不在这里做（历史上这里的"导出后整批 rmtree"正是跨数据集
+        误删的成因），统一由 ``TrainingPipeline`` 调用 ``RunStore.enforce_retention``。
         """
-        self.exports_dir.mkdir(parents=True, exist_ok=True)
-
         best_model_path = Path(self.state.best_model_path)
         if not best_model_path.exists():
             logger.warning("[EXPORT] 最佳模型不存在: %s", best_model_path)
             return
 
-        target_name = f"{dataset_name}.pt"
-        target_path = self.exports_dir / target_name
-
         try:
-            if target_path.exists():
-                logger.info("[EXPORT] 已覆盖已有模型: %s", target_name)
-            # copy2 而不是 move：run 目录保持完整，断点续训与结果页都还指着它
-            shutil.copy2(best_model_path, target_path)
-            logger.info("[EXPORT] 最佳模型已导出: %s（run 原位保留: %s）",
-                        target_path, best_model_path)
-            self.state.update(best_model_path=str(target_path))
+            from src.run_store import RunStore
 
-            recycled_reports = self._recycle_stale_reports(dataset_name)
-            if recycled_reports:
+            store = RunStore(self.base_dir)
+            run_dir = best_model_path.parent.parent
+            exported = store.archive_best(run_dir, dataset_name)
+            if exported is not None:
+                self.state.update(best_model_path=str(exported))
+
+            recycled = store.recycle_reports(dataset_name)
+            if recycled:
                 logger.info("[CLEANUP] %d 份旧报告已移入回收站: %s",
-                            len(recycled_reports), self.runs_recycle_dir / "_reports")
+                            len(recycled), store.recycle_dir / "_reports")
 
+            self.state.update(artifact_note=self._artifact_note(run_dir, exported))
         except Exception as e:
             logger.error("[EXPORT] 模型导出与回收失败: %s", e)
+
+    def list_run_details(self) -> dict[str, Any]:
+        """runs/ 下每个 run 的产物快照 + 数据集级导出件（结果页的「产物去向」）。
+
+        与 :meth:`list_checkpoint_details` 的分工：那个服务断点续训（只列含 last.pt
+        的 run，附带由 args.yaml 反推的数据集与轮数）；这个面向「我的产物去哪了」——
+        所有 run 都列，并说清 ``best.pt`` / ``last.pt`` / ``results.csv`` 是否还在、
+        有没有兜底副本、回收站里有多少东西可以恢复。
+        """
+        from src.run_store import RunStore
+
+        store = RunStore(self.base_dir)
+        exports: dict[str, Any] = {}
+        runs: list[dict[str, Any]] = []
+        for artifact in store.list_artifacts():
+            run_dir = Path(artifact.path)
+            dataset = _dataset_from_args(_read_flat_yaml(run_dir / "args.yaml"))
+            if dataset and dataset not in exports:
+                exports[dataset] = store.describe_export(dataset)
+            info = artifact.to_dict()
+            info["dataset"] = dataset
+            info["exported_copy"] = bool(dataset and exports.get(dataset))
+            runs.append(info)
+
+        recycled_names: list[str] = []
+        if store.recycle_dir.exists():
+            recycled_names = sorted(p.name for p in store.recycle_dir.iterdir() if p.is_dir())
+        return {
+            "runs": runs,
+            "exports": exports,
+            "recycle_dir": str(store.recycle_dir),
+            "recycled_count": len(recycled_names),
+            "recycled_sample": recycled_names[:10],
+        }
 
     def _update_from_results(self):
         """从results.csv增量读取最新进度"""
