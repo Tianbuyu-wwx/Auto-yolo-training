@@ -63,6 +63,11 @@ class TestDeviceDefault:
         result = subprocess.run(
             [sys.executable, str(root / "train.py"), "--help"],
             capture_output=True, text=True, timeout=60,
+            # 显式钉住编码：子进程的 stdout 编码取决于环境（PYTHONUTF8 /
+            # PYTHONIOENCODING），而父进程 text=True 默认按 locale 解码。两者
+            # 不一致时读线程抛 UnicodeDecodeError，stdout 变成 None，断言报的却是
+            # TypeError —— 与「CLI 不支持 --device」完全是两回事。
+            encoding="utf-8", errors="replace",
         )
         assert result.returncode == 0
         assert "--device" in result.stdout
