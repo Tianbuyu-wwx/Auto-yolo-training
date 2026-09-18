@@ -146,7 +146,9 @@ function groupDigest(g) {
 function focusFirstError() {
   const key = Object.keys(fieldErrors.value)[0]
   const el = document.querySelector(`[data-field="${key}"]`)
-  if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus({ preventScroll: true }) }
+  if (!el) return
+  if (typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  el.focus({ preventScroll: true })
 }
 function fmtNum(v) {
   if (typeof v !== 'number') return v

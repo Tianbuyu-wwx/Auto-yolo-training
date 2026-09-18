@@ -87,7 +87,8 @@ watch(() => props.highlightEpoch, async (v) => {
   stick = false
   await nextTick()
   const hit = el.value.querySelector('.log-line.in-epoch')
-  if (hit) hit.scrollIntoView({ block: 'center' })
+  // 特性检测：宿主环境（jsdom / 老浏览器）可能没有 scrollIntoView
+  if (hit && typeof hit.scrollIntoView === 'function') hit.scrollIntoView({ block: 'center' })
 })
 
 // 新日志到达时自动滚到底部（用户手动上滚时暂停跟随）

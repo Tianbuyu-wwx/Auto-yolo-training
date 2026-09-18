@@ -24,3 +24,13 @@ vi.mock('echarts/core', () => ({
 vi.mock('echarts/charts', () => ({ LineChart: {}, BarChart: {} }))
 vi.mock('echarts/components', () => ({ GridComponent: {}, TooltipComponent: {} }))
 vi.mock('echarts/renderers', () => ({ CanvasRenderer: {} }))
+
+/**
+ * jsdom 没有实现 scrollIntoView（Element.prototype 上不存在）。
+ * 日志联动"滚到该轮第一行"、配置页"定位到出错字段"都会调它 —— 缺这个桩，
+ * 用例不会失败在断言上，而是以 **Unhandled Error** 的形式让 vitest 以非零码
+ * 退出（本地用 grep 看摘要时极易漏掉，CI 上直接打红）。
+ */
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {}
+}
