@@ -63,8 +63,12 @@ export function makeApiModule() {
   // WebSocket 也做成可控的：页面注册进来，测试手动喂帧
   const sockets = []
 
+  // 取**最长**匹配前缀：否则 /api/datasets/<name> 会被 /api/datasets 抢先命中，
+  // 详情类端点永远拿到列表载荷（新增子端点时特别容易踩）
   const pick = (path) => {
-    const key = Object.keys(handlers).find((k) => path.startsWith(k))
+    const key = Object.keys(handlers)
+      .filter((k) => path.startsWith(k))
+      .sort((a, b) => b.length - a.length)[0]
     return key ? handlers[key] : {}
   }
   const record = (method) => vi.fn(async (path, body) => {
