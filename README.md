@@ -88,8 +88,10 @@ docker run --gpus all -it --rm -p 8080:8080 -p 8000:8000 \
 > 构建时若下载 PyPI 超时（国内直连常见），pip 会把它报成
 > `Cannot install X because these package versions have conflicting dependencies` ——
 > 那是**读取超时**被误报成依赖冲突，不是真的冲突。先换源再排查：
-> `make docker-build PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`
-> （Dockerfile 已默认 `PIP_TIMEOUT=60 / PIP_RETRIES=5`。）
+> `make docker-build PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \`
+> `                  TORCH_INDEX_URL=https://mirror.sjtu.edu.cn/pytorch-wheels/cpu`
+> （Dockerfile 已默认 `PIP_TIMEOUT=60 / PIP_RETRIES=5`；两个源都能单独换，
+> torch 的 190MB 轮子在直连不畅时同样会超时。）
 
 ### 方式 C：docker-compose profile 启动
 

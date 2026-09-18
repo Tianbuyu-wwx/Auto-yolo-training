@@ -189,12 +189,17 @@ docker-check:  ## 预检 Dockerfile 要的路径有没有被 .dockerignore 排�
 	$(PYTHON) scripts/check_dockerfile_context.py
 
 .PHONY: docker-build
-docker-build: docker-check  ## 构建 CPU Docker 镜像（先用预检上下文；可 PIP_INDEX_URL=... 换源）
-	docker build $(if $(PIP_INDEX_URL),--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL),) -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+docker-build: docker-check  ## 构建 CPU Docker 镜像（可 PIP_INDEX_URL=... TORCH_INDEX_URL=... 换源）
+	docker build $(if $(PIP_INDEX_URL),--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL),) \
+	             $(if $(TORCH_INDEX_URL),--build-arg TORCH_INDEX_URL=$(TORCH_INDEX_URL),) \
+	             -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
 
 .PHONY: docker-build-gpu
-docker-build-gpu: docker-check  ## 构建 GPU (cu128) Docker 镜像（先预检上下文；可 PIP_INDEX_URL=... 换源）
-	docker build --build-arg TORCH_VARIANT=cu128 $(if $(PIP_INDEX_URL),--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL),) -t $(DOCKER_IMAGE):cu128 .
+docker-build-gpu: docker-check  ## 构建 GPU (cu128) Docker 镜像（可 PIP_INDEX_URL=... TORCH_INDEX_URL=... 换源）
+	docker build --build-arg TORCH_VARIANT=cu128 \
+	             $(if $(PIP_INDEX_URL),--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL),) \
+	             $(if $(TORCH_INDEX_URL),--build-arg TORCH_INDEX_URL=$(TORCH_INDEX_URL),) \
+	             -t $(DOCKER_IMAGE):cu128 .
 
 .PHONY: docker-run
 docker-run:  ## 启动容器并进 bash
