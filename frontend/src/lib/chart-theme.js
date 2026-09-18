@@ -31,3 +31,25 @@ export function axisPair({ yMax } = {}) {
     yAxis: yMax === undefined ? { ...base } : { ...base, max: yMax },
   }
 }
+
+/**
+ * 「当前查看第 N 轮」的标记线。两张图共用一份：先前两处各写一遍样式，
+ * 改颜色时必然漏一处（与配色同源问题的老毛病）。
+ * silent + 不参与命中测试：它只是游标，不该抢数据点的点击。
+ */
+export function epochMarkLine(epoch) {
+  if (epoch == null) return {}
+  return {
+    markLine: {
+      silent: true,
+      symbol: 'none',
+      animation: false,
+      label: {
+        show: true, position: 'insideEndTop', formatter: `第 ${epoch} 轮`,
+        color: CHART.label, fontSize: 10,
+      },
+      lineStyle: { color: 'rgba(255,255,255,.38)', type: 'dashed', width: 1 },
+      data: [{ xAxis: epoch }],
+    },
+  }
+}

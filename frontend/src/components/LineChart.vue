@@ -17,6 +17,8 @@ const props = defineProps({
   /** 无数据点时的占位文案。父组件可换成更有行动指向的说法 */
   emptyText: { type: String, default: '暂无数据' },
 })
+/** 点数据点 → 回传该点的 x（epoch）。由父组件决定要不要用它定位日志。 */
+const emit = defineEmits(['pick-epoch'])
 
 /**
  * 是否没有任何数据点。没有它的时候，未开训的监控页会渲染出一副画好坐标系
@@ -49,7 +51,9 @@ function fingerprint(o) {
   if (!o) return ''
   const series = (o.series || []).map((s) => {
     const d = s.data || []
-    return `${d.length}@${d.length ? JSON.stringify(d[d.length - 1]) : ''}`
+    // 标记线（"当前查看第 N 轮"）也要进指纹，否则点了日志那侧曲线不动
+    const mark = s.markLine?.data?.[0]?.xAxis ?? ''
+    return `${d.length}@${d.length ? JSON.stringify(d[d.length - 1]) : ''}@${mark}`
   }).join('|')
   return `${o.title?.text ?? ''}::${series}`
 }
@@ -64,6 +68,13 @@ onMounted(() => {
     ...props.option,
   })
   lastKey = fingerprint(props.option)
+  // 点数据点取该点的 epoch（x 值）。params.value 可能是 [x, y] 或 { value: [x,y] }，
+  // 两种都兜住 —— 不同系列/不同 echarts 版本给的不一样。
+  chart.on('click', (params) => {
+    const v = Array.isArray(params?.value) ? params.value[0] : params?.value?.value?.[0]
+    const x = Number(v)
+    if (Number.isFinite(x)) emit('pick-epoch', Math.round(x))
+  })
   // window.resize 感知不到容器自身尺寸变化（侧栏折叠、卡片换列、分栏变宽）
   if (typeof ResizeObserver !== 'undefined') {
     ro = new ResizeObserver(resize)
@@ -92,7 +103,7 @@ onBeforeUnmount(() => {
 <template>
   <!-- 占位层盖在画布之上而不是替换画布：echarts 实例一旦被 display:none
        会在恢复时量到 0 尺寸而需要重排，用不透明覆盖层则完全不动尺寸。 -->
-  <div class="chart-box" :style="{ height: height + 'px' }">
+  <div class="chart-box" :class="{ 'is-clickable': !isEmpty }" :style="{ height: height + 'px' }">
     <div ref="el" class="chart-canvas"></div>
     <p v-if="isEmpty" class="chart-empty">{{ emptyText }}</p>
   </div>

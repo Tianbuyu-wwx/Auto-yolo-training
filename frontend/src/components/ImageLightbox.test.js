@@ -9,18 +9,25 @@ import ImageLightbox from './ImageLightbox.vue'
 const IMGS = ['/runs/a/plot1.png', '/runs/a/plot2.png', '/runs/a/plot3.png']
 
 /** Teleport 的内容会真实挂到 document.body，wrapper.find 看不到 —— 用 DOM 查询 */
+const mounted = []
 function render(props = {}) {
-  return mount(ImageLightbox, {
+  const w = mount(ImageLightbox, {
     props: { images: IMGS, index: 0, ...props },
     global: { stubs: { teleport: true } },
   })
+  mounted.push(w)
+  return w
 }
 
 function key(k) {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: k }))
 }
 
-afterEach(() => { document.body.classList.remove('no-scroll') })
+// 滚动锁是引用计数的模块级状态：用例不卸载就会一直持锁，后面的用例
+// 就会看到"锁还在"（这正是计数锁该有的行为，测试这边要负责收尾）
+afterEach(() => {
+  mounted.splice(0).forEach((w) => w.unmount())
+})
 
 describe('ImageLightbox', () => {
   it('显示当前图与位置（文件名 + 第几张 / 共几张）', () => {

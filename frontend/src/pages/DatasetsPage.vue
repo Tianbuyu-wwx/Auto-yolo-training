@@ -2,7 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
 import { useSort } from '../lib/table.js'
+import Drawer from '../components/Drawer.vue'
 import EmptyState from '../components/EmptyState.vue'
+import ImageLightbox from '../components/ImageLightbox.vue'
 import Skeleton from '../components/Skeleton.vue'
 import { toastErr, toastOk } from '../lib/toast.js'
 
@@ -63,6 +65,10 @@ const issueCount = computed(() => statuses.value.filter(s => s.issues?.length).l
  * is_trainable 却是 true —— 旧逻辑照样给出绿色「可训练」，与同行的黄色告警
  * 直接矛盾（用户会以为那只是提示，实际上训练会带着无标注的验证集跑）。
  */
+/** 抽屉里要按名字查告警（表格里是整行传进来，抽屉只有名字） */
+const issuesFor = (name) => statuses.value.find((x) => x.name === name)?.issues || []
+const issueCountFor = (name) => issuesFor(name).length
+
 function badge(s) {
   const issues = s.issues?.length || 0
   if (s.is_trainable) {
@@ -96,6 +102,10 @@ async function refresh(selectAfter) {
   }
 }
 
+/** 详情抽屉：点行打开；关闭后保留选中（转换/删除仍作用于它） */
+const drawerOpen = ref(false)
+const lightbox = ref(-1)
+
 async function selectDataset(name) {
   selected.value = name
   info.value = null; previews.value = []
@@ -107,6 +117,7 @@ async function loadInfo() {
   try {
     info.value = await api.get(`/api/datasets/${encodeURIComponent(selected.value)}`)
     await loadPreviews()
+    drawerOpen.value = true
   } catch (e) { validateMsg.value = errMsg(e); validateOk.value = false }
 }
 
@@ -212,7 +223,7 @@ onMounted(() => { refresh(); loadRecycle() })
             <label class="field">数据集名称（留空使用文件名）
               <input v-model="uploadName" placeholder="my-dataset" />
             </label>
-            <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--text-muted)">
+            <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-muted)">
               <input type="checkbox" v-model="overwrite" style="width:auto" />
               覆盖同名数据集（不勾选时同名将拒绝上传）
             </label>
@@ -228,7 +239,7 @@ onMounted(() => { refresh(); loadRecycle() })
             待转换：{{ pendingList.join('、') }}
           </p>
           <p v-else class="hint" style="margin-bottom:10px">所有数据集均已具备 YOLO 结构</p>
-          <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--text-muted);margin-bottom:10px">
+          <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-muted);margin-bottom:10px">
             <input type="checkbox" v-model="deleteOriginal" style="width:auto" />
             转换后删除原始数据集（默认保留）
           </label>
@@ -276,6 +287,7 @@ onMounted(() => { refresh(); loadRecycle() })
                十来个数据集时只能靠肉眼扫「问题」列。 -->
           <div class="toolbar">
             <input v-model="query" type="search" placeholder="按名称筛选…" />
+            <span class="hint" style="margin:0">点任意一行查看详情与样本</span>
             <div class="spacer"></div>
             <span class="count">{{ visibleStatuses.length }} / {{ statuses.length }} 个目录</span>
           </div>
@@ -314,7 +326,7 @@ onMounted(() => { refresh(); loadRecycle() })
               </thead>
               <tbody>
                 <tr v-for="s in sortedStatuses" :key="s.name" style="cursor:pointer" @click="selectDataset(s.name)">
-                  <td :title="s.name"><code :style="s.name === selected ? 'color:var(--blue)' : ''">{{ s.name }}</code></td>
+                  <td :title="s.name"><code class="row-link" :style="s.name === selected ? 'color:var(--blue)' : ''">{{ s.name }}</code></td>
                   <td>{{ s.format }}</td>
                   <td class="mono">{{ s.image_count }}</td>
                   <td class="mono">{{ s.label_count }}</td>
@@ -338,37 +350,71 @@ onMounted(() => { refresh(); loadRecycle() })
           </p>
         </div>
 
-        <div class="card" v-if="info">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <h3 style="margin:0">{{ info.name }}</h3>
-            <label style="display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--text-muted)">
-              <input type="checkbox" v-model="showBoxes" style="width:auto" @change="loadPreviews" />
-              预览显示标注框
-            </label>
+        <!-- 详情抽屉：把"当前选中"从页面流里提出来（原先挂在列表下方，会推走回收站） -->
+        <Drawer v-if="drawerOpen && selected" :title="selected"
+                :subtitle="info ? `${info.format || ''} · ${info.splits ? Object.keys(info.splits).length : 0} 个划分` : '读取详情中…'"
+                @close="drawerOpen = false">
+          <div v-if="!info" style="display:flex;flex-direction:column;gap:10px">
+            <Skeleton variant="row" :count="4" />
           </div>
-          <table class="tbl" style="max-width:420px;margin-bottom:16px">
-            <thead><tr><th>划分</th><th>图像</th><th>标注</th></tr></thead>
-            <tbody>
-              <tr v-for="(s, split) in info.splits" :key="split">
-                <td>{{ split }}</td><td class="mono">{{ s.images }}</td><td class="mono">{{ s.labels }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <template v-else>
+            <!-- 事实条：先给结论，再给明细 -->
+            <div class="exec-summary" style="margin-bottom:14px">
+              <span class="mono">{{ info.image_count ?? '—' }} 图</span>
+              <span class="sep">·</span><span class="mono">{{ info.label_count ?? '—' }} 标注</span>
+              <span class="sep">·</span><span class="mono">{{ info.format || '未知格式' }}</span>
+              <span class="sep">·</span>
+              <span v-if="issueCountFor(selected)" class="badge warn">{{ issueCountFor(selected) }} 项告警</span>
+              <span v-else class="badge ok">无告警</span>
+            </div>
 
-          <h3>样本预览</h3>
-          <div class="gallery" v-if="previews.length">
-            <img v-for="p in previews" :key="p" :src="p" alt="样本" loading="lazy" />
-          </div>
-          <p v-else class="muted" style="font-size:12.5px">无预览图像</p>
+            <p v-if="issuesFor(selected).length" class="hint" style="color:var(--amber);margin:0 0 14px">
+              {{ issuesFor(selected).join('；') }}
+            </p>
 
-          <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
-            <button class="btn primary" :disabled="validating || !selected" @click="onValidate">
-              {{ validating ? '校验中…' : '校验数据集' }}
-            </button>
-          </div>
-          <pre v-if="validateMsg" class="data-block"
-               :style="{ marginTop: '10px', color: validateOk ? 'var(--text)' : 'var(--red)' }">{{ validateMsg }}</pre>
-        </div>
+            <h4 class="drawer-h">划分明细</h4>
+            <table class="tbl" style="margin-bottom:16px">
+              <thead><tr><th>划分</th><th>图像</th><th>标注</th><th>缺失</th></tr></thead>
+              <tbody>
+                <tr v-for="(sp, split) in info.splits" :key="split">
+                  <td>{{ split }}</td>
+                  <td class="mono">{{ sp.images }}</td>
+                  <td class="mono">{{ sp.labels }}</td>
+                  <td class="mono" :style="sp.labels < sp.images ? 'color:var(--amber)' : ''">
+                    {{ sp.labels < sp.images ? sp.images - sp.labels : '—' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <h4 class="drawer-h" style="margin:0">样本预览</h4>
+              <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-muted)">
+                <input type="checkbox" v-model="showBoxes" style="width:auto" @change="loadPreviews" />
+                显示标注框
+              </label>
+            </div>
+            <div class="gallery" v-if="previews.length">
+              <button v-for="(p, i) in previews" :key="p" class="thumb" type="button"
+                      :aria-label="`放大查看样本 ${i + 1}`" @click="lightbox = i">
+                <img :src="p" alt="样本" loading="lazy" />
+              </button>
+            </div>
+            <p v-else class="muted" style="font-size:12px">无预览图像（该数据集没有可读的图片或尚未转换）</p>
+
+            <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+              <button class="btn primary" :disabled="validating || !selected" @click="onValidate">
+                {{ validating ? '校验中…' : '校验数据集' }}
+              </button>
+              <span class="hint" style="margin:0">校验会逐张检查图片与标注配对</span>
+            </div>
+            <pre v-if="validateMsg" class="data-block"
+                 :style="{ marginTop: '10px', color: validateOk ? 'var(--text)' : 'var(--red)' }">{{ validateMsg }}</pre>
+          </template>
+        </Drawer>
+
+        <ImageLightbox v-if="lightbox >= 0 && previews.length"
+                       :images="previews" :index="lightbox" @close="lightbox = -1" />
 
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -392,7 +438,7 @@ onMounted(() => { refresh(); loadRecycle() })
               </tbody>
             </table>
           </div>
-          <p v-else class="muted" style="font-size:12.5px">
+          <p v-else class="muted" style="font-size:12px">
             回收站是空的。删除的数据集会出现在这里，可随时恢复。
           </p>
         </div>

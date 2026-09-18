@@ -4,7 +4,28 @@ import { computed, nextTick, ref, watch } from 'vue'
 const props = defineProps({
   text: { type: String, default: '' },
   lines: { type: Number, default: 20 },
+  /** 需要高亮的 epoch（与曲线联动）：该轮的所有日志行会被标出来 */
+  highlightEpoch: { type: Number, default: null },
 })
+const emit = defineEmits(['pick-epoch'])
+
+/**
+ * Ultralytics 的每轮头行长这样：
+ *   `      1/150      1.23G      0.912      2.34      ...`
+ * 只认「行首（可带 Epoch 前缀）就是 N/M」的行：进度条里也有大量 `3/3 [00:01<…]`
+ * 这类相对计数，宽松匹配会把它们全当成轮次，联动就废了。
+ */
+const EPOCH_HEAD = /^\s*(?:Epoch\s+)?(\d{1,4})\s*\/\s*(\d{1,4})(?:\s|$)/
+
+/** 给每行标注它属于哪一轮（头行之后的行沿用上一轮，直到下一个头行） */
+function withEpoch(lines) {
+  let cur = null
+  return lines.map((text) => {
+    const m = EPOCH_HEAD.exec(text)
+    if (m) cur = Number(m[1])
+    return { text, epoch: cur }
+  })
+}
 
 const el = ref(null)
 
@@ -45,14 +66,28 @@ const rendered = computed(() => {
   const tail = lines.length > MAX_RENDERED ? lines.slice(-MAX_RENDERED) : lines
   return {
     omitted: lines.length - tail.length,
-    lines: tail.map((text) => ({
+    lines: withEpoch(tail).map(({ text, epoch }) => ({
       text,
+      epoch,
       // 级别只用于上色，不改内容。用整行正则而不是拆分 token：日志里的
       // 时间戳/级别/消息可能来自任意库，拆 token 会把未知格式的内容吃掉。
       level: LEVEL_PATTERNS.error.test(text) ? 'error'
         : LEVEL_PATTERNS.warn.test(text) ? 'warn' : '',
     })),
   }
+})
+
+/**
+ * 从曲线那边点了一轮之后，滚到这一轮的第一行。
+ * 同时把"跟随底部"关掉 —— 否则下一帧 WS 推送会把视图重新拽回底部，
+ * 用户刚定位到的那一行瞬间就没了（这是自动跟随与手动定位的冲突，不是二选一）。
+ */
+watch(() => props.highlightEpoch, async (v) => {
+  if (v == null || !el.value) return
+  stick = false
+  await nextTick()
+  const hit = el.value.querySelector('.log-line.in-epoch')
+  if (hit) hit.scrollIntoView({ block: 'center' })
 })
 
 // 新日志到达时自动滚到底部（用户手动上滚时暂停跟随）
@@ -90,7 +125,10 @@ watch(() => [props.text, filter.value], async () => {
        @scroll="onScroll">
     <div v-if="rendered.omitted" class="log-omitted">… 更早的 {{ rendered.omitted }} 行未渲染（完整日志见 logs/）</div>
     <template v-if="kept.length">
-      <div v-for="(l, i) in rendered.lines" :key="i" :class="['log-line', l.level]">{{ l.text }}</div>
+      <!-- 有 epoch 的行可点：点了让曲线定位到那一轮（与图表点击同一条状态） -->
+      <div v-for="(l, i) in rendered.lines" :key="i"
+           :class="['log-line', l.level, { 'in-epoch': l.epoch != null && l.epoch === highlightEpoch, clickable: l.epoch != null }]"
+           @click="l.epoch != null && emit('pick-epoch', l.epoch)">{{ l.text }}</div>
     </template>
     <div v-else class="log-line muted">（没有匹配的日志行）</div>
   </div>

@@ -14,6 +14,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
 import EmptyState from '../components/EmptyState.vue'
+import { compareMetric, fmtDiff } from '../lib/metrics.js'
 import { useSort } from '../lib/table.js'
 import { toastErr, toastOk } from '../lib/toast.js'
 
@@ -44,6 +45,31 @@ const versions = computed(() => registry.value[selectedDs.value] || [])
  */
 const { sorted: sortedVersions, sortKey, toggle: toggleSort, indicator: sortInd, ariaSort } =
   useSort(versions, { initial: 'created_at', dir: 'desc' })
+
+/** 对比结果按"影响大小"排序：读者最关心差得最多的项，而不是表格顺序 */
+const showSame = ref(false)
+const metricRows = computed(() => {
+  const diff = cmp.value?.metrics_diff || {}
+  return Object.entries(diff)
+    .map(([name, d]) => ({ name, ...compareMetric(name, d.v1, d.v2), v1: d.v1, v2: d.v2 }))
+    .sort((a, b) => Math.abs(b.diff ?? 0) - Math.abs(a.diff ?? 0))
+})
+
+/** 结论行：赢在几项、最大的一项变化是什么 —— 表格给数据，这里给判断 */
+const verdict = computed(() => {
+  const rows = metricRows.value.filter((r) => r.winner && r.winner !== 'same')
+  if (!rows.length) return null
+  const v1Wins = rows.filter((r) => r.winner === 'v1').length
+  const v2Wins = rows.length - v1Wins
+  const top = rows[0]
+  return {
+    v1Wins, v2Wins,
+    better: v2Wins === v1Wins ? null : (v2Wins > v1Wins ? '后者' : '前者'),
+    top: `${top.name} ${fmtDiff(top.diff)}（${top.higherIsBetter ? '越高越好' : '越低越好'}）`,
+  }
+})
+
+const metaOf = (id) => versions.value.find((v) => v.version_id === id) || {}
 const production = computed(() => versions.value.find(v => v.status === 'production') || null)
 const pickedCount = computed(() => picked.value.filter(id => versions.value.some(v => v.version_id === id)).length)
 const cmpA = computed(() => picked.value[0] || '')
@@ -296,7 +322,7 @@ onMounted(async () => {
             请注册一个可用版本并重新「设为生产」。
           </p>
         </template>
-        <p v-else class="muted" style="font-size:12.5px">
+        <p v-else class="muted" style="font-size:12px">
           该数据集还没有生产版本 —— 在下方任选一个版本「设为生产」。
         </p>
       </div>
@@ -402,35 +428,79 @@ onMounted(async () => {
           <h3 style="margin:0">版本对比</h3>
           <button class="btn sm" @click="cmp = null">收起</button>
         </div>
-        <p class="hint" style="margin-bottom:10px">
-          差值 = 后者 − 前者。mAP 越高越好，因此正数是变好。
+
+        <!-- 两侧版本的身份：只给短 id 的话，读者分不清哪边是自己刚训的 -->
+        <div class="cmp-heads">
+          <div class="cmp-side">
+            <span class="mono">{{ shortId(cmp.version1) }}</span>
+            <span class="badge" :class="toneOf(metaOf(cmp.version1).status)">
+              {{ metaOf(cmp.version1).status || '未知' }}
+            </span>
+            <span class="muted">{{ fmtTime(metaOf(cmp.version1).created_at) }}</span>
+            <span v-for="t in metaOf(cmp.version1).tags || []" :key="t" class="badge idle">{{ t }}</span>
+          </div>
+          <div class="cmp-vs">对比</div>
+          <div class="cmp-side">
+            <span class="mono">{{ shortId(cmp.version2) }}</span>
+            <span class="badge" :class="toneOf(metaOf(cmp.version2).status)">
+              {{ metaOf(cmp.version2).status || '未知' }}
+            </span>
+            <span class="muted">{{ fmtTime(metaOf(cmp.version2).created_at) }}</span>
+            <span v-for="t in metaOf(cmp.version2).tags || []" :key="t" class="badge idle">{{ t }}</span>
+          </div>
+        </div>
+
+        <!-- 结论先行：颜色只标"谁更好"，不代替读者做判断 -->
+        <p v-if="verdict" class="cmp-verdict">
+          <template v-if="verdict.better">
+            整体<strong>{{ verdict.better }}</strong>更好：前者赢 {{ verdict.v1Wins }} 项 / 后者赢 {{ verdict.v2Wins }} 项；
+            变化最大的是 {{ verdict.top }}。
+          </template>
+          <template v-else>
+            两边各有 {{ verdict.v1Wins }} 项占优；变化最大的是 {{ verdict.top }}。
+          </template>
         </p>
-        <table class="tbl">
+
+        <table class="tbl fixed">
+          <colgroup>
+            <col style="width:34%" /><col style="width:20%" /><col style="width:20%" /><col style="width:26%" />
+          </colgroup>
           <thead>
             <tr>
               <th>指标</th>
-              <th>{{ shortId(cmp.version1) }}</th>
-              <th>{{ shortId(cmp.version2) }}</th>
-              <th>差值</th>
+              <th class="num">{{ shortId(cmp.version1) }}</th>
+              <th class="num">{{ shortId(cmp.version2) }}</th>
+              <th>变化</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(d, k) in cmp.metrics_diff" :key="k">
-              <td>{{ k }}</td>
-              <td class="mono">{{ fmt4(d.v1) }}</td>
-              <td class="mono">{{ fmt4(d.v2) }}</td>
-              <td class="mono" :style="{ color: d.diff >= 0 ? 'var(--green)' : 'var(--red)' }">
-                {{ d.diff >= 0 ? '+' : '' }}{{ fmt4(d.diff) }}
+            <tr v-for="r in metricRows.filter((x) => showSame || x.winner !== 'same')" :key="r.name">
+              <td>
+                {{ r.name }}
+                <span class="muted" style="font-size:11px">{{ r.higherIsBetter ? '↑ 越好' : '↓ 越好' }}</span>
+              </td>
+              <td class="mono num" :class="{ 'is-win': r.winner === 'v1' }">{{ fmt4(r.v1) }}</td>
+              <td class="mono num" :class="{ 'is-win': r.winner === 'v2' }">{{ fmt4(r.v2) }}</td>
+              <td class="mono" :class="r.winner === 'v1' ? 'diff-bad' : r.winner === 'v2' ? 'diff-good' : 'muted'">
+                {{ r.winner === 'same' ? '±0' : fmtDiff(r.diff) }}
+                <span v-if="r.winner === 'v1'" class="muted" style="font-size:11px">（后者变差）</span>
+                <span v-else-if="r.winner === 'v2'" class="muted" style="font-size:11px">（后者变好）</span>
               </td>
             </tr>
-            <tr v-if="!Object.keys(cmp.metrics_diff || {}).length">
+            <tr v-if="!metricRows.length">
               <td colspan="4" class="muted">两个版本都没有记录指标，无法对比。</td>
             </tr>
           </tbody>
         </table>
+        <button v-if="metricRows.some((r) => r.winner === 'same')" class="btn sm"
+                style="margin-top:8px" @click="showSame = !showSame">
+          {{ showSame ? '隐藏无变化项' : `显示 ${metricRows.filter((r) => r.winner === 'same').length} 项无变化` }}
+        </button>
+
         <template v-if="Object.keys(cmp.params_diff || {}).length">
           <h3 style="margin:16px 0 10px">训练参数差异</h3>
-          <table class="tbl">
+          <table class="tbl fixed">
+            <colgroup><col style="width:40%" /><col style="width:30%" /><col style="width:30%" /></colgroup>
             <thead><tr><th>参数</th><th>{{ shortId(cmp.version1) }}</th><th>{{ shortId(cmp.version2) }}</th></tr></thead>
             <tbody>
               <tr v-for="(p, k) in cmp.params_diff" :key="k">

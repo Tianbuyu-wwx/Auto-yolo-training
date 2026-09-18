@@ -129,7 +129,7 @@ const weightsHint = computed(() => {
             <img :src="p" loading="lazy" :alt="p.split('/').pop()" />
           </button>
         </div>
-        <p v-else class="muted" style="font-size:12.5px">该 run 无结果图（训练可能未完成）</p>
+        <p v-else class="muted" style="font-size:12px">该 run 无结果图（训练可能未完成）</p>
       </div>
 
       <div class="card" style="margin-bottom:16px">
@@ -159,13 +159,13 @@ const weightsHint = computed(() => {
             </tr>
           </tbody>
         </table>
-        <p v-if="artifact" class="muted" style="font-size:12.5px;margin:10px 0 0">
+        <p v-if="artifact" class="muted" style="font-size:12px;margin:10px 0 0">
           run 目录 <code class="mono">{{ artifact.path }}</code> · {{ artifact.size_mb }} MB · {{ artifact.modified }}
           <template v-if="artifacts.recycled_count">
             <br />回收站有 {{ artifacts.recycled_count }} 项可恢复（<code class="mono">{{ artifacts.recycle_dir }}</code>）
           </template>
         </p>
-        <p v-else class="muted" style="font-size:12.5px">该 run 无产物记录（可能已被回收）。</p>
+        <p v-else class="muted" style="font-size:12px">该 run 无产物记录（可能已被回收）。</p>
       </div>
 
       <div class="card" style="margin-bottom:16px">
@@ -182,7 +182,7 @@ const weightsHint = computed(() => {
           </button>
           <a v-if="results.download_url" class="btn" :href="results.download_url">下载 best.pt</a>
         </div>
-        <p v-if="weightsHint" class="muted" style="font-size:12.5px;margin:10px 0 0">{{ weightsHint }}</p>
+        <p v-if="weightsHint" class="muted" style="font-size:12px;margin:10px 0 0">{{ weightsHint }}</p>
       </div>
     </template>
 
@@ -221,7 +221,7 @@ const weightsHint = computed(() => {
             </table>
           </details>
         </template>
-        <p v-else class="muted" style="font-size:12.5px">暂无注册版本（训练完成时自动注册）</p>
+        <p v-else class="muted" style="font-size:12px">暂无注册版本（训练完成时自动注册）</p>
       </div>
     </div>
     <ImageLightbox v-if="lightbox >= 0 && results?.plot_urls?.length"

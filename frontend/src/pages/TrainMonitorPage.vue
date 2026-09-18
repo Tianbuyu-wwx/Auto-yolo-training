@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api, errMsg, trainingSocket } from '../lib/api.js'
 import { toastErr, toastOk } from '../lib/toast.js'
-import { CHART, axisPair } from '../lib/chart-theme.js'
+import { CHART, axisPair, epochMarkLine } from '../lib/chart-theme.js'
 import LineChart from '../components/LineChart.vue'
 import LogConsole from '../components/LogConsole.vue'
 import MetricCard from '../components/MetricCard.vue'
@@ -17,6 +17,30 @@ const busy = ref(false)
 const lossSeries = ref([])
 const mapSeries = ref([])
 let lastEpoch = -1
+
+/**
+ * 当前"被查看"的 epoch：曲线点与日志行两侧共用这一份状态。
+ *
+ * 为什么不做成两个独立的高亮：用户在曲线看到一个异常点，想问的是"这一轮日志里
+ * 发生了什么"；反过来在日志里看到一轮报错，想看的是"这一轮指标如何"。两个方向
+ * 问的是同一件事，状态就必须是同一个。
+ */
+const activeEpoch = ref(null)
+
+/** 点同一轮再点一次 = 取消（省掉必须去找"清除"按钮的动作） */
+function onPickEpoch(epoch) {
+  if (epoch == null) return
+  activeEpoch.value = activeEpoch.value === epoch ? null : epoch
+}
+
+/** 选中的这一轮在曲线上有没有点（选了但还没画出来时给个说明，而不是静默） */
+const activeEpochMetrics = computed(() => {
+  if (activeEpoch.value == null) return null
+  const hit = lossSeries.value.find(([e]) => e === activeEpoch.value)
+  const map = mapSeries.value.find(([e]) => e === activeEpoch.value)
+  if (!hit && !map) return null
+  return { loss: hit ? hit[1] : null, map50: map ? map[1] : null }
+})
 
 function onMessage(msg) {
   status.value = msg.status
@@ -72,14 +96,22 @@ const lossOption = computed(() => ({
   grid: { ...CHART.grid },
   title: { text: '训练损失', textStyle: { color: CHART.label, fontSize: 12 }, left: 8, top: 4 },
   ...axisPair(),
-  series: [{ type: 'line', data: lossSeries.value, showSymbol: false, lineStyle: { color: CHART.line.blue, width: 2 }, areaStyle: { color: CHART.area.blue } }],
+  series: [{
+    type: 'line', data: lossSeries.value, showSymbol: false,
+    lineStyle: { color: CHART.line.blue, width: 2 }, areaStyle: { color: CHART.area.blue },
+    ...epochMarkLine(activeEpoch.value),
+  }],
 }))
 const mapOption = computed(() => ({
   grid: { ...CHART.grid },
   title: { text: labels.value.join(' / '), textStyle: { color: CHART.label, fontSize: 12 }, left: 8, top: 4 },
   // mAP 的定义域固定为 0~1，锁死上限否则无数据时纵轴会塌成一条线
   ...axisPair({ yMax: 1 }),
-  series: [{ type: 'line', data: mapSeries.value, showSymbol: false, lineStyle: { color: CHART.line.green, width: 2 }, areaStyle: { color: CHART.area.green } }],
+  series: [{
+    type: 'line', data: mapSeries.value, showSymbol: false,
+    lineStyle: { color: CHART.line.green, width: 2 }, areaStyle: { color: CHART.area.green },
+    ...epochMarkLine(activeEpoch.value),
+  }],
 }))
 
 let closeWs = null
@@ -114,7 +146,7 @@ onBeforeUnmount(() => closeWs && closeWs())
     <!-- 产物去向：训练跑完告诉用户"东西放哪了"，不用去猜 runs 路径 -->
     <div v-if="artifactNote" class="card" style="margin-bottom:16px">
       <h3>产物去向</h3>
-      <p class="muted" style="font-size:12.5px;margin:0">{{ artifactNote }}完整清单见「结果 · 模型库 → 产物去向」。</p>
+      <p class="muted" style="font-size:12px;margin:0">{{ artifactNote }}完整清单见「结果 · 模型库 → 产物去向」。</p>
     </div>
 
     <!-- 指标卡 -->
@@ -131,22 +163,39 @@ onBeforeUnmount(() => closeWs && closeWs())
                   :hint="hasRun ? '验证集 · 本轮' : '每轮更新'" />
     </div>
 
-    <!-- 曲线 -->
+    <!-- 曲线 + 日志：两块共用 activeEpoch，点哪边另一边都跟着走 -->
+    <div class="card" style="margin-bottom:16px;padding:12px 16px">
+      <div class="linkage-bar">
+        <span class="hint" style="margin:0">
+          点曲线上的数据点或日志里带轮次的行，两侧会一起定位到那一轮。
+        </span>
+        <div class="spacer"></div>
+        <template v-if="activeEpoch != null">
+          <span class="badge idle mono">第 {{ activeEpoch }} 轮</span>
+          <span v-if="activeEpochMetrics" class="muted mono" style="font-size:12px">
+            loss {{ activeEpochMetrics.loss ?? '—' }} · {{ labels[0] }} {{ activeEpochMetrics.map50 ?? '—' }}
+          </span>
+          <span v-else class="muted" style="font-size:12px">该轮还没画出数据点</span>
+          <button class="btn sm" @click="activeEpoch = null">清除</button>
+        </template>
+      </div>
+    </div>
+
     <div class="grid c2" style="margin-bottom:16px">
       <div class="card">
-        <LineChart :option="lossOption" :height="260"
+        <LineChart :option="lossOption" :height="260" @pick-epoch="onPickEpoch"
                    empty-text="还没有数据：开始训练后按 epoch 绘制训练损失" />
       </div>
       <div class="card">
-        <LineChart :option="mapOption" :height="260"
+        <LineChart :option="mapOption" :height="260" @pick-epoch="onPickEpoch"
                    :empty-text="`还没有数据：开始训练后按 epoch 绘制 ${labels.join(' / ')}`" />
       </div>
     </div>
 
-    <!-- 日志 -->
     <div class="card">
       <h3>训练日志</h3>
-      <LogConsole :text="logs" :lines="22" />
+      <LogConsole :text="logs" :lines="22"
+                  :highlight-epoch="activeEpoch" @pick-epoch="onPickEpoch" />
     </div>
   </div>
 </template>

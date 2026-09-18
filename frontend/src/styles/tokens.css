@@ -10,10 +10,14 @@
      #14161f / #1a1d28）亮度差只有 3~5 个单位，又都用 1px 灰描边分隔，
      于是全屏读起来是"同一个平面上画线框"—— 这是"科技感不够"的第一层原因：
      没有光照模型，就没有材质。 */
-  --bg: #000000;          /* L0 页面底 */
-  --bg-card: #0b0d13;     /* L1 内容面（卡片 / 指标卡 / 表格所在的面） */
-  --bg-input: #151821;    /* L2 抬升层（输入框 / 徽标 / 导航选中） */
-  --bg-deep: #000000;     /* 凹陷层（日志井 / 进度槽）——位于 L1 之内，故仍读作下沉 */
+  /* 2026-09 视觉定标（同尺子实测 play.grafana.org / linear.app / shadcn）：
+     三家页底是 #111217 / #08090a / 双模白，**没有一家用纯黑**。纯黑有两个代价：
+     一是 #e8eaf0 落在 #000 上是对比度 17:1 的硬边（小字发毛），二是 L0 已经到底，
+     "凹陷层"无处可去（原先 --bg-deep 与 --bg 同值，日志井根本读不出下沉）。 */
+  --bg: #08090d;          /* L0 页面底 */
+  --bg-card: #0e1118;     /* L1 内容面（卡片 / 指标卡 / 表格所在的面） */
+  --bg-input: #171a24;    /* L2 抬升层（输入框 / 徽标 / 导航选中） */
+  --bg-deep: #05060a;     /* 凹陷层（日志井 / 进度槽）—— 明确低于页面底 */
 
   --border: rgba(255, 255, 255, .075);
   --border-strong: rgba(255, 255, 255, .13);
@@ -50,8 +54,11 @@
   --sans: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
 
   scrollbar-color: var(--border-strong) var(--bg-deep);
-  --radius: 10px;
-  --radius-sm: 7px;
+  /* 圆角只留 8/6/4 三档 + 胶囊。定标实测：Grafana 全站只有 0 与 6px 两档、
+     shadcn 是 8/4.5 —— 而 9 与 10 差 1px 根本看不出来，却多出一个"为什么是它"的问题。 */
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-micro: 4px;
 
   /* ============ 动效 ============
      全站只留一套时长/缓动，避免每个组件各写一个 .15s / .2s。
@@ -133,8 +140,8 @@ body {
 .nav { padding: 12px 10px; display: flex; flex-direction: column; gap: 3px; flex: 1; }
 .nav a {
   display: flex; align-items: center; gap: 10px;
-  padding: 9px 12px; border-radius: 9px;
-  color: var(--text-muted); text-decoration: none; font-size: 13.5px;
+  padding: 9px 12px; border-radius: var(--radius);
+  color: var(--text-muted); text-decoration: none; font-size: 13px;
   border: 1px solid transparent;
   transition: color .15s, background .15s, border-color .15s;
 }
@@ -156,7 +163,7 @@ body {
 /* ---- 顶栏 ---- */
 /* 顶栏标题是全站唯一的页面标题。各页面原先各自再渲染一个 h1.page-title，
    实测 6 页中有 5 页两者字面完全相同，属同屏重复，已一并移除。 */
-.topbar h1 { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+.topbar h1 { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
 .topbar .spacer { flex: 1; }
 .health { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-muted); font-family: var(--mono); }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
@@ -181,8 +188,9 @@ body {
   border-radius: var(--radius); padding: 18px;
 }
 .card h3 {
-  font-size: 12.5px; font-weight: 600; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: .055em;
+  /* 定标对照：Grafana / shadcn 的分组标题与表头**都不大写、不加字距**。
+     "全大写 + 字距撑开"是仪表盘模板最典型的记号；对中文更是只把字距撑松。 */
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
   /* 表头带：标题下压一条发丝线。原先每张卡只是「一片内容 + 一行小字标题」，
      卡片之间没有内部结构，整页读起来是一块块同质的方块（card soup）。
      一条 1px 分隔把卡内分成「标题区 / 内容区」，密度观感立刻不同。 */
@@ -234,19 +242,18 @@ body {
 .metric .metric-head {
   display: flex; align-items: center; gap: 7px;
   font-size: 11px; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: .07em;
 }
 .metric .metric-head .dot { width: 6px; height: 6px; opacity: .85; }
 .metric .value {
   font-family: var(--mono); font-variant-numeric: tabular-nums;
-  font-size: 27px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15;
+  font-size: 28px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15;
   margin-top: 6px; color: var(--text);
 }
 .metric .value.green { color: var(--green); }
 .metric .value.blue { color: var(--blue); }
 .metric .value.amber { color: var(--amber); }
 .metric .value.red { color: var(--red); }
-.metric .hint { margin-top: 3px; font-size: 11.5px; color: var(--text-muted); }
+.metric .hint { margin-top: 3px; font-size: 12px; color: var(--text-muted); }
 /* 占位态：颜色退回次要色（不动字号，免得牵动整页基线） */
 .metric .value.placeholder { color: var(--text-muted); }
 /* 数值更新的一帧标记。WS 每秒推一次，若数值变了却什么都没发生，界面看起来
@@ -303,12 +310,12 @@ label.field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; 
 /* 原生控件在深色主题下的收尾。color-scheme:dark 负责让它们变深色，
    这里再统一强调色与文件选择按钮的外观，避免与 .btn 形成两套设计语言。 */
 input[type="checkbox"], input[type="radio"] { accent-color: var(--blue); }
-input[type="file"] { padding: 6px 8px; font-size: 12.5px; }
+input[type="file"] { padding: 6px 8px; font-size: 12px; }
 input[type="file"]::file-selector-button {
   margin-right: 10px; padding: 5px 12px; cursor: pointer;
   background: var(--bg-card); color: var(--text);
   border: 1px solid var(--border-strong); border-radius: 6px;
-  font-family: var(--sans); font-size: 12.5px;
+  font-family: var(--sans); font-size: 12px;
   transition: border-color .15s;
 }
 input[type="file"]::file-selector-button:hover { border-color: var(--blue); }
@@ -318,9 +325,11 @@ input[type="file"]::file-selector-button:hover { border-color: var(--blue); }
    （实测 th「创建时间」「结束时间」均 w=32 / h=90）。 */
 .table-wrap { width: 100%; overflow-x: auto; }
 .table-wrap > table.tbl { min-width: 620px; }
-table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-.tbl th { text-align: left; color: var(--text-muted); font-weight: 500; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; padding: 8px 10px; border-bottom: 1px solid var(--border); }
-.tbl td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
+/* 表格文字对齐定标值：Grafana 与 shadcn 的单元格都是 14px（我们是 13px），
+   行内边距同步收到 8px —— 字号 +1 而行高不变，密度与可读性同时改善。 */
+table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tbl th { text-align: left; color: var(--text-muted); font-weight: 500; font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.tbl td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
 /* 悬停用中性白而非品牌蓝：蓝色留给"选中/活跃"这一档状态，行悬停只是
    指认当前行，用品牌色会与真正的状态语义抢注意力。
    注意选择器不写成 .tbl tbody tr —— 总览页的「系统状态」表没有 tbody，
@@ -328,7 +337,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .tbl td { transition: background var(--dur-fast) var(--ease); }
 .tbl tr:hover td { background: rgba(255, 255, 255, .038); }
 .tbl tr:last-child td { border-bottom: 0; }
-.tbl code, .mono { font-family: var(--mono); font-size: 12.5px; }
+.tbl code, .mono { font-family: var(--mono); font-size: 12px; }
 
 /* 单行并排的多个 checkbox（如训练配置「基础」卡里的 rect / cosine lr /
    deterministic）。必须允许换行：.grid.c4 在 1280px 下每列仅约 150px，
@@ -342,7 +351,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
   font-size: 12px; line-height: 1.7; white-space: pre-wrap;
 }
 
-.badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 20px; font-size: 11.5px; font-weight: 500; }
+.badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 500; }
 .badge.ok { background: rgba(34,197,94,.14); color: var(--green); }
 .badge.warn { background: rgba(245,158,11,.14); color: var(--amber); }
 .badge.err { background: rgba(239,68,68,.14); color: var(--red); }
@@ -408,7 +417,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
   position: absolute; inset: 0; margin: 0;
   display: flex; align-items: center; justify-content: center;
   background: var(--bg-card);
-  font-size: 12.5px; color: var(--text-muted); letter-spacing: .02em;
+  font-size: 12px; color: var(--text-muted);
   pointer-events: none;
 }
 
@@ -463,7 +472,7 @@ input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 /* ---- 页面三态（加载 / 空 / 失败）----
    三者必须可区分：此前接口失败时 statuses 为空，渲染出与「真的没有数据集」
    完全相同的空态文案，把用户引向错误的排查方向。 */
-.state-msg { font-size: 12.5px; padding: 14px 2px; }
+.state-msg { font-size: 12px; padding: 14px 2px; }
 .state-msg.error { color: var(--red); }
 .state-msg .retry { margin-top: 10px; }
 
@@ -481,7 +490,7 @@ input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
    混用会让"一个开关"和"一组开关"在视觉上无法区分。 */
 .row-check {
   display: flex; gap: 8px; align-items: center;
-  font-size: 12.5px; color: var(--text); cursor: pointer;
+  font-size: 12px; color: var(--text); cursor: pointer;
 }
 .row-check input[type="checkbox"] { width: auto; }
 /* 文字按钮：用于"就地撤销"这类动作，不引入与主按钮竞争的视觉重量 */
@@ -509,11 +518,11 @@ input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
     background: var(--bg-card); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 32px 28px;
   }
-  .guard-card h1 { font-size: 17px; font-weight: 600; margin-bottom: 12px; }
-  .guard-card p { font-size: 13.5px; color: var(--text-muted); line-height: 1.75; }
+  .guard-card h1 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  .guard-card p { font-size: 13px; color: var(--text-muted); line-height: 1.75; }
   .guard-card .guard-now {
     margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border);
-    font-family: var(--mono); font-size: 12.5px; color: var(--amber);
+    font-family: var(--mono); font-size: 12px; color: var(--amber);
   }
 }
 
@@ -582,9 +591,9 @@ input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
    一句"下一步做什么"。此前各页面各写一句"暂无数据"，既没有下一步指引，
    也没有任何视觉结构，读起来像渲染失败。 */
 .empty-state { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 20px 2px; }
-.empty-state .glyph { font-family: var(--mono); font-size: 14px; color: var(--text-muted); opacity: .65; letter-spacing: .12em; }
-.empty-state .title { font-size: 13.5px; }
-.empty-state .hint { font-size: 12.5px; color: var(--text-muted); line-height: 1.65; }
+.empty-state .glyph { font-family: var(--mono); font-size: 14px; color: var(--text-muted); opacity: .65; }
+.empty-state .title { font-size: 13px; }
+.empty-state .hint { font-size: 12px; color: var(--text-muted); line-height: 1.65; }
 .empty-state .actions { display: flex; gap: 10px; margin-top: 8px; }
 
 /* ---- 紧凑统计条 ----
@@ -594,16 +603,16 @@ input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .stat-strip { display: flex; flex-wrap: wrap; }
 .stat-strip .stat { padding: 1px 18px; border-left: 1px solid var(--border); min-width: 124px; }
 .stat-strip .stat:first-child { border-left: 0; padding-left: 2px; }
-.stat-strip .k { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
-.stat-strip .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 19px; margin-top: 3px; }
-.stat-strip .v small { font-family: var(--sans); font-size: 11.5px; color: var(--text-muted); }
+.stat-strip .k { font-size: 11px; color: var(--text-muted); }
+.stat-strip .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 20px; margin-top: 3px; }
+.stat-strip .v small { font-family: var(--sans); font-size: 12px; color: var(--text-muted); }
 
 /* ---- 状态头（总览首屏）----
    首屏第一眼应该是「现在能不能训、缺什么、下一步做什么」，而不是一排数字卡。 */
 .status-hero { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .status-hero .hero-main { display: flex; flex-direction: column; gap: 7px; flex: 1; min-width: 280px; }
-.status-hero .hero-title { font-size: 19px; font-weight: 600; letter-spacing: -.01em; display: flex; align-items: center; gap: 10px; }
-.status-hero .hero-sub { font-size: 12.5px; color: var(--text-muted); line-height: 1.7; }
+.status-hero .hero-title { font-size: 20px; font-weight: 600; letter-spacing: -.01em; display: flex; align-items: center; gap: 10px; }
+.status-hero .hero-sub { font-size: 12px; color: var(--text-muted); line-height: 1.7; }
 .status-hero .hero-actions { display: flex; gap: 10px; }
 
 /* ---- 表格工具条 ---- */
@@ -649,7 +658,7 @@ input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .log-console .log-line { white-space: pre-wrap; overflow-wrap: anywhere; }
 .log-console .log-line.warn { color: var(--amber); }
 .log-console .log-line.error { color: #ff9c9c; }
-.log-omitted { color: var(--text-muted); font-size: 11.5px; padding-bottom: 4px; }
+.log-omitted { color: var(--text-muted); font-size: 12px; padding-bottom: 4px; }
 
 /* 训练配置页的主操作卡：随滚动吸顶（长表单里主操作不该被滚出视野）。
    顶栏高 52px + 24px 内边距，所以吸顶位置取 68px。窄屏布局改为单列，
@@ -661,7 +670,7 @@ input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
    此前每个字段只有一行小灰标签 + 一个裸输入框：不知道量纲（150 是轮还是张？）、
    不知道范围、填错了也不说，直到提交才失败。 */
 .field .label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.field .unit { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); opacity: .8; }
+.field .unit { font-family: var(--mono); font-size: 11px; color: var(--text-muted); opacity: .8; }
 .field .sub-hint { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
 .field .field-error { font-size: 11px; color: var(--red); line-height: 1.5; }
 input.invalid, select.invalid { border-color: var(--red); }
@@ -684,7 +693,7 @@ input.invalid:focus { border-color: var(--red); box-shadow: 0 0 0 3px rgba(239, 
 /* ---- 可排序表头 ---- */
 .tbl th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .tbl th.sortable:hover { color: var(--text); }
-.tbl th .ind { margin-left: 5px; font-size: 9px; opacity: .45; }
+.tbl th .ind { margin-left: 5px; font-size: 10px; opacity: .45; }
 .tbl th.sorted { color: var(--text); }
 .tbl th.sorted .ind { opacity: 1; color: var(--blue); }
 
@@ -721,7 +730,7 @@ input.invalid:focus { border-color: var(--red); box-shadow: 0 0 0 3px rgba(239, 
 /* 悬停才出现的「放大」提示：缩略图本身不解释自己能点 */
 .gallery .thumb::after {
   content: '放大'; position: absolute; right: 7px; bottom: 7px;
-  padding: 2px 7px; border-radius: 5px; font-size: 10.5px; line-height: 1.5;
+  padding: 2px 7px; border-radius: var(--radius-micro); font-size: 11px; line-height: 1.5;
   color: var(--text); background: rgba(0, 0, 0, .68); border: 1px solid var(--glass-edge);
   opacity: 0; transition: opacity var(--dur-fast) var(--ease);
 }
@@ -746,7 +755,7 @@ body.no-scroll { overflow: hidden; }
 .lightbox-bar {
   position: absolute; left: 0; right: 0; bottom: 0;
   display: flex; align-items: center; gap: 12px;
-  padding: 12px 20px; font-size: 12.5px;
+  padding: 12px 20px; font-size: 12px;
   background: linear-gradient(0deg, rgba(0, 0, 0, .8), transparent);
 }
 .lightbox-bar .spacer { flex: 1; }
@@ -767,3 +776,63 @@ body.no-scroll { overflow: hidden; }
   .gallery .thumb img { transition: none; }
   .gallery .thumb:hover img { transform: none; }
 }
+
+/* ---- 日志 ↔ 曲线联动 ---- */
+.linkage-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.linkage-bar .spacer { flex: 1; }
+.chart-box.is-clickable { cursor: crosshair; }
+
+/* 属于"当前查看轮次"的日志行：左侧一道竖线 + 极淡底色。
+   竖线而不是整行变色 —— 日志本身已经用颜色表达级别，再加底色会互相打架。 */
+.log-line.clickable { cursor: pointer; }
+.log-line.in-epoch {
+  background: rgba(59, 130, 246, .10);
+  box-shadow: inset 2px 0 0 var(--blue);
+}
+.log-line.in-epoch:hover { background: rgba(59, 130, 246, .16); }
+
+/* ---- 右侧抽屉 ---- */
+.drawer-scrim {
+  position: fixed; inset: 0; z-index: 110;
+  background: rgba(0, 0, 0, .55);
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  display: flex; justify-content: flex-end;
+  animation: scrim-in var(--dur) var(--ease-out);
+}
+.drawer {
+  width: min(560px, 92vw); height: 100%; overflow: hidden;
+  display: flex; flex-direction: column;
+  background: var(--bg-card); border-left: 1px solid var(--border-strong);
+  box-shadow: -24px 0 60px -30px rgba(0, 0, 0, .9);
+  animation: drawer-in var(--dur-slow) var(--ease-out);
+}
+@keyframes scrim-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes drawer-in { from { transform: translateX(24px); opacity: .6 } to { transform: none; opacity: 1 } }
+.drawer-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 16px 18px; border-bottom: 1px solid var(--border);
+}
+.drawer-title { margin: 0; font-size: 15px; }
+.drawer-sub { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); }
+.drawer-body { padding: 18px; overflow-y: auto; }
+
+/* 列表行可点开详情：给名字加一条悬停才出现的下划线，暗示"这里能点" */
+.tbl tbody tr:hover code.row-link { text-decoration: underline; text-underline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer, .drawer-scrim { animation: none; }
+}
+.drawer-h { margin: 0 0 10px; font-size: 12px; color: var(--text-muted); font-weight: 600; }
+
+/* ---- 版本对比 ---- */
+.cmp-heads { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.cmp-side { display: flex; align-items: center; gap: 8px; font-size: 12px; min-width: 0; flex-wrap: wrap; }
+.cmp-vs { color: var(--text-muted); font-size: 11px; }
+.cmp-verdict {
+  margin: 0 0 12px; padding: 9px 11px; font-size: 12px; line-height: 1.7;
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.tbl th.num, .tbl td.num { text-align: right; }
+.tbl td.is-win { color: var(--text); font-weight: 600; }
+.tbl td.diff-good { color: var(--green); }
+.tbl td.diff-bad { color: var(--red); }

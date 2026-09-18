@@ -12,6 +12,7 @@ vi.mock('../lib/api.js', async () => {
   return makeApiModule()
 })
 
+import { __chart } from 'echarts/core'
 import { api, sockets } from '../lib/api.js'
 import { mountPage } from '../../test/support.js'
 import TrainMonitorPage from './TrainMonitorPage.vue'
@@ -78,6 +79,38 @@ describe('TrainMonitorPage', () => {
     await stopBtn().trigger('click')
     await flushPromises()
     expect(api.post).toHaveBeenCalledWith('/api/trainings/stop')
+  })
+
+  it('日志 → 曲线：点带轮次的行会选中该轮，再点一次取消', async () => {
+    const w = await render(TrainMonitorPage)
+    await push(w, {
+      is_running: true, current_stage: 'training', current_epoch: 2, total_epochs: 5,
+      current_loss: 0.5, current_map50: 0.3, current_map50_95: 0.2,
+    }, '      1/5   0.35G   0.912   2.345\n      2/5   0.35G   0.712   2.145')
+
+    const epochLine = w.findAll('.log-line').find((l) => l.text().startsWith('1/5'))
+    await epochLine.trigger('click')
+    expect(w.text()).toContain('第 1 轮')
+
+    await epochLine.trigger('click')
+    expect(w.text()).not.toContain('第 1 轮')
+  })
+
+  it('曲线 → 日志：点图表数据点同样选中那一轮，并把同行指标显示出来', async () => {
+    const w = await render(TrainMonitorPage)
+    // 攒两个 epoch 的点：curEpoch 递增才会入库
+    await push(w, { is_running: true, current_epoch: 1, total_epochs: 5, current_loss: 0.9, current_map50: 0.1, current_map50_95: 0.05 }, '')
+    await push(w, { is_running: true, current_epoch: 2, total_epochs: 5, current_loss: 0.5, current_map50: 0.3, current_map50_95: 0.2 }, '')
+
+    // 图表点击回调是注册在 echarts 实例上的（测试里 echarts 是空壳，可直接取出）
+    const clickHandler = __chart.on.mock.calls.find(([ev]) => ev === 'click')?.[1]
+    expect(typeof clickHandler).toBe('function')
+    clickHandler({ value: [1, 0.9] })
+    await flushPromises()
+
+    const bar = w.find('.linkage-bar')
+    expect(bar.text()).toContain('第 1 轮')
+    expect(bar.text()).toContain('loss 0.9')
   })
 
   it('WS 断开时明确提示在重连（不要让人以为页面卡住）', async () => {

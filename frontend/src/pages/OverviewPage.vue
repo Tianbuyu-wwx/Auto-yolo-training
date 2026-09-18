@@ -88,7 +88,7 @@ const guidance = computed(() => {
         <div class="hero-main">
           <div class="hero-title">
             <StatusBadge :status="status" done-label="上次训练完成" dot />
-            <span v-if="hasRun" class="mono muted" style="font-size:12.5px">
+            <span v-if="hasRun" class="mono muted" style="font-size:12px">
               第 {{ status.current_epoch }} / {{ status.total_epochs }} 轮
             </span>
           </div>
@@ -152,7 +152,7 @@ const guidance = computed(() => {
             <td>数据告警</td>
             <td>
               <span class="badge warn">{{ issueCount }} 个数据集标注不完整</span>
-              <router-link to="/datasets" style="color:var(--blue);margin-left:8px;font-size:12.5px">查看</router-link>
+              <router-link to="/datasets" style="color:var(--blue);margin-left:8px;font-size:12px">查看</router-link>
             </td>
           </tr>
           <tr><td>队列</td><td><span class="mono">{{ num(queueCount) }}</span> 个待执行 / 执行中</td></tr>

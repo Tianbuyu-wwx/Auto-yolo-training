@@ -25,7 +25,7 @@
 | **模型** | 27 个预训练权重（4 家族 × 5 尺寸 + 4 任务），自动识别 + 一键下载 |
 | **接口** | **Web 控制台（Vue 3 SPA，7 页）** + CLI（`ayt-web` / `ayt-train` 等 9 个）+ FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
 | **部署** | Dockerfile（CPU + cu128 双 tag，含前端构建阶段） + docker-compose（4 profile） + Makefile（35 目标） |
-| **质量** | pytest 371 passed / 1 skipped（Windows + Linux 双平台）+ 覆盖率门禁 ≥69% + ruff 全量规则 + Vitest 组件测试 82 条 + pip-audit 依赖审计 + 打包链路（wheel 内含控制台界面，twine check + 装后自检） + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
+| **质量** | pytest 371 passed / 1 skipped（Windows + Linux 双平台）+ 覆盖率门禁 ≥69% + ruff 全量规则 + Vitest 组件测试 100 条 + pip-audit 依赖审计 + 打包链路（wheel 内含控制台界面，twine check + 装后自检） + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
 
 ---
 

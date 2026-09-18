@@ -1,5 +1,6 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { lockScroll, onEscape } from '../lib/overlay.js'
 
 /**
  * 图库放大查看。
@@ -29,20 +30,26 @@ function step(delta) {
   current.value = (current.value + delta + n) % n
 }
 
+/** 翻页键留在这里（每层都要），Esc 交给浮层栈 —— 否则抽屉里开图时
+    一个 Esc 会同时关掉放大和抽屉 */
 function onKey(e) {
-  if (e.key === 'Escape') emit('close')
-  else if (e.key === 'ArrowRight') step(1)
+  if (e.key === 'ArrowRight') step(1)
   else if (e.key === 'ArrowLeft') step(-1)
 }
+
+let releaseEsc = null
+let releaseScroll = null
 
 // 打开时锁住背景滚动：否则滚轮会穿透到下面的长页面，关闭后位置全乱
 onMounted(() => {
   window.addEventListener('keydown', onKey)
-  document.body.classList.add('no-scroll')
+  releaseEsc = onEscape(() => emit('close'))
+  releaseScroll = lockScroll()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
-  document.body.classList.remove('no-scroll')
+  releaseEsc && releaseEsc()
+  releaseScroll && releaseScroll()
 })
 </script>
 
