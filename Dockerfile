@@ -72,6 +72,15 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # 先装 PyTorch（按 variant 选 wheel index；缓存友好——单独一层）
 ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+# PyPI 源可覆盖：国内直连 files.pythonhosted.org 常超时，而 pip 会把**读取超时**
+# 报成 "Cannot install X because these package versions have conflicting
+# dependencies" —— 看起来像依赖冲突，实际是下载中断（本项目在构建里踩过）。
+# 需要时用 --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG PIP_INDEX_URL=https://pypi.org/simple
+ENV PIP_INDEX_URL=${PIP_INDEX_URL} \
+    PIP_TIMEOUT=60 \
+    PIP_RETRIES=5 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 RUN if [ "$TORCH_VARIANT" = "cu128" ]; then \
  TORCH_INDEX_URL=https://download.pytorch.org/whl/cu128 ; \
  fi && \

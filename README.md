@@ -2,7 +2,7 @@
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-371%20passed-brightgreen.svg)](#测试)
+[![Tests](https://img.shields.io/badge/tests-378%20passed-brightgreen.svg)](#测试)
 [![Ruff](https://img.shields.io/badge/lint-ruff-blue.svg)](https://github.com/astral-sh/ruff)
 [![Docker](https://img.shields.io/badge/docker-cpu%20%7C%20cu128-2496ED.svg)](Dockerfile)
 
@@ -25,7 +25,7 @@
 | **模型** | 27 个预训练权重（4 家族 × 5 尺寸 + 4 任务），自动识别 + 一键下载 |
 | **接口** | **Web 控制台（Vue 3 SPA，7 页）** + CLI（`ayt-web` / `ayt-train` 等 9 个）+ FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
 | **部署** | Dockerfile（CPU + cu128 双 tag，含前端构建阶段） + docker-compose（4 profile） + Makefile（35 目标） |
-| **质量** | pytest 371 passed / 1 skipped（Windows + Linux 双平台）+ 覆盖率门禁 ≥69% + ruff 全量规则 + Vitest 组件测试 100 条 + pip-audit 依赖审计 + 打包链路（wheel 内含控制台界面，twine check + 装后自检） + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
+| **质量** | pytest 378 passed / 1 skipped（Windows + Linux 双平台）+ 覆盖率门禁 ≥69% + ruff 全量规则 + Vitest 组件测试 100 条 + pip-audit 依赖审计 + 打包链路（wheel 内含控制台界面，twine check + 装后自检） + 数据集清单（`make dataset-manifest` / `dataset-verify`，回答"这次用的是哪份数据"） + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
 
 ---
 
@@ -84,6 +84,12 @@ docker run --gpus all -it --rm -p 8080:8080 -p 8000:8000 \
 
 > 镜像内已包含构建好的前端产物（构建时由独立的 Node 阶段生成并拷贝到
 > `/as/frontend/dist`），`ayt-web` 启动后直接可用，无需在容器里装 Node。
+
+> 构建时若下载 PyPI 超时（国内直连常见），pip 会把它报成
+> `Cannot install X because these package versions have conflicting dependencies` ——
+> 那是**读取超时**被误报成依赖冲突，不是真的冲突。先换源再排查：
+> `make docker-build PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`
+> （Dockerfile 已默认 `PIP_TIMEOUT=60 / PIP_RETRIES=5`。）
 
 ### 方式 C：docker-compose profile 启动
 
@@ -187,7 +193,7 @@ frontend/
 |---|---|
 | `make help` | 显示所有目标 |
 | `make install` | 安装运行时 + 开发依赖 |
-| `make test` | 跑测试套件（372 tests） |
+| `make test` | 跑测试套件（379 tests） |
 | `make test-cov-gate` | 覆盖率门禁（CI 同款：地板 69%，基线 73%） |
 | `make audit` | 依赖安全审计（pip-audit，本地看全量） |
 | `make lint` | ruff 检查 |
@@ -342,7 +348,7 @@ python ayt_models.py download yolov8n.pt
 ## 🧪 测试
 
 ```bash
-# 跑全部 CPU-safe 测试（372 tests）
+# 跑全部 CPU-safe 测试（379 tests）
 make test
 
 # 跑单个文件
@@ -352,7 +358,7 @@ python -m pytest test/test_data_validator.py -v
 make test-cov
 ```
 
-**测试统计**：371 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
+**测试统计**：378 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
 
 > **GPU 通道**：`gpu` 标记的用例不在上面这条命令里（GitHub 托管的 runner 没有 GPU）。
 > 本机验证用 `make gpu-smoke` —— 它先跑标记用例（驱动可见性、算力、**真算一遍 CUDA
@@ -372,6 +378,7 @@ make test-cov
 | `test_model_downloader.py` | 模型下载 |
 | `test_run_artifacts.py` | 训练产物解析 |
 | `test_run_store.py` | run 生命周期（保留 / 回收 / 归档）：精确匹配、可恢复、归档不搬走 run 内权重 |
+| `test_dataset_manifest.py` | 数据集清单：指纹随内容变化、改/增/删都能指出、CLI 往返与 sha256 模式稳定 |
 | `test_gpu_smoke.py` | **GPU 标记**：CUDA kernel 实算校验、Ultralytics 选卡、device 串透传（默认 CI 排除） |
 | `test_docs_consistency.py` | 文档一致性守卫：站点首页 == 生成器输出、README 数字 == 套件实测、页面数 == 前端实际 |
 | `test_inference_service.py` | FastAPI 推理 |

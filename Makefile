@@ -106,6 +106,12 @@ typecheck:  ## mypy 静态类型检查（可选，慢）
 
 # ---------- 烟雾验证 ----------
 .PHONY: smoke
+dataset-manifest:  ## 生成/更新数据集清单（dataset/.manifest.json，给"这次用的是哪份数据"留凭据）
+	$(PYTHON) scripts/dataset_manifest.py --write
+
+dataset-verify:  ## 校验数据集相对清单有没有被改过（补图/改标注/换划分都会被发现）
+	$(PYTHON) scripts/dataset_manifest.py --check
+
 smoke:  ## 跑烟雾训练（_smoke_test 数据集，CPU 1 epoch）
 	$(PYTHON) train.py _smoke_test --model yolov8n.pt --imgsz 64 --batch 2 --epochs 1 --skip-validation --override device=
 
@@ -183,12 +189,12 @@ docker-check:  ## 预检 Dockerfile 要的路径有没有被 .dockerignore 排�
 	$(PYTHON) scripts/check_dockerfile_context.py
 
 .PHONY: docker-build
-docker-build: docker-check  ## 构建 CPU Docker 镜像（先预检上下文）
-	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+docker-build: docker-check  ## 构建 CPU Docker 镜像（先用预检上下文；可 PIP_INDEX_URL=... 换源）
+	docker build $(if $(PIP_INDEX_URL),--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL),) -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
 
 .PHONY: docker-build-gpu
-docker-build-gpu: docker-check  ## 构建 GPU (cu128) Docker 镜像（先预检上下文）
-	docker build --build-arg TORCH_VARIANT=cu128 -t $(DOCKER_IMAGE):cu128 .
+docker-build-gpu: docker-check  ## 构建 GPU (cu128) Docker 镜像（先预检上下文；可 PIP_INDEX_URL=... 换源）
+	docker build --build-arg TORCH_VARIANT=cu128 $(if $(PIP_INDEX_URL),--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL),) -t $(DOCKER_IMAGE):cu128 .
 
 .PHONY: docker-run
 docker-run:  ## 启动容器并进 bash
