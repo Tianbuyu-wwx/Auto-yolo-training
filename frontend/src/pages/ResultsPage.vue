@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
 import { toastErr, toastOk } from '../lib/toast.js'
 import EmptyState from '../components/EmptyState.vue'
+import ImageLightbox from '../components/ImageLightbox.vue'
 import MetricCard from '../components/MetricCard.vue'
 
 const runs = ref([])
@@ -12,6 +13,9 @@ const results = ref(null)
 // （后端 RunStore 的只读快照，随 /api/trainings/runs 一起下发）
 const artifacts = ref({ runs: [], exports: {}, recycled_count: 0, recycle_dir: '' })
 const exportFmt = ref('onnx')
+/** 图库放大：-1 表示关闭；否则为当前图索引 */
+const lightbox = ref(-1)
+function openLightbox(i) { lightbox.value = i }
 const exporting = ref(false)
 const compareMd = ref('')
 const registry = ref({})
@@ -118,9 +122,12 @@ const weightsHint = computed(() => {
       <div class="card" style="margin-bottom:16px">
         <h3>结果图表</h3>
         <div class="gallery" v-if="results.plot_urls?.length">
-          <a v-for="p in results.plot_urls" :key="p" :href="p" target="_blank">
-            <img :src="p" loading="lazy" style="cursor:zoom-in" />
-          </a>
+          <!-- 点开在页内放大（← → 翻页 / Esc 关闭），不再跳新标签页 —— 一次要
+               连着看五六张图时，来回切标签会把 run 的选中态和滚动位置全丢掉。 -->
+          <button v-for="(p, i) in results.plot_urls" :key="p" class="thumb" type="button"
+                  :aria-label="`放大查看 ${p.split('/').pop()}`" @click="openLightbox(i)">
+            <img :src="p" loading="lazy" :alt="p.split('/').pop()" />
+          </button>
         </div>
         <p v-else class="muted" style="font-size:12.5px">该 run 无结果图（训练可能未完成）</p>
       </div>
@@ -217,5 +224,7 @@ const weightsHint = computed(() => {
         <p v-else class="muted" style="font-size:12.5px">暂无注册版本（训练完成时自动注册）</p>
       </div>
     </div>
+    <ImageLightbox v-if="lightbox >= 0 && results?.plot_urls?.length"
+                   :images="results.plot_urls" :index="lightbox" @close="lightbox = -1" />
   </div>
 </template>

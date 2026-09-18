@@ -14,6 +14,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
 import EmptyState from '../components/EmptyState.vue'
+import { useSort } from '../lib/table.js'
 import { toastErr, toastOk } from '../lib/toast.js'
 
 const registry = ref({})        // { 数据集: [版本, ...] }
@@ -36,6 +37,13 @@ const cmp = ref(null)
 
 const datasetNames = computed(() => Object.keys(registry.value).sort())
 const versions = computed(() => registry.value[selectedDs.value] || [])
+
+/**
+ * 默认按创建时间倒序：注册表的主问题是"最近训出来的版本怎么样"，
+ * 而接口给的顺序不保证。mAP 两列用点号路径取嵌套的 metrics。
+ */
+const { sorted: sortedVersions, sortKey, toggle: toggleSort, indicator: sortInd, ariaSort } =
+  useSort(versions, { initial: 'created_at', dir: 'desc' })
 const production = computed(() => versions.value.find(v => v.status === 'production') || null)
 const pickedCount = computed(() => picked.value.filter(id => versions.value.some(v => v.version_id === id)).length)
 const cmpA = computed(() => picked.value[0] || '')
@@ -302,21 +310,26 @@ onMounted(async () => {
         </div>
 
         <div class="table-wrap">
-          <table class="tbl">
+          <table class="tbl fixed">
+            <!-- 固定列宽：勾选/打标签/删版本都会改行内容，不固定列宽整张表会跟着抖 -->
+            <colgroup>
+              <col style="width:4%" /><col style="width:17%" /><col style="width:9%" /><col style="width:10%" />
+              <col style="width:9%" /><col style="width:15%" /><col style="width:10%" /><col style="width:26%" />
+            </colgroup>
             <thead>
               <tr>
-                <th style="width:34px">选</th>
-                <th>版本</th>
-                <th>mAP@50</th>
-                <th>mAP@50-95</th>
-                <th>状态</th>
+                <th>选</th>
+                <th class="sortable" :class="{ sorted: sortKey === 'version_id' }" :aria-sort="ariaSort('version_id')" @click="toggleSort('version_id')">版本<span class="ind">{{ sortInd('version_id') }}</span></th>
+                <th class="sortable" :class="{ sorted: sortKey === 'metrics.mAP50' }" :aria-sort="ariaSort('metrics.mAP50')" @click="toggleSort('metrics.mAP50')">mAP@50<span class="ind">{{ sortInd('metrics.mAP50') }}</span></th>
+                <th class="sortable" :class="{ sorted: sortKey === 'metrics.mAP50_95' }" :aria-sort="ariaSort('metrics.mAP50_95')" @click="toggleSort('metrics.mAP50_95')">mAP@50-95<span class="ind">{{ sortInd('metrics.mAP50_95') }}</span></th>
+                <th class="sortable" :class="{ sorted: sortKey === 'status' }" :aria-sort="ariaSort('status')" @click="toggleSort('status')">状态<span class="ind">{{ sortInd('status') }}</span></th>
                 <th>标签</th>
-                <th>创建时间</th>
-                <th style="width:260px">操作</th>
+                <th class="sortable" :class="{ sorted: sortKey === 'created_at' }" :aria-sort="ariaSort('created_at')" @click="toggleSort('created_at')">创建时间<span class="ind">{{ sortInd('created_at') }}</span></th>
+                <th class="actions">操作</th>
               </tr>
             </thead>
             <tbody>
-              <template v-for="v in versions" :key="v.version_id">
+              <template v-for="v in sortedVersions" :key="v.version_id">
                 <tr>
                   <td>
                     <input type="checkbox" style="width:auto"

@@ -656,3 +656,114 @@ input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
    此时不再吸顶 —— 单列下它会盖住参数区。 */
 .sticky-actions { position: sticky; top: 68px; z-index: 5; }
 @media (max-width: 1100px) { .sticky-actions { position: static; } }
+
+/* ---- 表单字段：单位 / 范围提示 / 校验反馈 ----
+   此前每个字段只有一行小灰标签 + 一个裸输入框：不知道量纲（150 是轮还是张？）、
+   不知道范围、填错了也不说，直到提交才失败。 */
+.field .label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.field .unit { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); opacity: .8; }
+.field .sub-hint { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+.field .field-error { font-size: 11px; color: var(--red); line-height: 1.5; }
+input.invalid, select.invalid { border-color: var(--red); }
+input.invalid:focus { border-color: var(--red); box-shadow: 0 0 0 3px rgba(239, 68, 68, .12); }
+
+/* 分组说明：回答"这一组影响什么"，而不是复读标题 */
+.group-desc { font-size: 12px; color: var(--text-muted); margin: -6px 0 14px; line-height: 1.6; }
+/* 收起状态下的取值摘要 */
+.group-digest { font-size: 12px; color: var(--text-muted); font-family: var(--mono); font-variant-numeric: tabular-nums; line-height: 1.7; }
+
+/* 执行卡的配置摘要 */
+.exec-summary {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text); margin-bottom: 12px;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  background: var(--bg-input); border: 1px solid var(--border);
+}
+.exec-summary .sep { color: var(--text-muted); }
+
+/* ---- 可排序表头 ---- */
+.tbl th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.tbl th.sortable:hover { color: var(--text); }
+.tbl th .ind { margin-left: 5px; font-size: 9px; opacity: .45; }
+.tbl th.sorted { color: var(--text); }
+.tbl th.sorted .ind { opacity: 1; color: var(--blue); }
+
+/* ---- 列宽稳定 ----
+   table-layout: fixed + colgroup 百分比宽度：数据变化（筛选/排序/加载完成）时
+   列宽不再随内容重排，表格不会"跳"。长文本用 ellipsis，并**必须**同时给 title。 */
+.tbl.fixed { table-layout: fixed; }
+.tbl.fixed td, .tbl.fixed th { overflow: hidden; text-overflow: ellipsis; }
+.tbl.fixed td.wrap { white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+
+/* 工具条里的分段筛选（与日志过滤同一套 .seg 视觉，避免两处各写一份） */
+.toolbar .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+.toolbar .seg button {
+  background: transparent; border: 0; cursor: pointer; font-family: var(--sans);
+  color: var(--text-muted); font-size: 12px; padding: 5px 11px;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.toolbar .seg button + button { border-left: 1px solid var(--border); }
+.toolbar .seg button.on { background: var(--bg-input); color: var(--text); }
+/* 操作列：按钮贴右，与数值列形成两端对齐的收口 */
+.tbl td.actions, .tbl th.actions { text-align: right; }
+
+/* ---- 图库缩略图 + 放大遮罩 ---- */
+.gallery .thumb {
+  position: relative; padding: 0; border: 0; background: none;
+  cursor: zoom-in; border-radius: 8px; overflow: hidden; line-height: 0;
+}
+.gallery .thumb img {
+  width: 100%; aspect-ratio: 1; object-fit: cover;
+  border-radius: 8px; border: 1px solid var(--border);
+  transition: transform var(--dur) var(--ease-out), border-color var(--dur) var(--ease);
+}
+.gallery .thumb:hover img { transform: scale(1.02); border-color: var(--border-strong); }
+/* 悬停才出现的「放大」提示：缩略图本身不解释自己能点 */
+.gallery .thumb::after {
+  content: '放大'; position: absolute; right: 7px; bottom: 7px;
+  padding: 2px 7px; border-radius: 5px; font-size: 10.5px; line-height: 1.5;
+  color: var(--text); background: rgba(0, 0, 0, .68); border: 1px solid var(--glass-edge);
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease);
+}
+.gallery .thumb:hover::after { opacity: 1; }
+
+body.no-scroll { overflow: hidden; }
+
+.lightbox {
+  position: fixed; inset: 0; z-index: 120;
+  display: flex; align-items: center; justify-content: center;
+  padding: 36px 60px 68px;
+  background: rgba(0, 0, 0, .88);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  animation: lb-fade var(--dur) var(--ease-out);
+}
+@keyframes lb-fade { from { opacity: 0 } to { opacity: 1 } }
+.lightbox-img {
+  max-width: 100%; max-height: 100%; object-fit: contain;
+  border-radius: 8px; border: 1px solid var(--glass-edge);
+  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, .95);
+}
+.lightbox-bar {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 20px; font-size: 12.5px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, .8), transparent);
+}
+.lightbox-bar .spacer { flex: 1; }
+.lightbox-bar .link { color: var(--blue); }
+.lightbox-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 42px; height: 42px; border-radius: 50%; cursor: pointer;
+  border: 1px solid var(--border-strong); background: var(--glass);
+  color: var(--text); font-size: 20px; line-height: 1;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.lightbox-nav:hover { border-color: var(--blue); background: var(--bg-input); }
+.lightbox-nav.prev { left: 14px; }
+.lightbox-nav.next { right: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lightbox { animation: none; }
+  .gallery .thumb img { transition: none; }
+  .gallery .thumb:hover img { transform: none; }
+}

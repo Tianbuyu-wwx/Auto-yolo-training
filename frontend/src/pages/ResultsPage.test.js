@@ -105,6 +105,36 @@ describe('ResultsPage', () => {
     expect(w.text()).not.toContain('下载 best.pt')
   })
 
+  it('图库点缩略图在页内放大：可翻页、可 Esc 关闭，不再跳新标签页', async () => {
+    handlers['/api/trainings/runs'] = runsPayload(ARTS_OK)
+    handlers['/api/trainings/results'] = {
+      ...handlers['/api/trainings/results'],
+      plot_urls: ['/runs/ds_auto/plot1.png', '/runs/ds_auto/plot2.png'],
+    }
+    const w = await render()
+
+    const thumbs = w.findAll('.gallery .thumb')
+    expect(thumbs).toHaveLength(2)
+    // 缩略图必须是按钮（页内放大）而不是 target=_blank 的链接：连着看五六张图
+    // 时来回切标签会把 run 选中态和滚动位置全丢掉
+    expect(w.find('.gallery a').exists()).toBe(false)
+
+    await thumbs[0].trigger('click')
+    const box = document.body.querySelector('.lightbox')
+    expect(box).toBeTruthy()
+    expect(box.querySelector('img').getAttribute('src')).toBe('/runs/ds_auto/plot1.png')
+    expect(box.textContent).toContain('1 / 2')
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+    await flushPromises()
+    expect(document.body.querySelector('.lightbox img').getAttribute('src')).toBe('/runs/ds_auto/plot2.png')
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(document.body.querySelector('.lightbox')).toBeFalsy()
+    w.unmount()
+  })
+
   it('接口失败时给错误态与重试，而不是伪装成「暂无训练产物」', async () => {
     api.get.mockImplementationOnce(async () => {
       const e = new Error('Internal Server Error')

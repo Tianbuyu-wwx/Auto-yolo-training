@@ -35,7 +35,8 @@ const resumeDatasetBad = computed(() =>
 const resumeBlocked = computed(() => resumeOn.value
   && (!resumePath.value || resumeDatasetBad.value))
 
-const canSubmit = computed(() => !busy.value && !!cfg.value.dataset_name && !resumeBlocked.value)
+const canSubmit = computed(() => !busy.value && !!cfg.value.dataset_name
+  && !resumeBlocked.value && errorCount.value === 0)
 
 const PRESETS = {
   快速验证: { epochs: 50, batch: 16, imgsz: 416, patience: 10, lr0: 0.002 },
@@ -43,6 +44,8 @@ const PRESETS = {
   精细调优: { epochs: 300, batch: 8, imgsz: 640, patience: 50, lr0: 0.0005 },
 }
 const preset = ref('标准训练')
+/** 高级组的展开状态。默认收起，但收起时显示取值摘要（见 groupDigest） */
+const openGroups = ref({ reg: false, loss: false, aug: false })
 
 // 表单配置（字段名与后端 StartTrainingRequest 严格对齐）
 const cfg = ref({
@@ -56,38 +59,99 @@ const cfg = ref({
   skip_validation: false, download_missing: true,
 })
 
+/**
+ * 数值字段规格。**单位、范围、说明都写在这里**：模板只负责渲染，校验
+ * （validateField）也读同一份 —— 否则「提示写 1–2000、校验允许 0」这类
+ * 两层口径迟早对不上。
+ *
+ * 单位不是装饰：`训练轮数 150` 与 `训练轮数 150 轮`、`输入尺寸 640` 与
+ * `640 px`，后者才让人一眼知道这一项是什么量纲；学习率这类没有单位的，
+ * 就用范围提示（1e-6 ~ 1）代替。
+ */
 const NUMBER_FIELDS = [
-  { key: 'epochs', label: '训练轮数', group: 'basic', step: 10 },
-  { key: 'imgsz', label: '输入尺寸', group: 'basic', step: 32 },
-  { key: 'workers', label: '数据线程', group: 'basic', step: 1 },
-  { key: 'lr0', label: '学习率 lr0', group: 'optim', step: 0.0001 },
-  { key: 'lrf', label: '最终lr因子', group: 'optim', step: 0.001 },
-  { key: 'warmup_epochs', label: '预热轮数', group: 'optim', step: 0.5 },
-  { key: 'patience', label: '早停耐心', group: 'optim', step: 5 },
-  { key: 'weight_decay', label: '权重衰减', group: 'optim', step: 0.0001 },
-  { key: 'dropout', label: 'Dropout', group: 'reg', step: 0.05 },
-  { key: 'label_smoothing', label: '标签平滑', group: 'reg', step: 0.01 },
-  { key: 'freeze', label: '冻结层数', group: 'reg', step: 1 },
-  { key: 'box', label: 'Box权重', group: 'loss', step: 0.5 },
-  { key: 'cls', label: 'Cls权重', group: 'loss', step: 0.1 },
-  { key: 'dfl', label: 'DFL权重', group: 'loss', step: 0.1 },
-  { key: 'close_mosaic', label: '关Mosaic轮数', group: 'aug', step: 1 },
-  { key: 'mosaic', label: 'Mosaic', group: 'aug', step: 0.1 },
-  { key: 'mixup', label: 'Mixup', group: 'aug', step: 0.1 },
-  { key: 'degrees', label: '旋转°', group: 'aug', step: 1 },
-  { key: 'scale', label: '缩放', group: 'aug', step: 0.1 },
-  { key: 'translate', label: '平移', group: 'aug', step: 0.05 },
-  { key: 'shear', label: '剪切°', group: 'aug', step: 1 },
-  { key: 'perspective', label: '透视', group: 'aug', step: 0.0005 },
-  { key: 'flipud', label: '上下翻转', group: 'aug', step: 0.1 },
-  { key: 'hsv_h', label: 'HSV-H', group: 'aug', step: 0.005 },
-  { key: 'hsv_s', label: 'HSV-S', group: 'aug', step: 0.1 },
-  { key: 'hsv_v', label: 'HSV-V', group: 'aug', step: 0.1 },
-  { key: 'copy_paste', label: 'Copy-Paste', group: 'aug', step: 0.05 },
+  { key: 'epochs', label: '训练轮数', group: 'basic', step: 10, unit: '轮', min: 1, max: 5000, hint: '快速验证 50，正式训练 150–300' },
+  { key: 'imgsz', label: '输入尺寸', group: 'basic', step: 32, unit: 'px', min: 32, max: 2048, multiple: 32, hint: '必须是 32 的倍数（YOLO 的下采样步长）' },
+  { key: 'workers', label: '数据线程', group: 'basic', step: 1, unit: '个', min: 0, max: 64, hint: 'Windows 上给 0–8 更稳' },
+  { key: 'lr0', label: '初始学习率', group: 'optim', step: 0.0001, min: 1e-6, max: 1, hint: '太大不收敛、太小跑不完；1e-3 起步' },
+  { key: 'lrf', label: '最终学习率因子', group: 'optim', step: 0.001, min: 0, max: 1, hint: '末轮 lr = lr0 × 该因子' },
+  { key: 'warmup_epochs', label: '预热轮数', group: 'optim', step: 0.5, unit: '轮', min: 0, max: 100 },
+  { key: 'patience', label: '早停耐心', group: 'optim', step: 5, unit: '轮', min: 0, max: 2000, hint: '连续这么多轮无提升就停；0 = 不早停' },
+  { key: 'weight_decay', label: '权重衰减', group: 'optim', step: 0.0001, min: 0, max: 1 },
+  { key: 'dropout', label: 'Dropout', group: 'reg', step: 0.05, min: 0, max: 0.9, hint: '仅在分类任务生效' },
+  { key: 'label_smoothing', label: '标签平滑', group: 'reg', step: 0.01, min: 0, max: 0.5 },
+  { key: 'freeze', label: '冻结层数', group: 'reg', step: 1, unit: '层', min: 0, max: 24, hint: '冻结主干前 N 层，小数据可防过拟合' },
+  { key: 'box', label: 'Box 权重', group: 'loss', step: 0.5, min: 0, max: 100 },
+  { key: 'cls', label: '分类权重', group: 'loss', step: 0.1, min: 0, max: 100 },
+  { key: 'dfl', label: 'DFL 权重', group: 'loss', step: 0.1, min: 0, max: 100 },
+  { key: 'close_mosaic', label: '最后关 Mosaic', group: 'aug', step: 1, unit: '轮', min: 0, max: 100, hint: '末尾若干轮关掉 Mosaic，收敛更稳' },
+  { key: 'mosaic', label: 'Mosaic 概率', group: 'aug', step: 0.1, min: 0, max: 1 },
+  { key: 'mixup', label: 'Mixup 概率', group: 'aug', step: 0.1, min: 0, max: 1 },
+  { key: 'degrees', label: '旋转范围', group: 'aug', step: 1, unit: '°', min: 0, max: 180 },
+  { key: 'scale', label: '缩放幅度', group: 'aug', step: 0.1, min: 0, max: 1 },
+  { key: 'translate', label: '平移幅度', group: 'aug', step: 0.05, min: 0, max: 1 },
+  { key: 'shear', label: '剪切范围', group: 'aug', step: 1, unit: '°', min: 0, max: 90 },
+  { key: 'perspective', label: '透视幅度', group: 'aug', step: 0.0005, min: 0, max: 0.001 },
+  { key: 'flipud', label: '上下翻转概率', group: 'aug', step: 0.1, min: 0, max: 1, hint: '目标有明确上下方向时保持 0' },
+  { key: 'hsv_h', label: '色相扰动', group: 'aug', step: 0.005, min: 0, max: 1 },
+  { key: 'hsv_s', label: '饱和度扰动', group: 'aug', step: 0.1, min: 0, max: 1 },
+  { key: 'hsv_v', label: '明度扰动', group: 'aug', step: 0.1, min: 0, max: 1 },
+  { key: 'copy_paste', label: 'Copy-Paste', group: 'aug', step: 0.05, min: 0, max: 1, hint: '仅分割任务生效' },
 ]
-const GROUP_TITLES = {
-  basic: '基础', optim: '优化器 / 学习率', reg: '正则化',
-  loss: '损失权重', aug: '数据增强',
+
+/** 分组标题 + 一句话说明（说明回答"这一组影响什么"，而不是复读标题） */
+const GROUPS = {
+  basic: { title: '训练规模', desc: '一次跑多久、喂多大的图、用多少线程' },
+  optim: { title: '优化器与学习率', desc: '影响收敛速度与稳定性' },
+  reg: { title: '正则化', desc: '抑制过拟合' },
+  loss: { title: '损失权重', desc: '调整定位 / 分类 / DFL 三者的相对权重' },
+  aug: { title: '数据增强', desc: '每一种都是概率或幅度，设为 0 即关闭' },
+}
+/** 默认展开基础两组；其余收起但显示当前取值摘要（收起 ≠ 看不见） */
+const ADVANCED_GROUPS = ['reg', 'loss', 'aug']
+
+const fieldsOf = (g) => NUMBER_FIELDS.filter(f => f.group === g)
+
+/** 单字段校验：范围 / 整除 —— 与渲染用的是同一份规格 */
+function validateField(f) {
+  const v = cfg.value[f.key]
+  if (v === '' || v === null || v === undefined) return '必填'
+  if (typeof v !== 'number' || Number.isNaN(v)) return '必须是数字'
+  if (f.min !== undefined && v < f.min) return `不能小于 ${f.min}`
+  if (f.max !== undefined && v > f.max) return `不能大于 ${f.max}`
+  if (f.multiple && v % f.multiple !== 0) return `必须是 ${f.multiple} 的倍数`
+  return ''
+}
+
+const fieldErrors = computed(() => {
+  const out = {}
+  for (const f of NUMBER_FIELDS) {
+    const msg = validateField(f)
+    if (msg) out[f.key] = msg
+  }
+  // 跨字段：预热轮数不该超过总轮数（否则整段训练都在 warmup）
+  if (!out.warmup_epochs && Number(cfg.value.warmup_epochs) > Number(cfg.value.epochs)) {
+    out.warmup_epochs = '不能超过训练轮数'
+  }
+  return out
+})
+const errorCount = computed(() => Object.keys(fieldErrors.value).length)
+
+/** 收起状态下显示这一组当前的取值（"dropout 0 · 权重衰减 5e-4 · …"） */
+function groupDigest(g) {
+  return fieldsOf(g)
+    .slice(0, 4)
+    .map(f => `${f.label.replace(/\s.*$/, '')} ${fmtNum(cfg.value[f.key])}`)
+    .join(' · ')
+}
+function focusFirstError() {
+  const key = Object.keys(fieldErrors.value)[0]
+  const el = document.querySelector(`[data-field="${key}"]`)
+  if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus({ preventScroll: true }) }
+}
+function fmtNum(v) {
+  if (typeof v !== 'number') return v
+  if (v === 0) return '0'
+  return Math.abs(v) < 0.01 ? v.toExponential(0).replace('e-', 'e-') : String(v)
 }
 
 const localModels = computed(() => models.value.filter(m => m.local))
@@ -303,7 +367,23 @@ onMounted(loadOptions)
         <!-- 主操作卡吸顶：长表单滚到下半屏时，「立即开始训练」仍在视野里。
              原先它被埋在左列最底部，改一个超参要滚回来才能提交。 -->
         <div class="card sticky-actions">
-          <h3>执行</h3>
+          <div class="card-head"><h3>执行</h3></div>
+
+          <!-- 配置摘要：滚到任何位置都能对一眼"我到底要提交什么" -->
+          <div class="exec-summary">
+            <span :class="cfg.dataset_name ? 'mono' : 'field-error'">{{ cfg.dataset_name || '未选数据集' }}</span>
+            <span class="sep">·</span><span class="mono">{{ cfg.model }}</span>
+            <span class="sep">·</span><span class="mono">{{ cfg.epochs }} 轮</span>
+            <span class="sep">·</span><span class="mono">{{ cfg.imgsz }} px</span>
+            <span class="sep">·</span><span class="mono">{{ cfg.device ? `GPU ${cfg.device}` : 'auto 设备' }}</span>
+          </div>
+
+          <!-- 校验失败时，按钮不该只是"变灰"——要说出哪一项、为什么 -->
+          <p v-if="errorCount" class="field-error" style="margin:0 0 10px">
+            {{ errorCount }} 项参数需要修正：{{ Object.values(fieldErrors)[0] }}
+            <a href="#" style="margin-left:6px" @click.prevent="focusFirstError">定位</a>
+          </p>
+
           <div style="display:flex;flex-direction:column;gap:10px">
             <button class="btn primary" :disabled="!canSubmit" @click="startNow">
               {{ busy ? '提交中…' : (resumeOn ? '从断点继续训练' : '立即开始训练') }}
@@ -344,9 +424,18 @@ onMounted(loadOptions)
         </div>
 
         <template v-if="!resumeOn">
-        <div class="card">
-          <h3>基础</h3>
-          <div class="grid c4">
+        <div v-for="(meta, g) in GROUPS" :key="g" class="card">
+          <div class="card-head">
+            <h3>{{ meta.title }}</h3>
+            <button v-if="ADVANCED_GROUPS.includes(g)" class="btn ghost sm" type="button"
+                    @click="openGroups[g] = !openGroups[g]">
+              {{ openGroups[g] ? '收起' : '展开' }}
+            </button>
+          </div>
+          <p class="group-desc">{{ meta.desc }}</p>
+
+          <!-- 训练规模组额外带三个枚举字段与三个开关（不是数值，单独排） -->
+          <div v-if="g === 'basic'" class="grid c3" style="margin-bottom:14px">
             <label class="field">批次大小 Batch
               <select v-model="cfg.batch">
                 <option value="-1">-1（AutoBatch 自动）</option>
@@ -362,13 +451,11 @@ onMounted(loadOptions)
                 <option value="0,1">GPU 0,1（DDP）</option>
               </select>
             </label>
-            <label v-for="f in NUMBER_FIELDS.filter(f => f.group === 'basic')" :key="f.key" class="field">
-              {{ f.label }}
-              <input type="number" v-model.number="cfg[f.key]" :step="f.step" />
-            </label>
             <label class="field">缓存 Cache
               <select v-model="cfg.cache">
-                <option value="disk">disk</option><option value="ram">ram</option><option value="None">None</option>
+                <option value="disk">disk（磁盘）</option>
+                <option value="ram">ram（内存）</option>
+                <option value="None">None（不缓存）</option>
               </select>
             </label>
             <label class="field">优化器
@@ -376,34 +463,32 @@ onMounted(loadOptions)
                 <option v-for="o in ['AdamW','SGD','Adam','NAdam','RAdam','RMSProp']" :key="o" :value="o">{{ o }}</option>
               </select>
             </label>
-            <label style="justify-content:flex-end" class="field">
-              矩形训练
-              <span class="check-row">
-                <label style="display:flex;gap:5px;align-items:center;cursor:pointer">
-                  <input type="checkbox" v-model="cfg.rect" style="width:auto" /> rect
-                </label>
-                <label style="display:flex;gap:5px;align-items:center;cursor:pointer">
-                  <input type="checkbox" v-model="cfg.cos_lr" style="width:auto" /> cosine lr
-                </label>
-                <label style="display:flex;gap:5px;align-items:center;cursor:pointer">
-                  <input type="checkbox" v-model="cfg.deterministic" style="width:auto" /> deterministic
-                </label>
-              </span>
-            </label>
+            <div class="field">
+              <span class="label-row"><span>开关</span></span>
+              <div class="check-row" style="align-items:center;min-height:34px">
+                <label class="row-check"><input type="checkbox" v-model="cfg.rect" /> 矩形训练 rect</label>
+                <label class="row-check"><input type="checkbox" v-model="cfg.cos_lr" /> 余弦调度</label>
+                <label class="row-check"><input type="checkbox" v-model="cfg.deterministic" /> 确定性</label>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <details v-for="g in ['optim', 'reg', 'loss', 'aug']" :key="g" class="card" :open="g === 'optim'">
-          <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em">
-            {{ GROUP_TITLES[g] }}
-          </summary>
-          <div class="grid c4" style="margin-top:14px">
-            <label v-for="f in NUMBER_FIELDS.filter(f => f.group === g)" :key="f.key" class="field">
-              {{ f.label }}
-              <input type="number" v-model.number="cfg[f.key]" :step="f.step" />
+          <div v-if="!ADVANCED_GROUPS.includes(g) || openGroups[g]" class="grid c3">
+            <label v-for="f in fieldsOf(g)" :key="f.key" class="field">
+              <span class="label-row">
+                <span>{{ f.label }}</span>
+                <span v-if="f.unit" class="unit">{{ f.unit }}</span>
+              </span>
+              <input type="number" v-model.number="cfg[f.key]" :step="f.step"
+                     :min="f.min" :max="f.max" :data-field="f.key"
+                     :class="{ invalid: fieldErrors[f.key] }" />
+              <span v-if="fieldErrors[f.key]" class="field-error">{{ fieldErrors[f.key] }}</span>
+              <span v-else-if="f.hint" class="sub-hint">{{ f.hint }}</span>
             </label>
           </div>
-        </details>
+          <!-- 收起 ≠ 看不见：把这一组当前生效的值压成一行摘要 -->
+          <p v-else class="group-digest">{{ groupDigest(g) }}</p>
+        </div>
         </template>
       </div>
     </div>

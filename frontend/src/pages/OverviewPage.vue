@@ -137,6 +137,7 @@ const guidance = computed(() => {
       <div class="card">
         <h3>系统状态</h3>
         <table class="tbl">
+          <tbody>
           <tr>
             <td>训练状态</td>
             <td><StatusBadge :status="status" done-label="上次训练完成" /></td>
@@ -156,6 +157,7 @@ const guidance = computed(() => {
           </tr>
           <tr><td>队列</td><td><span class="mono">{{ num(queueCount) }}</span> 个待执行 / 执行中</td></tr>
           <tr><td>本地预训练模型</td><td><span class="mono">{{ num(localModels) }}</span> 个</td></tr>
+          </tbody>
         </table>
         <!-- 骨架行数对齐真实行数（4 行固定 + 可能的告警行），避免加载完成时
              表格高度变化把下方内容推一次 -->

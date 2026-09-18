@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { api, errMsg } from '../lib/api.js'
+import { useSort } from '../lib/table.js'
 import EmptyState from '../components/EmptyState.vue'
 import Skeleton from '../components/Skeleton.vue'
 import { toastErr, toastOk } from '../lib/toast.js'
@@ -40,6 +41,10 @@ const visibleStatuses = computed(() => {
   const q = query.value.trim().toLowerCase()
   return q ? statuses.value.filter(s => String(s.name).toLowerCase().includes(q)) : statuses.value
 })
+
+/** 表头排序：名称 / 图像 / 标注 / 状态（按可训练性）。问题列不排 —— 它是自由文本。 */
+const { sorted: sortedStatuses, sortKey, toggle: toggleSort, indicator: sortInd, ariaSort } =
+  useSort(visibleStatuses, { initial: 'name' })
 
 const pendingList = computed(() => statuses.value.filter(s => s.needs_conversion).map(s => s.name))
 const notTrainable = computed(() => statuses.value.filter(s => !s.is_trainable).map(s => s.name))
@@ -291,13 +296,25 @@ onMounted(() => { refresh(); loadRecycle() })
                       hint="上传一个 ZIP（YOLO / 分类 / Roboflow 三种结构都能识别），或在项目根跑 make smoke 用内置烟雾数据跑通链路。" />
 
           <div v-else class="table-wrap">
-            <table class="tbl">
+            <table class="tbl fixed">
+              <!-- 固定列宽：数据变化（筛选/加载完成）时列不再跟着内容重排 -->
+              <colgroup>
+                <col style="width:20%" /><col style="width:11%" /><col style="width:9%" />
+                <col style="width:9%" /><col style="width:15%" /><col style="width:36%" />
+              </colgroup>
               <thead>
-                <tr><th>名称</th><th>格式</th><th>图像</th><th>标注</th><th>状态</th><th>问题</th></tr>
+                <tr>
+                  <th class="sortable" :class="{ sorted: sortKey === 'name' }" :aria-sort="ariaSort('name')" @click="toggleSort('name')">名称<span class="ind">{{ sortInd('name') }}</span></th>
+                  <th>格式</th>
+                  <th class="sortable" :class="{ sorted: sortKey === 'image_count' }" :aria-sort="ariaSort('image_count')" @click="toggleSort('image_count')">图像<span class="ind">{{ sortInd('image_count') }}</span></th>
+                  <th class="sortable" :class="{ sorted: sortKey === 'label_count' }" :aria-sort="ariaSort('label_count')" @click="toggleSort('label_count')">标注<span class="ind">{{ sortInd('label_count') }}</span></th>
+                  <th class="sortable" :class="{ sorted: sortKey === 'is_trainable' }" :aria-sort="ariaSort('is_trainable')" @click="toggleSort('is_trainable')">状态<span class="ind">{{ sortInd('is_trainable') }}</span></th>
+                  <th>问题</th>
+                </tr>
               </thead>
               <tbody>
-                <tr v-for="s in visibleStatuses" :key="s.name" style="cursor:pointer" @click="selectDataset(s.name)">
-                  <td><code :style="s.name === selected ? 'color:var(--blue)' : ''">{{ s.name }}</code></td>
+                <tr v-for="s in sortedStatuses" :key="s.name" style="cursor:pointer" @click="selectDataset(s.name)">
+                  <td :title="s.name"><code :style="s.name === selected ? 'color:var(--blue)' : ''">{{ s.name }}</code></td>
                   <td>{{ s.format }}</td>
                   <td class="mono">{{ s.image_count }}</td>
                   <td class="mono">{{ s.label_count }}</td>
@@ -305,7 +322,7 @@ onMounted(() => { refresh(); loadRecycle() })
                   <!-- 告警不截断：后端早就在返回 issues，只是模板从未渲染它。
                        data 数据集 image=371 / label=296（val 集 75/75 张无标注），
                        旧界面 6 行全绿「就绪」，用户会拿坏数据训练并相信产出的 mAP。 -->
-                  <td class="issue-cell">
+                  <td class="issue-cell wrap">
                     <span v-if="!s.issues || !s.issues.length" class="muted">—</span>
                     <span v-else class="issue-text">{{ s.issues.join('；') }}</span>
                   </td>
