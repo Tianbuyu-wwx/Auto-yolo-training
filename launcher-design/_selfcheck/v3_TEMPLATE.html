@@ -1,0 +1,1096 @@
+<!doctype html>
+<html lang="zh-CN" data-mode="dark" data-accent="brass">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark light" />
+<title>Auto YOLO Training · 启动器 v3</title>
+@@PREPAINT@@
+
+<!-- 字体：本地化（fonts/，离线可用） -->
+<link rel="stylesheet" href="fonts/instrument-serif-400.css" />
+<link rel="stylesheet" href="fonts/noto-serif-sc-400.css" />
+<link rel="stylesheet" href="fonts/instrument-sans-var.css" />
+<link rel="stylesheet" href="fonts/noto-sans-sc-400.css" />
+<link rel="stylesheet" href="fonts/noto-sans-sc-500.css" />
+<link rel="stylesheet" href="fonts/ibm-plex-mono-400.css" />
+<link rel="stylesheet" href="fonts/ibm-plex-mono-500.css" />
+
+<style>
+/* ==========================================================================
+   AYT 启动器 v3 ——「绘世式」工作台门面
+   参考机制：绘世启动器 2.8.3（图标窄栏 / Hero / 快捷卡 / 状态栏+一键启动 /
+   控制台黑底日志 / 设置行 / 新手-专家双模式 / 数据表格）
+   保留：v2 主题系统（深/浅 × 4 强调色）、视觉身份（暖石墨 · 鎏金铜 · 瓷白）
+   ========================================================================== */
+
+@@TOKENS@@
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+[hidden]{ display:none !important; }
+html,body{ height:100%; }
+body{
+  background:var(--page-bg); color:var(--ink);
+  font-family:var(--f-sans); font-size:13px; line-height:1.5; font-weight:440;
+  -webkit-font-smoothing:antialiased; line-break:strict; font-synthesis:none;
+  overflow:hidden;
+}
+::selection{ background:rgba(var(--acc-rgb),.28); }
+
+/* ---------- 指示点 ---------- */
+.led{ width:7px; height:7px; border-radius:999px; flex-shrink:0; background:rgba(var(--lift-rgb),.25); }
+.led.ok{ background:var(--ok); }
+.led.warn{ background:var(--warn); }
+.led.err{ background:var(--err); }
+.led.acc{ background:var(--acc); }
+.led.live{ box-shadow:0 0 8px -1px rgba(var(--acc-rgb),.85); animation:breath 2.8s var(--e-io) infinite; }
+@keyframes breath{ 0%,100%{ opacity:1 } 50%{ opacity:.4 } }
+
+/* ---------- 图标符号库（20×20 stroke 1.5） ---------- */
+.sprite{ position:absolute; width:0; height:0; overflow:hidden; }
+.i{ width:16px; height:16px; flex-shrink:0; }
+
+@@WINSTAGE@@
+
+/* ---------- 标题栏 ---------- */
+.tbar{ height:44px; flex-shrink:0; display:flex; align-items:center; gap:10px;
+  padding-left:16px; border-bottom:1px solid var(--line); background:rgba(var(--lift-rgb),.012); }
+.tb-mark{ width:17px; height:17px; flex-shrink:0; }
+.tb-name{ font-family:var(--f-serif); font-size:15px; letter-spacing:.01em; color:var(--ink); white-space:nowrap; }
+.tb-tag{ font-size:11px; color:var(--ink3); border:1px solid var(--line2); border-radius:6px; padding:1px 7px; margin-left:2px; }
+.tb-c{ flex:1; }
+.tb-r{ display:flex; align-items:center; }
+.tbi{ width:34px; height:30px; margin-right:2px; border:0; border-radius:8px; background:transparent;
+  display:grid; place-items:center; color:var(--ink3); cursor:pointer;
+  transition:background var(--t-fast) var(--e-io), color var(--t-fast) var(--e-io); }
+.tbi:hover{ color:var(--ink); background:rgba(var(--lift-rgb),.06); }
+.tbi svg{ width:15px; height:15px; }
+.wctl{ display:flex; margin-left:6px; }
+.wctl button{ width:46px; height:44px; border:0; background:transparent; cursor:pointer;
+  display:grid; place-items:center; color:var(--ink3);
+  transition:background var(--t-fast) var(--e-io), color var(--t-fast) var(--e-io); }
+.wctl button:hover{ background:rgba(var(--lift-rgb),.06); color:var(--ink); }
+.wctl button.close:hover{ background:#b8332a; color:#fff; }
+.wctl svg{ width:11px; height:11px; }
+
+/* ---------- 壳：图标窄栏 + 内容 ---------- */
+.shell{ flex:1; min-height:0; display:grid; grid-template-columns:76px minmax(0,1fr); }
+.rail{ display:flex; flex-direction:column; align-items:center; padding:8px 7px 10px; gap:3px;
+  background:var(--bg-deep); border-right:1px solid var(--line); }
+.rail-sp{ flex:1; }
+.rit{ width:100%; height:66px; border:0; border-radius:10px; background:transparent; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+  color:var(--ink2); position:relative;
+  transition:background var(--t-fast) var(--e-io), color var(--t-fast) var(--e-io); }
+.rit:hover{ background:rgba(var(--lift-rgb),.045); color:var(--ink); }
+.rit .i{ width:20px; height:20px; }
+.rit span{ font-size:12px; letter-spacing:.02em; }
+.rit.on{ background:linear-gradient(180deg, rgba(var(--lift-rgb),.075), rgba(var(--lift-rgb),.04));
+  color:var(--ink); box-shadow:inset 0 0 0 1px rgba(var(--lift-rgb),.06); }
+.rit.on::before{ content:''; position:absolute; left:-7px; top:16px; bottom:16px; width:2.5px;
+  border-radius:999px; background:var(--acc); box-shadow:0 0 8px -1px rgba(var(--acc-rgb),.9); }
+.rit.on .i{ color:var(--acc); }
+.rit .i.ic-red{ color:var(--err); }
+.rit.on .i.ic-red{ color:var(--err); }
+.main{ min-width:0; min-height:0; display:flex; flex-direction:column; background:var(--bg); }
+
+/* ---------- 页面骨架 ---------- */
+.page{ display:none; flex:1; min-height:0; flex-direction:column; overflow:hidden; }
+.page.on{ display:flex; animation:pg-in .22s var(--e-out) both; }
+@keyframes pg-in{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:none } }
+.pscroll{ flex:1; min-height:0; overflow-y:auto; padding:14px 18px 18px; }
+.ptop{ height:52px; flex-shrink:0; display:flex; align-items:center; gap:16px;
+  padding:0 18px; border-bottom:1px solid var(--line); }
+.ptop-r{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+.ph-t{ font-size:16px; font-weight:520; letter-spacing:.01em; }
+
+/* 标签条 */
+.tabs{ display:flex; align-items:center; gap:4px; height:100%; }
+.tab{ height:100%; padding:0 4px; margin-right:14px; border:0; background:transparent; cursor:pointer;
+  color:var(--ink3); font-family:var(--f-sans); font-size:13px; position:relative;
+  display:inline-flex; align-items:center; gap:7px;
+  transition:color var(--t-fast) var(--e-io); }
+.tab .i{ width:15px; height:15px; }
+.tab:hover{ color:var(--ink); }
+.tab.on{ color:var(--ink); }
+.tab.on::after{ content:''; position:absolute; left:0; right:0; bottom:-1px; height:2px;
+  border-radius:2px 2px 0 0; background:var(--acc); }
+.pane.off{ display:none; }
+
+/* 按钮（v3 尺寸族：xs 26 / sm 30 / md 36） */
+.btn{ height:36px; padding:0 16px; border-radius:8px; border:1px solid var(--line2); background:transparent;
+  color:var(--ink); font-family:var(--f-sans); font-size:13px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:8px;
+  transition:background var(--t-fast) var(--e-io), border-color var(--t-fast) var(--e-io), color var(--t-fast) var(--e-io); }
+.btn:hover{ background:rgba(var(--lift-rgb),.05); }
+.btn .i{ width:14px; height:14px; }
+.btn.sm{ height:30px; padding:0 13px; font-size:12px; border-radius:7px; }
+.btn.sm .i{ width:13px; height:13px; }
+.btn.xs{ height:26px; padding:0 10px; font-size:12px; border-radius:7px; gap:6px; }
+.btn.xs .i{ width:12px; height:12px; }
+.btn.primary{ border:0; background:linear-gradient(180deg, var(--acc-hi), var(--acc)); color:var(--on-acc); font-weight:520;
+  box-shadow:inset 0 1px 0 rgba(255,240,205,.55), 0 10px 24px -14px rgba(var(--acc-rgb),.6); }
+.btn.primary:hover{ filter:brightness(1.06); background:linear-gradient(180deg, var(--acc-hi), var(--acc)); }
+.btn.ghost{ border-color:transparent; color:var(--ink2); }
+.btn.ghost:hover{ color:var(--ink); }
+.btn.danger{ color:var(--err); border-color:rgba(var(--err-rgb),.5); }
+.btn.danger:hover{ background:rgba(var(--err-rgb),.1); }
+.btn:disabled{ opacity:.5; cursor:default; }
+.btn:disabled:hover{ background:transparent; }
+
+/* ---------- 首页 ---------- */
+.hero{ position:relative; flex-shrink:0; height:196px; overflow:hidden; background:#141210; }
+.hero-art{ position:absolute; inset:0; width:100%; height:100%; }
+.hero-copy{ position:absolute; left:30px; top:0; bottom:0; display:flex; flex-direction:column;
+  justify-content:center; gap:7px; pointer-events:none; }
+.hero-eyebrow{ font-size:12px; color:rgba(240,235,225,.72); letter-spacing:.06em; }
+.hero-copy h1{ font-family:var(--f-serif); font-weight:400; font-size:31px; line-height:1.08;
+  color:#f4efe6; letter-spacing:.005em; text-shadow:0 2px 14px rgba(0,0,0,.55); }
+.hero-copy p{ font-size:13px; color:rgba(240,235,225,.82); text-shadow:0 1px 8px rgba(0,0,0,.5); }
+
+.home-banner{ display:none; margin:0; padding:10px 18px; border-bottom:1px solid var(--line);
+  align-items:center; gap:10px; font-size:12px; }
+.home-banner.on{ display:flex; animation:pg-in .22s var(--e-out) both; }
+.home-banner.warn{ background:rgba(217,154,78,.09); color:var(--warn); }
+.home-banner.info{ background:rgba(var(--acc-rgb),.08); color:var(--acc-text); }
+.home-banner .bt{ font-weight:520; }
+.home-banner .bx{ color:var(--ink2); }
+.home-banner .sp{ flex:1; }
+
+.home-grid{ flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 296px;
+  gap:14px; padding:14px 18px 18px; overflow:hidden; }
+.home-left{ display:flex; flex-direction:column; min-width:0; }
+.sec-t{ font-size:15px; font-weight:520; margin:2px 0 12px; letter-spacing:.01em; }
+.cards{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; }
+.qcard{ min-height:74px; text-align:left; border:1px solid var(--line); border-radius:11px;
+  background:linear-gradient(180deg, rgba(var(--lift-rgb),.035), rgba(var(--lift-rgb),.015));
+  cursor:pointer; padding:13px 13px 12px; display:flex; gap:11px; align-items:flex-start;
+  color:var(--ink); font-family:var(--f-sans);
+  transition:transform .16s var(--e-io), border-color .16s var(--e-io), background .16s var(--e-io); }
+.qcard:hover{ transform:translateY(-2px); border-color:rgba(var(--acc-rgb),.4);
+  background:linear-gradient(180deg, rgba(var(--lift-rgb),.06), rgba(var(--lift-rgb),.02)); }
+.qcard .tile{ width:32px; height:32px; border-radius:9px; flex-shrink:0; display:grid; place-items:center;
+  background:rgba(var(--lift-rgb),.055); border:1px solid rgba(var(--lift-rgb),.07); color:var(--ink2); }
+.qcard .tile .i{ width:15px; height:15px; }
+.qcard .qt{ min-width:0; display:flex; flex-direction:column; gap:3px; }
+.qcard b{ font-size:13px; font-weight:520; letter-spacing:.01em; }
+.qcard small{ font-size:11px; color:var(--ink3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.qcard .chev{ margin-left:auto; align-self:center; color:var(--ink3); }
+.qcard .chev .i{ width:13px; height:13px; }
+.verlines{ margin-top:auto; padding-top:16px; color:var(--ink3); font-size:11px; line-height:1.95; }
+.verlines .mono{ font-size:11px; }
+
+.panel{ border:1px solid var(--line); border-radius:12px; background:rgba(var(--lift-rgb),.016); }
+.home-right{ display:flex; flex-direction:column; padding:15px 15px 14px; min-height:0; }
+.home-right h3{ font-size:14px; font-weight:520; margin-bottom:12px; }
+.chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.chip{ display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 10px; border-radius:999px;
+  background:rgba(var(--lift-rgb),.05); border:1px solid var(--line); color:var(--ink2); font-size:11px; }
+.chip .led{ width:5px; height:5px; }
+.chip.ok{ color:var(--ok); border-color:rgba(var(--ok-rgb,143,176,126),.35); }
+.chip.ok .led{ background:var(--ok); }
+html[data-mode="light"] .chip.ok{ color:#426534; }
+html[data-mode="light"] .chip.warn{ color:#7a5218; }
+html[data-mode="light"] .chip.err{ color:#9a3a2e; }
+html[data-mode="light"] .warnbanner{ color:#7a5218; border-color:rgba(122,82,24,.32); }
+html[data-mode="light"] .warnbanner .wb-act{ color:#7a5218; }
+.chip.warn{ color:var(--warn); border-color:rgba(217,154,78,.4); }
+.chip.warn .led{ background:var(--warn); }
+.chip.err{ color:var(--err); border-color:rgba(var(--err-rgb),.45); }
+.chip.err .led{ background:var(--err); }
+.chip.acc{ color:var(--acc-text); border-color:rgba(var(--acc-rgb),.4); }
+.chip.acc .led{ background:var(--acc); }
+.hline{ height:1px; background:var(--line); margin:13px 0; }
+.hmeta{ display:flex; flex-direction:column; gap:8px; font-size:12px; color:var(--ink2); }
+.hmeta em{ font-style:normal; color:var(--ink3); margin-right:7px; }
+.hmeta .mono{ font-size:11px; }
+.tprog{ margin-top:14px; display:flex; flex-direction:column; gap:7px; }
+.tprog .bar{ height:3px; border-radius:999px; background:rgba(var(--lift-rgb),.08); overflow:hidden; }
+.tprog .bar i{ display:block; height:100%; width:100%; background:var(--acc);
+  box-shadow:0 0 10px -2px rgba(var(--acc-rgb),.8); }
+.tprog span{ font-size:11px; color:var(--ink3); font-variant-numeric:tabular-nums; }
+.btn-run{ margin-top:auto; height:52px; border:0; border-radius:11px; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; gap:10px;
+  background:linear-gradient(180deg, var(--acc-hi) 0%, var(--acc) 48%, var(--acc-lo) 100%);
+  color:var(--on-acc); font-family:var(--f-sans); font-size:15px; font-weight:520; letter-spacing:.03em;
+  box-shadow:inset 0 1px 0 rgba(255,240,205,.7), 0 14px 34px -18px rgba(var(--acc-rgb),.75);
+  transition:filter var(--t-fast) var(--e-io), transform var(--t-fast) var(--e-io); }
+.btn-run:hover{ filter:brightness(1.06); }
+.btn-run:active{ transform:translateY(1px) scale(.995); }
+.btn-run .i{ width:16px; height:16px; }
+
+/* ---------- 设置行（高级选项 / 设置页共用） ---------- */
+.rows{ border:1px solid var(--line); border-radius:12px; overflow:hidden;
+  background:rgba(var(--lift-rgb),.012); }
+.row{ display:flex; align-items:center; gap:13px; padding:0 15px; min-height:52px;
+  border-bottom:1px solid var(--line); position:relative; }
+.row:last-child{ border-bottom:0; }
+.row:hover{ background:rgba(var(--lift-rgb),.014); }
+.row .tile{ width:30px; height:30px; border-radius:8px; flex-shrink:0; display:grid; place-items:center;
+  background:rgba(var(--lift-rgb),.05); border:1px solid rgba(var(--lift-rgb),.06); color:var(--ink2); }
+.row .tile .i{ width:14px; height:14px; }
+.rtxt{ display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; }
+.rtxt b{ font-size:13px; font-weight:500; letter-spacing:.005em; }
+.rtxt span{ font-size:11px; color:var(--ink3); }
+.rctl{ margin-left:auto; display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.sec-head{ display:flex; align-items:center; gap:12px; margin:20px 0 10px; }
+.sec-head:first-child{ margin-top:2px; }
+.sec-head h2{ font-size:13px; font-weight:520; color:var(--ink2); letter-spacing:.02em; }
+.sec-head .sh-r{ margin-left:auto; }
+.sec-head .hint{ font-size:11px; color:var(--ink3); }
+
+/* 控件：下拉外观 / 开关 / 输入 */
+.sel{ height:30px; min-width:150px; max-width:420px; padding:0 11px; border-radius:8px;
+  border:1px solid var(--line2); background:rgba(var(--lift-rgb),.03);
+  display:inline-flex; align-items:center; gap:12px; color:var(--ink); font-size:12px; }
+.sel span{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums; }
+.sel .i{ width:12px; height:12px; color:var(--ink3); margin-left:auto; }
+.switch{ position:relative; width:36px; height:20px; flex-shrink:0; border-radius:999px;
+  border:1px solid var(--line2); background:var(--bg-deep); cursor:pointer; padding:0;
+  transition:background var(--t) var(--e-io), border-color var(--t) var(--e-io); }
+.switch::after{ content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:999px;
+  background:var(--ink2); transition:transform var(--t) var(--e-out), background var(--t) var(--e-io); }
+.switch.on{ background:rgba(var(--acc-rgb),.26); border-color:rgba(var(--acc-rgb),.55); }
+.switch.on::after{ transform:translateX(16px); background:var(--acc-hi); }
+.inp{ height:30px; width:88px; padding:0 10px; border:1px solid var(--line2); border-radius:8px;
+  background:var(--bg-input); color:var(--ink); font-family:var(--f-mono); font-size:12px; outline:none;
+  font-variant-numeric:tabular-nums; }
+.inp:focus{ border-color:var(--acc); }
+
+/* 警告横幅（高级选项） */
+.warnbanner{ display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:10px;
+  background:rgba(217,154,78,.1); border:1px solid rgba(217,154,78,.28); color:var(--warn);
+  font-size:12px; margin-bottom:14px; }
+.warnbanner .i{ width:15px; height:15px; flex-shrink:0; }
+.warnbanner .wb-act{ margin-left:auto; color:var(--warn); text-decoration:underline; cursor:pointer; }
+
+/* ---------- 疑难解答 ---------- */
+.faq-list{ border:1px solid var(--line); border-radius:12px; overflow:hidden; background:rgba(var(--lift-rgb),.012); }
+.frow{ display:flex; align-items:center; gap:13px; padding:11px 15px; border-bottom:1px solid var(--line); }
+.frow:last-child{ border-bottom:0; }
+.frow .ftxt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.frow b{ font-size:13px; font-weight:500; }
+.frow span{ font-size:11px; color:var(--ink3); }
+.frow.flash{ animation:faq-flash 1.1s var(--e-io); }
+@keyframes faq-flash{ 0%{ background:rgba(var(--acc-rgb),.16) } 100%{ background:transparent } }
+
+/* ---------- 模型管理 ---------- */
+.dgrid{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; }
+.dcard{ text-align:left; border:1px solid var(--line); border-radius:11px; padding:13px 14px 12px;
+  background:linear-gradient(180deg, rgba(var(--lift-rgb),.035), rgba(var(--lift-rgb),.015));
+  display:flex; flex-direction:column; gap:7px; font-family:var(--f-sans); cursor:default; }
+.dcard .dh{ display:flex; align-items:center; gap:9px; }
+.dcard b{ font-size:13px; font-weight:520; }
+.dcard small{ font-size:11px; color:var(--ink3); font-variant-numeric:tabular-nums; }
+.dcard .chip{ align-self:flex-start; }
+table.tbl{ width:100%; border-collapse:collapse; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+.tbl th{ text-align:left; font-size:11px; font-weight:500; color:var(--ink3); padding:9px 12px;
+  border-bottom:1px solid var(--line); background:rgba(var(--lift-rgb),.03); white-space:nowrap; }
+.tbl td{ font-size:12px; color:var(--ink2); padding:8px 12px; border-bottom:1px solid var(--line);
+  white-space:nowrap; font-variant-numeric:tabular-nums; }
+.tbl tr:last-child td{ border-bottom:0; }
+.tbl tr:hover td{ background:rgba(var(--lift-rgb),.02); }
+.tbl .r{ text-align:right; }
+.tbl td.name{ color:var(--ink); font-family:var(--f-mono); font-size:12px; }
+.tbl td .mono{ font-family:var(--f-mono); font-size:12px; }
+.rrow{ display:flex; align-items:center; gap:13px; padding:11px 15px; border-bottom:1px solid var(--line); }
+.rrow:last-child{ border-bottom:0; }
+.rrow .tile{ width:30px; height:30px; border-radius:8px; flex-shrink:0; display:grid; place-items:center;
+  background:rgba(var(--lift-rgb),.05); border:1px solid rgba(var(--lift-rgb),.06); color:var(--ink2); }
+.rrow .tile .i{ width:14px; height:14px; }
+.rrow .rm{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.rrow b{ font-weight:500; font-family:var(--f-mono); font-size:12px; }
+.rrow span{ font-size:11px; color:var(--ink3); font-variant-numeric:tabular-nums; }
+
+/* ---------- 控制台 ---------- */
+.cstrip{ height:46px; flex-shrink:0; display:flex; align-items:center; gap:10px; padding:0 16px;
+  border-bottom:1px solid var(--line); background:rgba(var(--lift-rgb),.02); }
+.cstrip .led{ width:7px; height:7px; }
+.cstate{ font-size:13px; color:var(--ink); }
+.cstrip .sp{ flex:1; }
+.cact{ display:flex; align-items:center; gap:8px; }
+.logwrap{ flex:1; min-height:0; background:var(--log-bg); display:flex; }
+.log{ flex:1; margin:0; padding:14px 18px; overflow-y:auto; font-family:var(--f-mono);
+  font-size:12px; line-height:1.85; color:var(--log-out); white-space:pre-wrap; word-break:break-all; }
+.log .ln{ display:flex; gap:12px; opacity:0; }
+.log .ln.in{ animation:scr-in .22s var(--e-out) both; }
+.log .lt{ color:var(--log-dim); flex-shrink:0; }
+.log .lc{ flex-shrink:0; width:34px; }
+.log .lc.sys{ color:var(--log-sys); }
+.log .lc.out{ color:var(--log-dim); }
+.log .lc.err{ color:var(--log-err); }
+.log .lc.warn{ color:var(--log-warn); }
+.log .lc.ok{ color:var(--log-ok); }
+.log .lm{ flex:1; min-width:0; }
+.log .ln.err .lm{ color:var(--log-err); }
+.log .ln.warn .lm{ color:var(--log-warn); }
+.log .ln.dim .lm{ color:var(--log-dim); }
+@keyframes scr-in{ from{ opacity:0; transform:translateY(4px) } to{ opacity:1; transform:none } }
+
+/* 滚动条（内容页 / 日志） */
+.pscroll::-webkit-scrollbar, .log::-webkit-scrollbar{ width:10px; }
+.pscroll::-webkit-scrollbar-thumb, .log::-webkit-scrollbar-thumb{
+  background:rgba(var(--lift-rgb),.16); border-radius:999px;
+  border:3px solid transparent; background-clip:content-box; }
+.pscroll::-webkit-scrollbar-thumb:hover, .log::-webkit-scrollbar-thumb:hover{ background-color:rgba(var(--lift-rgb),.26); }
+.pscroll::-webkit-scrollbar-track, .log::-webkit-scrollbar-track{ background:transparent; }
+
+/* 专家模式 */
+.blk.expert{ display:none; }
+.win.expert .blk.expert{ display:block; }
+.win.expert #expertNote{ display:none; }
+.rows.note{ margin-top:10px; border-style:dashed; display:block; }
+
+@@POPS@@
+
+@@THEMECSS@@
+
+@@TOASTS@@
+
+/* ---------- 主题切换过渡 + 焦点 ---------- */
+html.theming, html.theming *, html.theming *::before, html.theming *::after{
+  transition:background-color .22s ease, border-color .22s ease, color .22s ease, box-shadow .22s ease !important;
+}
+@media (prefers-reduced-motion: reduce){ html.theming, html.theming *{ transition:none !important; } }
+:focus-visible{ outline:2px solid rgba(var(--acc-rgb),.8); outline-offset:2px; }
+</style>
+</head>
+<body>
+<svg class="sprite" aria-hidden="true">
+  <defs>
+    <symbol id="i-play" viewBox="0 0 20 20"><path d="M7.2 4.8v10.4L15.4 10Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+    <symbol id="i-slide" viewBox="0 0 20 20"><path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="7.2" cy="6" r="1.7" fill="var(--bg)" stroke="currentColor" stroke-width="1.4"/><circle cx="12.6" cy="10" r="1.7" fill="var(--bg)" stroke="currentColor" stroke-width="1.4"/><circle cx="6.4" cy="14" r="1.7" fill="var(--bg)" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-life" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.4 5.4 7.8 7.8M14.6 5.4l-2.4 2.4M5.4 14.6l2.4-2.4M14.6 14.6l-2.4-2.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-cube" viewBox="0 0 20 20"><path d="M10 2.9 16.6 6.5v7L10 17.1 3.4 13.5v-7Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M3.6 6.6 10 10.1l6.4-3.5M10 10.1v6.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
+    <symbol id="i-term" viewBox="0 0 20 20"><rect x="2.8" y="4" width="14.4" height="12" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6.2 8.2l2.6 1.8-2.6 1.8M10.8 12.4h3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 20 20"><circle cx="10" cy="10" r="4.4" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="1.5" fill="currentColor"/><path d="M10 2.6v2.2M10 15.2v2.2M2.6 10h2.2M15.2 10h2.2M4.8 4.8l1.6 1.6M13.6 13.6l1.6 1.6M15.2 4.8l-1.6 1.6M6.4 13.6l-1.6 1.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-db" viewBox="0 0 20 20"><ellipse cx="10" cy="5.4" rx="6.2" ry="2.4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3.8 5.4v9.2c0 1.3 2.8 2.4 6.2 2.4s6.2-1.1 6.2-2.4V5.4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3.8 10c0 1.3 2.8 2.4 6.2 2.4s6.2-1.1 6.2-2.4" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 20 20"><path d="M2.8 6.2c0-.9.7-1.6 1.6-1.6h3.2l1.6 1.8h6.4c.9 0 1.6.7 1.6 1.6v6.4c0 .9-.7 1.6-1.6 1.6H4.4c-.9 0-1.6-.7-1.6-1.6Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 6.4V10l2.6 1.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 20 20"><path d="M5 2.8h6l4 4v10.4H5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M11 2.8v4h4M7.6 11h4.8M7.6 13.6h4.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-hdd" viewBox="0 0 20 20"><rect x="2.8" y="5" width="14.4" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2.8 11.4h14.4" stroke="currentColor" stroke-width="1.4"/><circle cx="13.6" cy="12.9" r=".9" fill="currentColor"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 20 20"><path d="M10 2.8 15.8 5v4.6c0 3.6-2.4 6.4-5.8 7.6-3.4-1.2-5.8-4-5.8-7.6V5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.4 9.8 9.4 11.8l3.4-3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 20 20"><path d="M6.4 8 10 11.8 13.6 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 20 20"><path d="M7.6 5.6 12 10l-4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-scan" viewBox="0 0 20 20"><path d="M3.4 7V4.8c0-.8.6-1.4 1.4-1.4H7M13 3.4h2.2c.8 0 1.4.6 1.4 1.4V7M16.6 13v2.2c0 .8-.6 1.4-1.4 1.4H13M7 16.6H4.8c-.8 0-1.4-.6-1.4-1.4V13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M6.8 10.2h6.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 20 20"><path d="M10 3.4 17 16H3Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="13.7" r=".9" fill="currentColor"/></symbol>
+    <symbol id="i-down" viewBox="0 0 20 20"><path d="M10 3.4v9.4M5.8 9.2 10 13.4l4.2-4.2M4 16.6h12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 20 20"><path d="M7.2 3v3.6M12.8 3v3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 6.6h10v2.9a5 5 0 0 1-10 0Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 14.5v2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="desk"></div>
+<div class="stage"><div class="stage-inner" id="stageInner">
+  <div class="win" id="win">
+
+    <header class="tbar">
+      <svg class="tb-mark" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+        <circle cx="9" cy="9" r="7.1" style="stroke:var(--acc)" stroke-width="1.1" opacity=".9"/>
+        <path d="M9 2.4 A6.6 6.6 0 0 1 15.2 6.4" style="stroke:var(--acc-hi)" stroke-width="1.1" stroke-linecap="round"/>
+        <path d="M3.4 5.6 A6.6 6.6 0 0 0 9 15.6" style="stroke:rgba(var(--lift-rgb),.45)" stroke-width="1.1" stroke-linecap="round"/>
+        <circle cx="9" cy="9" r="1.7" style="fill:var(--acc)"/>
+      </svg>
+      <span class="tb-name">Auto YOLO Training</span>
+      <span class="tb-tag">启动器</span>
+      <div class="tb-c"></div>
+      <div class="tb-r">
+        <button class="tbi" id="themeBtn" type="button" title="外观" aria-label="外观" aria-haspopup="true">
+          <svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.2" stroke="currentColor" stroke-width="1.1"/><path d="M7 1.8a5.2 5.2 0 0 1 0 10.4Z" fill="currentColor" opacity=".5"/></svg>
+        </button>
+        <button class="tbi" id="scenarioBtn" type="button" title="场景演示" aria-label="场景演示" aria-haspopup="true">
+          <svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.1"/><circle cx="7" cy="7" r="1.4" fill="currentColor"/></svg>
+        </button>
+        <div class="wctl">
+          <button type="button" aria-label="最小化" title="最小化"><svg viewBox="0 0 11 11" fill="none"><path d="M1 5.5h9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button>
+          <button type="button" aria-label="最大化" title="最大化"><svg viewBox="0 0 11 11" fill="none"><rect x="1.2" y="1.2" width="8.6" height="8.6" rx="1.4" stroke="currentColor" stroke-width="1.1"/></svg></button>
+          <button type="button" class="close" aria-label="关闭" title="关闭"><svg viewBox="0 0 11 11" fill="none"><path d="M1.6 1.6l7.8 7.8M9.4 1.6L1.6 9.4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button>
+        </div>
+      </div>
+    </header>
+
+    <div class="shell">
+      <!-- 图标窄栏 -->
+      <nav class="rail" aria-label="主导航">
+        <button class="rit on" data-page="home" type="button"><svg class="i"><use href="#i-play"/></svg><span>一键启动</span></button>
+        <button class="rit" data-page="advanced" type="button"><svg class="i"><use href="#i-slide"/></svg><span>高级选项</span></button>
+        <button class="rit" data-page="faq" type="button"><svg class="i"><use href="#i-life"/></svg><span>疑难解答</span></button>
+        <button class="rit" data-page="models" type="button"><svg class="i"><use href="#i-cube"/></svg><span>模型管理</span></button>
+        <button class="rit" data-page="console" type="button"><svg class="i ic-red"><use href="#i-term"/></svg><span>控制台</span></button>
+        <div class="rail-sp"></div>
+        <button class="rit" data-page="settings" type="button"><svg class="i"><use href="#i-gear"/></svg><span>设置</span></button>
+      </nav>
+
+      <main class="main">
+        <!-- ============ 首页 ============ -->
+        <section class="page on" id="page-home">
+          <div class="hero">
+            <svg class="hero-art" viewBox="0 0 1200 196" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+              <defs>
+                <linearGradient id="hg" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#262218"/><stop offset=".55" stop-color="#191612"/><stop offset="1" stop-color="#100e0c"/>
+                </linearGradient>
+                <radialGradient id="hgl" cx=".78" cy=".4" r=".6">
+                  <stop offset="0" stop-color="rgba(201,163,92,.32)"/><stop offset="1" stop-color="rgba(201,163,92,0)"/>
+                </radialGradient>
+                <linearGradient id="hs" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stop-color="rgba(9,8,7,.66)"/><stop offset=".58" stop-color="rgba(9,8,7,.22)"/><stop offset="1" stop-color="rgba(9,8,7,0)"/>
+                </linearGradient>
+              </defs>
+              <rect width="1200" height="196" fill="url(#hg)"/>
+              <rect width="1200" height="196" fill="url(#hgl)"/>
+              <g stroke="rgba(240,235,225,.055)" fill="none">
+                <circle cx="1085" cy="105" r="86"/><circle cx="1085" cy="105" r="132"/><circle cx="1085" cy="105" r="178"/>
+              </g>
+              <g stroke="rgba(201,163,92,.4)" fill="none">
+                <path d="M150 150 H1050" stroke-dasharray="2 6" opacity=".6"/>
+              </g>
+              <g>
+                <circle cx="150" cy="150" r="3.4" fill="#c9a35c"/>
+                <circle cx="330" cy="150" r="3" fill="none" stroke="rgba(201,163,92,.85)" stroke-width="1.4"/>
+                <circle cx="510" cy="150" r="3" fill="none" stroke="rgba(201,163,92,.7)" stroke-width="1.4"/>
+                <circle cx="690" cy="150" r="3" fill="none" stroke="rgba(201,163,92,.55)" stroke-width="1.4"/>
+                <circle cx="870" cy="150" r="3" fill="none" stroke="rgba(201,163,92,.42)" stroke-width="1.4"/>
+                <circle cx="1050" cy="150" r="3" fill="none" stroke="rgba(201,163,92,.32)" stroke-width="1.4"/>
+              </g>
+              <g transform="translate(1017 37) scale(3.8)" opacity=".16" fill="none">
+                <circle cx="9" cy="9" r="7.1" stroke="#f0ebe1" stroke-width=".5"/>
+                <path d="M9 2.4 A6.6 6.6 0 0 1 15.2 6.4" stroke="#f0ebe1" stroke-width=".5" stroke-linecap="round"/>
+                <circle cx="9" cy="9" r="1.7" fill="#f0ebe1"/>
+              </g>
+              <rect width="1200" height="196" fill="url(#hs)"/>
+            </svg>
+            <div class="hero-copy">
+              <div class="hero-eyebrow">本地训练台</div>
+              <h1>Auto YOLO Training</h1>
+              <p>环境自检、数据清点、训练监控，收在一个入口。</p>
+            </div>
+          </div>
+
+          <div class="home-banner" id="homeBanner"></div>
+
+          <div class="home-grid">
+            <div class="home-left">
+              <h2 class="sec-t">快捷入口</h2>
+              <div class="cards">
+                <button class="qcard" type="button" data-go="models" data-tab="ds">
+                  <span class="tile"><svg class="i"><use href="#i-db"/></svg></span>
+                  <span class="qt"><b>数据集</b><small>6 个 · 4 个可训练</small></span>
+                  <span class="chev"><svg class="i"><use href="#i-arrow"/></svg></span>
+                </button>
+                <button class="qcard" type="button" data-go="models" data-tab="wt">
+                  <span class="tile"><svg class="i"><use href="#i-cube"/></svg></span>
+                  <span class="qt"><b>权重与版本</b><small>注册表 5 个版本 · 最新 0.0147</small></span>
+                  <span class="chev"><svg class="i"><use href="#i-arrow"/></svg></span>
+                </button>
+                <button class="qcard" type="button" data-go="models" data-tab="run">
+                  <span class="tile"><svg class="i"><use href="#i-clock"/></svg></span>
+                  <span class="qt"><b>训练记录</b><small>4 次运行 · 2 份 results.csv</small></span>
+                  <span class="chev"><svg class="i"><use href="#i-arrow"/></svg></span>
+                </button>
+                <button class="qcard" type="button" data-toast="已打开 dataset/ 目录（原型演示）">
+                  <span class="tile"><svg class="i"><use href="#i-folder"/></svg></span>
+                  <span class="qt"><b>数据集目录</b><small>dataset/ · 6 个子目录</small></span>
+                  <span class="chev"><svg class="i"><use href="#i-arrow"/></svg></span>
+                </button>
+                <button class="qcard" type="button" data-toast="已打开 runs/detect/ 目录（原型演示）">
+                  <span class="tile"><svg class="i"><use href="#i-hdd"/></svg></span>
+                  <span class="qt"><b>训练输出</b><small>runs/detect/ · 4 个运行</small></span>
+                  <span class="chev"><svg class="i"><use href="#i-arrow"/></svg></span>
+                </button>
+                <button class="qcard" type="button" data-toast="已打开 logs/ 目录（原型演示）">
+                  <span class="tile"><svg class="i"><use href="#i-doc"/></svg></span>
+                  <span class="qt"><b>日志</b><small>logs/ · 控制台与训练日志</small></span>
+                  <span class="chev"><svg class="i"><use href="#i-arrow"/></svg></span>
+                </button>
+              </div>
+              <div class="verlines">
+                <div>启动器 v0.1.0 · Build 7 · <span class="mono">9e05411</span></div>
+                <div>环境 Python 3.12.7 · torch 2.9.0+cu130 · ultralytics 8.4.143</div>
+                <div>注册表 5 个版本 · 最近训练 <span class="mono">_smoke_test_auto-2</span> · 2026-09-18</div>
+              </div>
+            </div>
+
+            <aside class="home-right panel">
+              <h3>状态</h3>
+              <div class="chips">
+                <span class="chip acc"><span class="led"></span>RTX 5080 Laptop</span>
+                <span class="chip"><span class="led"></span>磁盘 321 GB</span>
+                <span class="chip"><span class="led"></span>数据 6 · 注册表 5</span>
+                <span class="chip ok" id="chipPort"><span class="led"></span>端口 8080 · 空闲</span>
+              </div>
+              <div class="hline"></div>
+              <div class="hmeta">
+                <div><em>最近</em><span class="mono">best_20260918_002350</span> · mAP@50 <span class="mono">0.0147</span></div>
+                <div><em>训练</em>4 次运行 · 2 份 results.csv</div>
+                <div><em>控制台</em><span id="metaConsole">未运行 · 端口 8080</span></div>
+              </div>
+              <div class="tprog" id="tprog" hidden>
+                <div class="bar"><i></i></div>
+                <span>_smoke_test_auto · E2/2 · mAP@50 0.0147</span>
+              </div>
+              <button class="btn-run" id="btnRun" type="button">
+                <svg class="i"><use href="#i-play"/></svg><span id="btnRunLabel">一键启动</span>
+              </button>
+            </aside>
+          </div>
+        </section>
+
+        <!-- ============ 高级选项 ============ -->
+        <section class="page" id="page-advanced">
+          <div class="ptop">
+            <div class="tabs" data-tabs="adv" data-default="train">
+              <button class="tab on" data-tab="train" type="button">训练设置</button>
+              <button class="tab" data-tab="env" type="button">环境维护</button>
+              <button class="tab" data-tab="boot" type="button">启动选项</button>
+            </div>
+          </div>
+          <div class="pscroll">
+            <div class="pane" id="adv-train">
+              <div class="warnbanner"><svg class="i"><use href="#i-warn"/></svg><span>data 数据集 · 验证集 75/75 缺失标注，训练前建议补齐。</span><span class="wb-act" data-toast="打开数据集报告（原型演示）">查看</span></div>
+              <div class="sec-head"><h2>训练设置</h2><span class="hint">默认值来自 configs/train/data_auto.yaml</span>
+                <div class="sh-r"><button class="btn xs danger" data-toast="已恢复默认训练设置（原型演示）">恢复默认设置</button></div></div>
+              <div class="rows">
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-db"/></svg></span><span class="rtxt"><b>数据集</b><span>训练与验证来源</span></span><span class="rctl"><span class="sel"><span>data · 371 图 · 2 类</span><svg class="i"><use href="#i-chev"/></svg></span></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-cube"/></svg></span><span class="rtxt"><b>基础模型</b><span>预训练权重起点</span></span><span class="rctl"><span class="sel"><span>basemodels/yolo26n.pt</span><svg class="i"><use href="#i-chev"/></svg></span></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-folder"/></svg></span><span class="rtxt"><b>输出目录</b><span>训练产物写入位置</span></span><span class="rctl"><span class="sel"><span>runs/detect/data_auto</span><svg class="i"><use href="#i-chev"/></svg></span></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-clock"/></svg></span><span class="rtxt"><b>训练轮数</b><span>epochs</span></span><span class="rctl"><span class="sel"><span>50 轮</span><svg class="i"><use href="#i-chev"/></svg></span></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-doc"/></svg></span><span class="rtxt"><b>图像尺寸</b><span>imgsz</span></span><span class="rctl"><span class="sel"><span>416</span><svg class="i"><use href="#i-chev"/></svg></span></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-slide"/></svg></span><span class="rtxt"><b>批大小</b><span>batch</span></span><span class="rctl"><span class="sel"><span>32</span><svg class="i"><use href="#i-chev"/></svg></span></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-shield"/></svg></span><span class="rtxt"><b>优化器</b><span>optimizer</span></span><span class="rctl"><span class="sel"><span>AdamW</span><svg class="i"><use href="#i-chev"/></svg></span></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-hdd"/></svg></span><span class="rtxt"><b>磁盘缓存数据集</b><span>cache = disk，加速第二轮起的读取</span></span><span class="rctl"><button class="switch on" type="button" role="switch" aria-checked="true"></button></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-shield"/></svg></span><span class="rtxt"><b>AMP 混合精度</b><span>显存不足时自动回退</span></span><span class="rctl"><button class="switch on" type="button" role="switch" aria-checked="true"></button></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-clock"/></svg></span><span class="rtxt"><b>早停耐心值</b><span>patience，连续无提升轮数</span></span><span class="rctl"><span class="sel"><span>10 轮</span><svg class="i"><use href="#i-chev"/></svg></span></span></div>
+              </div>
+            </div>
+
+            <div class="pane off" id="adv-env">
+              <div class="sec-head"><h2>环境维护</h2><span class="hint">组件随项目独立安装，不影响系统</span></div>
+              <div class="rows">
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-cube"/></svg></span><span class="rtxt"><b>生成引擎</b><span>参与计算的硬件</span></span><span class="rctl"><span class="sel"><span>CUDA · RTX 5080 Laptop (16 GB)</span><svg class="i"><use href="#i-chev"/></svg></span></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-term"/></svg></span><span class="rtxt"><b>Python</b><span>3.12.7 · 项目独立环境</span></span><span class="rctl"><button class="btn xs" data-toast="重装 Python（原型演示）">重装</button></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-shield"/></svg></span><span class="rtxt"><b>PyTorch</b><span>2.9.0+cu130 · CUDA 可用</span></span><span class="rctl"><button class="btn xs" data-toast="重装 PyTorch（原型演示）">重装</button></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-hdd"/></svg></span><span class="rtxt"><b>磁盘</b><span>E: 可用 321 GB</span></span><span class="rctl"></span></div>
+                <div class="row expert"><span class="tile"><svg class="i"><use href="#i-folder"/></svg></span><span class="rtxt"><b>Git</b><span>未配置 · 镜像更新与扩展安装需要</span></span><span class="rctl"><button class="btn xs" data-toast="安装 Git（原型演示）">安装</button></span></div>
+                <div class="row expert"><span class="tile"><svg class="i"><use href="#i-slide"/></svg></span><span class="rtxt"><b>运行库修复</b><span>重建 Lib / 校验依赖完整性</span></span><span class="rctl"><button class="btn xs" data-toast="开始修复（原型演示）">修复</button></span></div>
+              </div>
+            </div>
+
+            <div class="pane off" id="adv-boot">
+              <div class="sec-head"><h2>启动选项</h2></div>
+              <div class="rows">
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-term"/></svg></span><span class="rtxt"><b>控制台端口</b><span>127.0.0.1</span></span><span class="rctl"><input class="inp" value="8080" inputmode="numeric" /></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-plug"/></svg></span><span class="rtxt"><b>推理服务端口</b><span>127.0.0.1</span></span><span class="rctl"><input class="inp" value="8000" inputmode="numeric" /></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-play"/></svg></span><span class="rtxt"><b>启动后自动打开浏览器</b><span></span></span><span class="rctl"><button class="switch on" type="button" role="switch" aria-checked="true"></button></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-shield"/></svg></span><span class="rtxt"><b>崩溃自动重启</b><span>控制台异常退出后自动拉起</span></span><span class="rctl"><button class="switch" type="button" role="switch" aria-checked="false"></button></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-cube"/></svg></span><span class="rtxt"><b>单实例互斥</b><span>避免重复启动两份控制台</span></span><span class="rctl"><button class="switch on" type="button" role="switch" aria-checked="true"></button></span></div>
+                <div class="row expert"><span class="tile"><svg class="i"><use href="#i-slide"/></svg></span><span class="rtxt"><b>开发模式</b><span>前端热更新 · 仅开发时开启</span></span><span class="rctl"><button class="switch" type="button" role="switch" aria-checked="false"></button></span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ 疑难解答 ============ -->
+        <section class="page" id="page-faq">
+          <div class="ptop">
+            <h2 class="ph-t">疑难解答</h2>
+            <div class="ptop-r">
+              <button class="btn sm" type="button" data-toast="诊断包已生成：reports/diag-20261004.zip（原型演示）"><svg class="i"><use href="#i-doc"/></svg>生成诊断包</button>
+              <button class="btn sm primary" id="btnScan" type="button"><svg class="i"><use href="#i-scan"/></svg>开始扫描</button>
+            </div>
+          </div>
+          <div class="pscroll">
+            <div class="sec-head"><h2>扫描结果</h2><span class="hint" id="scanHint">4 项通过 · 1 项告警</span></div>
+            <div class="faq-list" id="faqList">
+              <div class="frow"><span class="chip warn"><span class="led"></span>告警</span><span class="ftxt"><b>val 标注不完整</b><span>data · 验证集 75/75 缺失标注，训练前建议补齐</span></span><button class="btn xs" type="button" data-toast="打开数据集报告（原型演示）">查看</button></div>
+              <div class="frow"><span class="chip ok"><span class="led"></span>通过</span><span class="ftxt"><b>前端产物</b><span>frontend/dist 存在，控制台可直接启动</span></span><button class="btn xs" type="button" data-toast="已刷新产物清单（原型演示）">复查</button></div>
+              <div class="frow"><span class="chip ok"><span class="led"></span>通过</span><span class="ftxt"><b>端口检查</b><span>8080 空闲 · 8000 空闲</span></span><button class="btn xs" type="button" data-toast="重新检测端口（原型演示）">检测</button></div>
+              <div class="frow"><span class="chip ok"><span class="led"></span>通过</span><span class="ftxt"><b>注册表完整性</b><span>5 个版本均可寻址（staging）</span></span><button class="btn xs" type="button" data-toast="打开注册表（原型演示）">打开</button></div>
+              <div class="frow"><span class="chip warn"><span class="led"></span>告警</span><span class="ftxt"><b>镜像配置</b><span>HuggingFace 镜像未开启，模型下载可能缓慢</span></span><button class="btn xs" type="button" data-goto="settings">去设置</button></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ 模型管理 ============ -->
+        <section class="page" id="page-models">
+          <div class="ptop">
+            <div class="tabs" data-tabs="mod" data-default="ds">
+              <button class="tab on" data-tab="ds" type="button">数据集</button>
+              <button class="tab" data-tab="wt" type="button">权重</button>
+              <button class="tab" data-tab="run" type="button">训练记录</button>
+            </div>
+            <div class="ptop-r">
+              <button class="btn sm" type="button" data-toast="已打开目录（原型演示）"><svg class="i"><use href="#i-folder"/></svg>打开目录</button>
+              <button class="btn sm" type="button" data-toast="已刷新（原型演示）"><svg class="i"><use href="#i-scan"/></svg>刷新</button>
+            </div>
+          </div>
+          <div class="pscroll">
+            <div class="pane" id="mod-ds">
+              <div class="sec-head"><h2>数据集</h2><span class="hint">dataset/ · 6 个子目录</span></div>
+              <div class="dgrid">
+                <div class="dcard"><div class="dh"><b>cabel-damage-mini</b></div><small>1,318 图 · 1,318 标注 · 2 类</small><span class="chip ok"><span class="led"></span>可训练</span></div>
+                <div class="dcard"><div class="dh"><b>data</b></div><small>371 图 · 296 标注 · 2 类</small><span class="chip warn"><span class="led"></span>标注缺失 75</span></div>
+                <div class="dcard"><div class="dh"><b>cable end sleeve-yolo</b></div><small>340 图 · 340 标注 · 2 类</small><span class="chip ok"><span class="led"></span>可训练</span></div>
+                <div class="dcard"><div class="dh"><b>ring cable lug-yolo</b></div><small>266 图 · 266 标注 · 6 类</small><span class="chip ok"><span class="led"></span>可训练</span></div>
+                <div class="dcard"><div class="dh"><b>_smoke_test</b></div><small>4 图 · 4 标注 · 1 类</small><span class="chip"><span class="led"></span>冒烟</span></div>
+                <div class="dcard"><div class="dh"><b>dummy_dataset</b></div><small>4 图 · 4 标注 · 1 类</small><span class="chip"><span class="led"></span>冒烟</span></div>
+              </div>
+            </div>
+            <div class="pane off" id="mod-wt">
+              <div class="sec-head"><h2>权重</h2><span class="hint">本地文件 · 注册表引用 runs/.recycle 最新版</span></div>
+              <table class="tbl">
+                <thead><tr><th>文件</th><th>位置</th><th class="r">大小</th><th class="r">修改日期</th><th class="r">mAP@50</th><th class="r">操作</th></tr></thead>
+                <tbody>
+                  <tr><td class="name">yolo26n.pt</td><td>basemodels/</td><td class="r">5.5 MB</td><td class="r">2026-05-26</td><td class="r">—</td><td class="r"><button class="btn xs ghost" type="button" data-toast="已在文件管理器中定位（原型演示）">定位</button></td></tr>
+                  <tr><td class="name">yolov8s.pt</td><td>basemodels/</td><td class="r">22.6 MB</td><td class="r">2026-05-26</td><td class="r">—</td><td class="r"><button class="btn xs ghost" type="button" data-toast="已在文件管理器中定位（原型演示）">定位</button></td></tr>
+                  <tr><td class="name">yolov8m.pt</td><td>basemodels/</td><td class="r">52.1 MB</td><td class="r">2026-05-27</td><td class="r">—</td><td class="r"><button class="btn xs ghost" type="button" data-toast="已在文件管理器中定位（原型演示）">定位</button></td></tr>
+                  <tr><td class="name">yolo26n.pt</td><td>weights/</td><td class="r">5.5 MB</td><td class="r">2026-09-17</td><td class="r">—</td><td class="r"><button class="btn xs ghost" type="button" data-toast="已在文件管理器中定位（原型演示）">定位</button></td></tr>
+                  <tr><td class="name">best.pt</td><td>_smoke_test_auto-3</td><td class="r">6.2 MB</td><td class="r">2026-09-10</td><td class="r">0.000</td><td class="r"><button class="btn xs ghost" type="button" data-toast="已在文件管理器中定位（原型演示）">定位</button></td></tr>
+                  <tr><td class="name">best.pt</td><td>_smoke_test_auto（注册表最新）</td><td class="r">6.2 MB</td><td class="r">2026-09-10</td><td class="r">0.0147</td><td class="r"><button class="btn xs ghost" type="button" data-toast="已在文件管理器中定位（原型演示）">定位</button></td></tr>
+                  <tr><td class="name">_smoke_test.pt</td><td>exports/</td><td class="r">6.2 MB</td><td class="r">2026-06-25</td><td class="r">—</td><td class="r"><button class="btn xs ghost" type="button" data-toast="已在文件管理器中定位（原型演示）">定位</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="pane off" id="mod-run">
+              <div class="sec-head"><h2>训练记录</h2><span class="hint">runs/detect/ · 按时间倒序</span></div>
+              <div class="rows">
+                <div class="rrow"><span class="tile"><svg class="i"><use href="#i-clock"/></svg></span><span class="rm"><b>_smoke_test_auto-2</b><span>2026-09-18 · weights + results.csv · 注册表 best_20260918_002350</span></span><span class="rctl"><button class="btn xs" type="button" data-toast="打开运行目录（原型演示）">打开</button><button class="btn xs ghost" type="button" data-toast="启动 TensorBoard（原型演示）">TensorBoard</button></span></div>
+                <div class="rrow"><span class="tile"><svg class="i"><use href="#i-clock"/></svg></span><span class="rm"><b>_smoke_test_auto-3</b><span>2026-09-10 · weights + results.csv</span></span><span class="rctl"><button class="btn xs" type="button" data-toast="打开运行目录（原型演示）">打开</button><button class="btn xs ghost" type="button" data-toast="启动 TensorBoard（原型演示）">TensorBoard</button></span></div>
+                <div class="rrow"><span class="tile"><svg class="i"><use href="#i-doc"/></svg></span><span class="rm"><b>_smoke_test_eval</b><span>2026-07-22 · 评估产物</span></span><span class="rctl"><button class="btn xs" type="button" data-toast="打开运行目录（原型演示）">打开</button></span></div>
+                <div class="rrow"><span class="tile"><svg class="i"><use href="#i-cube"/></svg></span><span class="rm"><b>data_auto</b><span>2026-07-22 · weights · 配置 data_auto.yaml</span></span><span class="rctl"><button class="btn xs" type="button" data-toast="打开运行目录（原型演示）">打开</button></span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ 控制台 ============ -->
+        <section class="page" id="page-console">
+          <div class="cstrip">
+            <span class="led" id="cLed"></span>
+            <span class="cstate" id="cState">未运行</span>
+            <span class="sp"></span>
+            <span class="cact">
+              <button class="btn xs" type="button" data-toast="诊断包已生成：reports/diag-20261004.zip（原型演示）">生成诊断包</button>
+              <button class="btn xs" id="btnKill" type="button" disabled>终止进程</button>
+              <button class="btn xs primary" id="btnRun2" type="button">▶ 一键启动</button>
+            </span>
+          </div>
+          <div class="logwrap"><pre class="log" id="logPanel"></pre></div>
+        </section>
+
+        <!-- ============ 设置 ============ -->
+        <section class="page" id="page-settings">
+          <div class="ptop">
+            <div class="tabs" data-tabs="set" data-default="gen">
+              <button class="tab on" data-tab="gen" type="button">一般设置</button>
+              <button class="tab" data-tab="about" type="button">关于</button>
+            </div>
+          </div>
+          <div class="pscroll">
+            <div class="pane" id="set-gen">
+              <div class="sec-head"><h2>配置模式</h2><span class="hint">新手模式隐藏高级选项</span></div>
+              <div class="rows">
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-gear"/></svg></span><span class="rtxt"><b>配置模式</b><span id="cfgModeDesc">新手 · 已隐藏 12 个高级选项</span></span><span class="rctl">
+                  <span class="tseg" id="cfgMode">
+                    <button type="button" data-cfgmode="basic" class="on">新手</button>
+                    <button type="button" data-cfgmode="expert">专家</button>
+                  </span></span></div>
+              </div>
+              <div class="rows note" id="expertNote">
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-warn"/></svg></span><span class="rtxt"><b>已隐藏 12 个高级选项</b><span>切换配置模式为「专家」后显示（代理、镜像、环境检测、路径覆盖等）</span></span></div>
+              </div>
+
+              <div class="sec-head"><h2>外观</h2></div>
+              <div class="rows">
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-play"/></svg></span><span class="rtxt"><b>模式</b><span>深色 / 浅色 / 跟随系统</span></span><span class="rctl">
+                  <span class="tseg" id="setMode">
+                    <button type="button" data-mode="dark">深色</button>
+                    <button type="button" data-mode="light">浅色</button>
+                    <button type="button" data-mode="system">系统</button>
+                  </span></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-cube"/></svg></span><span class="rtxt"><b>强调色</b><span>鎏金 / 青瓷 / 靛蓝 / 砚墨 · 可自定义</span></span><span class="rctl">
+                  <span class="tsw" id="setAcc">
+                    <button type="button" class="sw-brass" data-accent="brass" title="鎏金"></button>
+                    <button type="button" class="sw-celadon" data-accent="celadon" title="青瓷"></button>
+                    <button type="button" class="sw-indigo" data-accent="indigo" title="靛蓝"></button>
+                    <button type="button" class="sw-ink" data-accent="ink" title="砚墨"></button>
+                    <button type="button" class="tcustom" data-accent="custom" title="自定义…"><input type="color" id="setColor" value="#c9a35c" tabindex="-1" aria-hidden="true" /></button>
+                  </span></span></div>
+              </div>
+
+              <div class="sec-head"><h2>偏好设置</h2></div>
+              <div class="rows">
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-doc"/></svg></span><span class="rtxt"><b>默认浏览器</b><span>控制台启动完成后打开</span></span><span class="rctl"><span class="sel"><span>系统默认（Edge）</span><svg class="i"><use href="#i-chev"/></svg></span></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-shield"/></svg></span><span class="rtxt"><b>关闭窗口时最小化托盘</b><span></span></span><span class="rctl"><button class="switch on" type="button" role="switch" aria-checked="true"></button></span></div>
+              </div>
+
+              <div class="blk expert">
+                <div class="sec-head"><h2>网络与镜像</h2></div>
+                <div class="rows">
+                  <div class="row"><span class="tile"><svg class="i"><use href="#i-slide"/></svg></span><span class="rtxt"><b>代理设置</b><span>跟随系统代理 · 应用于 Git / Pip / 环境变量 / 下载</span></span><span class="rctl"><span class="sel"><span>跟随系统</span><svg class="i"><use href="#i-chev"/></svg></span></span></div>
+                  <div class="row"><span class="tile"><svg class="i"><use href="#i-db"/></svg></span><span class="rtxt"><b>PyPI 国内镜像</b><span>加速 Python 包安装</span></span><span class="rctl"><button class="switch on" type="button" role="switch" aria-checked="true"></button></span></div>
+                  <div class="row"><span class="tile"><svg class="i"><use href="#i-db"/></svg></span><span class="rtxt"><b>HuggingFace 镜像</b><span>加速模型下载（hf-mirror）</span></span><span class="rctl"><button class="switch" type="button" role="switch" aria-checked="false"></button></span></div>
+                  <div class="row"><span class="tile"><svg class="i"><use href="#i-cube"/></svg></span><span class="rtxt"><b>GitHub 加速</b><span>未镜像资源的下载加速</span></span><span class="rctl"><button class="switch" type="button" role="switch" aria-checked="false"></button></span></div>
+                </div>
+                <div class="sec-head"><h2>环境检测</h2></div>
+                <div class="rows">
+                  <div class="row"><span class="tile"><svg class="i"><use href="#i-shield"/></svg></span><span class="rtxt"><b>生成引擎一致性检测</b><span>启动前校验 CUDA 与 torch 版本匹配</span></span><span class="rctl"><button class="switch on" type="button" role="switch" aria-checked="true"></button></span></div>
+                  <div class="row"><span class="tile"><svg class="i"><use href="#i-shield"/></svg></span><span class="rtxt"><b>软件依赖完整性检测</b><span>依赖缺失时自动补齐</span></span><span class="rctl"><button class="switch on" type="button" role="switch" aria-checked="true"></button></span></div>
+                  <div class="row"><span class="tile"><svg class="i"><use href="#i-warn"/></svg></span><span class="rtxt"><b>检测并提示组件冲突</b><span>多扩展依赖版本冲突时提醒</span></span><span class="rctl"><button class="switch" type="button" role="switch" aria-checked="false"></button></span></div>
+                </div>
+                <div class="sec-head"><h2>路径覆盖</h2></div>
+                <div class="rows">
+                  <div class="row"><span class="tile"><svg class="i"><use href="#i-term"/></svg></span><span class="rtxt"><b>Python 路径</b><span>C:\Python312\python.exe</span></span><span class="rctl"><button class="btn xs" type="button" data-toast="选择 Python 路径（原型演示）">浏览</button></span></div>
+                  <div class="row"><span class="tile"><svg class="i"><use href="#i-folder"/></svg></span><span class="rtxt"><b>Git 路径</b><span>未配置</span></span><span class="rctl"><button class="btn xs" type="button" data-toast="选择 Git 路径（原型演示）">浏览</button></span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pane off" id="set-about">
+              <div class="sec-head"><h2>关于</h2></div>
+              <div class="rows">
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-cube"/></svg></span><span class="rtxt"><b>启动器</b><span>v0.1.0 · Build 7 · commit 9e05411</span></span><span class="rctl"><button class="btn xs" type="button" data-toast="已是最新版本（原型演示）">检查更新</button></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-term"/></svg></span><span class="rtxt"><b>环境</b><span>Python 3.12.7 · torch 2.9.0+cu130 · ultralytics 8.4.143</span></span><span class="rctl"></span></div>
+                <div class="row"><span class="tile"><svg class="i"><use href="#i-folder"/></svg></span><span class="rtxt"><b>项目目录</b><span>E:\项目\Auto-yolo-training</span></span><span class="rctl"><button class="btn xs" type="button" data-toast="已打开日志目录（原型演示）">打开日志</button></span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- 弹层 -->
+    <div class="pop" id="themePop">
+      <div class="ph"><div class="a">外观</div><div class="b">保存在本地 · 只影响启动器</div></div>
+      <div class="trow">
+        <span class="trow-l">模式</span>
+        <div class="tseg" id="tpMode">
+          <button type="button" data-mode="dark">深色</button>
+          <button type="button" data-mode="light">浅色</button>
+          <button type="button" data-mode="system">系统</button>
+        </div>
+      </div>
+      <div class="trow">
+        <span class="trow-l">强调色</span>
+        <div class="tsw" id="tpAcc">
+          <button type="button" class="sw-brass" data-accent="brass" title="鎏金" aria-label="强调色：鎏金"></button>
+          <button type="button" class="sw-celadon" data-accent="celadon" title="青瓷" aria-label="强调色：青瓷"></button>
+          <button type="button" class="sw-indigo" data-accent="indigo" title="强调色：靛蓝" aria-label="强调色：靛蓝"></button>
+          <button type="button" class="sw-ink" data-accent="ink" title="砚墨" aria-label="强调色：砚墨"></button>
+          <button type="button" class="tcustom" data-accent="custom" title="自定义…" aria-label="自定义强调色"><input type="color" id="tpColor" value="#c9a35c" tabindex="-1" aria-hidden="true" /></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="pop" id="scenarioPop">
+      <div class="ph"><div class="a">场景演示</div><div class="b">仅影响原型 · 不执行真实命令</div></div>
+      <button class="pop-i on" type="button" data-scene="idle"><span class="led ok"></span>就绪<span class="sp"></span></button>
+      <button class="pop-i" type="button" data-scene="running"><span class="led ok"></span>运行中<span class="sp"></span></button>
+      <button class="pop-i" type="button" data-scene="training"><span class="led acc"></span>训练中<span class="sp"></span></button>
+      <button class="pop-i" type="button" data-scene="portbusy"><span class="led err"></span>端口被占用<span class="sp"></span></button>
+      <button class="pop-i" type="button" data-scene="firstrun"><span class="led"></span>首次启动<span class="sp"></span></button>
+      <button class="pop-i" type="button" data-scene="empty"><span class="led warn"></span>空环境<span class="sp"></span></button>
+      <div class="pop-sep"></div>
+      <button class="pop-i" type="button" id="popClose"><span class="sp"></span>关闭<span class="hint">Esc</span></button>
+    </div>
+
+    <div class="toasts" id="toasts"></div>
+  </div>
+</div></div>
+
+<script>
+'use strict';
+/* ==========================================================================
+   AYT 启动器 v3 · 原型交互（所有网络类行为均为演示）
+   ========================================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+@@THEMEJS@@
+
+/* ---------- 状态 ---------- */
+const state = { page:'home', scene:'idle', expert:false, stream:0 };
+const SCENES = ['idle','running','training','portbusy','firstrun','empty'];
+
+/* ---------- 页面路由 ---------- */
+function go(page){
+  state.page = page;
+  $$('.page').forEach(p => p.classList.toggle('on', p.id === 'page-' + page));
+  $$('.rit').forEach(b => b.classList.toggle('on', b.dataset.page === page));
+}
+$$('.rit').forEach(b => b.onclick = () => go(b.dataset.page));
+
+/* ---------- 标签条 ---------- */
+$$('[data-tabs]').forEach(box => {
+  const prefix = box.dataset.tabs;
+  $$('.tab', box).forEach(tab => tab.onclick = () => {
+    $$('.tab', box).forEach(t => t.classList.toggle('on', t === tab));
+    $$('[id^="' + prefix + '-"]').forEach(p => {
+      if (p.classList.contains('pane')) p.classList.toggle('off', p.id !== prefix + '-' + tab.dataset.tab);
+    });
+  });
+});
+function selectTab(prefix, key){
+  const box = document.querySelector('[data-tabs="' + prefix + '"]');
+  if (!box) return;
+  const tab = box.querySelector('.tab[data-tab="' + key + '"]');
+  if (tab) tab.click();
+}
+
+/* ---------- Toast ---------- */
+function toast(tone, title, msg){
+  const t = document.createElement('div'); t.className = 'toast';
+  const led = document.createElement('span'); led.className = 'led ' + (tone === 'ok' ? 'ok' : tone === 'warn' ? 'warn' : tone === 'acc' ? 'acc' : 'err');
+  const tx = document.createElement('div'); tx.className = 'tx';
+  const tt = document.createElement('div'); tt.className = 'tt'; tt.textContent = title;
+  tx.appendChild(tt);
+  if (msg){ const m = document.createElement('div'); m.className = 'tm2'; m.textContent = msg; tx.appendChild(m); }
+  t.appendChild(led); t.appendChild(tx);
+  $('#toasts').appendChild(t);
+  setTimeout(() => { t.classList.add('leaving'); setTimeout(() => t.remove(), 240); }, 3600);
+}
+
+/* ---------- 日志 ---------- */
+const LOGS = {
+  idle: [
+    ['sys', '启动器 v0.1.0 · Build 7 · commit 9e05411'],
+    ['out', '环境就绪：Python 3.12.7 · torch 2.9.0+cu130 · CUDA True'],
+    ['out', '数据集 6 个（4 个可训练） · 注册表 5 个版本（staging）'],
+    ['dim', '等待启动 · 请点击右上角「一键启动」']
+  ],
+  running: [
+    ['sys', '启动控制台服务 · port 8080'],
+    ['out', '校验前端产物 frontend/dist ... ok'],
+    ['out', 'uvicorn serve:app --host 127.0.0.1 --port 8080'],
+    ['out', 'Application startup complete.'],
+    ['ok',  '控制台就绪 · http://127.0.0.1:8080'],
+    ['out', '注册表已加载 · 5 个版本（staging）'],
+    ['out', '数据集清单已刷新 · 6 个（4 个可训练）'],
+    ['ok',  '已在浏览器打开（系统默认：Edge）'],
+    ['dim', '提示：训练与评估在控制台内发起，本启动器只负责把它拉起来']
+  ],
+  training: [
+    ['sys', '训练任务启动 · _smoke_test_auto'],
+    ['out', 'ultralytics 8.4.143 · Python-3.12.7 · torch-2.9.0+cu130'],
+    ['out', 'CUDA:0 (RTX 5080 Laptop, 16303MiB) · 4 images · 1 class'],
+    ['out', 'Epoch 1/2 · box_loss 1.83 · cls_loss 4.21'],
+    ['out', 'Epoch 2/2 · box_loss 1.67 · cls_loss 3.94'],
+    ['ok',  'best.pt 已保存 · mAP@50 0.0147（staging）'],
+    ['dim', '提示：完整训练请在控制台选择数据集与轮数后发起']
+  ],
+  portbusy: [
+    ['err', '端口 8080 被占用（EADDRINUSE）'],
+    ['out', '占用进程：ayt-serve.exe（PID 12345）'],
+    ['warn', '可能是上一次未退出的控制台'],
+    ['dim', '处理：点击「改用 8081 启动」，或在任务管理器结束 PID 12345']
+  ],
+  firstrun: [
+    ['sys', '首次启动 · 环境自检'],
+    ['out', 'Python 3.12.7 ✓'],
+    ['out', 'CUDA 可用 · RTX 5080 Laptop ✓'],
+    ['out', '磁盘可用 321 GB ✓'],
+    ['out', '数据集 6 · 注册表 5 ✓'],
+    ['warn', 'Webhook 通知未配置（可稍后）'],
+    ['ok',  '自检完成 · 可以启动控制台']
+  ],
+  empty: [
+    ['warn', '未发现可训练数据集'],
+    ['out', '参考：dummy_dataset（4 图）可用于冒烟测试'],
+    ['dim', '提示：将数据集放入 dataset/ 后点击「刷新」']
+  ]
+};
+
+function renderLog(key, stream){
+  const box = $('#logPanel');
+  box.innerHTML = '';
+  const lines = LOGS[key] || LOGS.idle;
+  const now = new Date();
+  const stamp = () => {
+    const d = new Date(now.getTime()); return d.toTimeString().slice(0, 8);
+  };
+  if (stream && !RM){
+    state.stream++;
+    const token = state.stream;
+    const add = (i) => {
+      if (token !== state.stream) return;
+      if (i >= lines.length){ if (key === 'running'){ $('#cState').textContent = '运行中 · 127.0.0.1:8080'; $('#cLed').className = 'led ok'; } return; }
+      const [ch, txt] = lines[i];
+      const div = document.createElement('div');
+      div.className = 'ln ' + (ch === 'dim' ? 'dim' : ch);
+      div.innerHTML = '<span class="lt"></span><span class="lc ' + (ch === 'dim' ? 'out' : ch) + '"></span><span class="lm"></span>';
+      div.querySelector('.lt').textContent = stamp();
+      div.querySelector('.lc').textContent = ({ sys:'系统', out:'输出', err:'错误', warn:'警告', ok:'完成', dim:'·' }[ch]);
+      div.querySelector('.lm').textContent = txt;
+      box.appendChild(div);
+      requestAnimationFrame(() => div.classList.add('in'));
+      box.scrollTop = box.scrollHeight;
+      setTimeout(() => add(i + 1), 140 + Math.random() * 130);
+    };
+    add(0);
+  } else {
+    lines.forEach(([ch, txt]) => {
+      const div = document.createElement('div');
+      div.className = 'ln in ' + (ch === 'dim' ? 'dim' : ch);
+      div.innerHTML = '<span class="lt"></span><span class="lc ' + (ch === 'dim' ? 'out' : ch) + '"></span><span class="lm"></span>';
+      div.querySelector('.lt').textContent = stamp();
+      div.querySelector('.lc').textContent = ({ sys:'系统', out:'输出', err:'错误', warn:'警告', ok:'完成', dim:'·' }[ch]);
+      div.querySelector('.lm').textContent = txt;
+      box.appendChild(div);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+/* ---------- 场景 ---------- */
+function paintScene(){
+  const sc = state.scene;
+  const btnLabel = $('#btnRunLabel'), chipPort = $('#chipPort'), meta = $('#metaConsole'), tp = $('#tprog'), banner = $('#homeBanner');
+
+  let label = '一键启动';
+  if (sc === 'running') label = '打开控制台';
+  if (sc === 'training') label = '打开监控';
+  btnLabel.textContent = label;
+  tp.hidden = sc !== 'training';
+
+  chipPort.className = 'chip ok';
+  chipPort.innerHTML = '<span class="led"></span>端口 8080 · 空闲';
+  if (sc === 'running' || sc === 'training'){ chipPort.className = 'chip acc'; chipPort.innerHTML = '<span class="led"></span>控制台 :8080'; }
+  if (sc === 'portbusy'){ chipPort.className = 'chip err'; chipPort.innerHTML = '<span class="led"></span>端口 8080 · 占用'; }
+
+  meta.textContent = ({ idle:'未运行 · 端口 8080', running:'运行中 · 127.0.0.1:8080', training:'训练中 · _smoke_test_auto', portbusy:'未运行 · 端口冲突', firstrun:'自检完成', empty:'未运行 · 无数据集' })[sc];
+
+  banner.className = 'home-banner';
+  banner.innerHTML = '';
+  if (sc === 'portbusy'){
+    banner.classList.add('on', 'warn');
+    banner.innerHTML = '<span class="bt">端口 8080 被占用</span><span class="bx">可能是上一次未退出的控制台（PID 12345）</span><span class="sp"></span><button class="btn xs" data-act="p8081">改用 8081</button><button class="btn xs danger" data-act="pkill">结束占用进程</button>';
+  } else if (sc === 'firstrun'){
+    banner.classList.add('on', 'info');
+    banner.innerHTML = '<span class="bt">首次启动</span><span class="bx">建议先跑一次环境自检</span><span class="sp"></span><button class="btn xs" data-act="check">开始检测</button>';
+  } else if (sc === 'empty'){
+    banner.classList.add('on', 'warn');
+    banner.innerHTML = '<span class="bt">还没有可训练数据集</span><span class="bx">把数据放进 dataset/ 后再启动</span><span class="sp"></span><button class="btn xs" data-act="import">导入数据集</button>';
+  }
+  $$('button[data-act]', banner).forEach(b => b.onclick = () => {
+    const act = b.dataset.act;
+    if (act === 'p8081'){ toast('ok', '已改用 8081', '控制台将在 127.0.0.1:8081 启动'); setScene('running'); }
+    if (act === 'pkill'){ toast('warn', '已结束 PID 12345', '再次启动即可使用 8080'); setScene('idle'); }
+    if (act === 'check'){ toast('ok', '环境自检完成', '6 项通过 · 1 项可稍后（Webhook）'); }
+    if (act === 'import'){ toast('ok', '导入数据集（原型演示）', '真实版本将上传、解压、扫描并校验'); }
+  });
+
+  const led = $('#cLed'), cs = $('#cState'), kill = $('#btnKill'), run2 = $('#btnRun2');
+  led.className = 'led';
+  cs.textContent = '未运行';
+  kill.disabled = true;
+  run2.innerHTML = '▶ 一键启动';
+  if (sc === 'running'){ led.className = 'led ok'; cs.textContent = '运行中 · 127.0.0.1:8080'; kill.disabled = false; run2.innerHTML = '打开控制台'; }
+  if (sc === 'training'){ led.className = 'led acc live'; cs.textContent = '训练中 · _smoke_test_auto'; kill.disabled = false; run2.innerHTML = '打开监控'; }
+  if (sc === 'portbusy'){ led.className = 'led err'; cs.textContent = '端口被占用'; run2.innerHTML = '改用 8081 启动'; }
+  if (sc === 'firstrun'){ led.className = 'led ok'; cs.textContent = '自检完成'; }
+  if (sc === 'empty'){ led.className = 'led warn'; cs.textContent = '未运行 · 无数据集'; }
+
+  $$('#scenarioPop .pop-i[data-scene]').forEach(el => el.classList.toggle('on', el.dataset.scene === sc));
+}
+
+function setScene(sc){
+  state.scene = sc;
+  renderLog(sc, false);
+  paintScene();
+}
+
+function launch(){
+  if (state.scene === 'running'){ toast('ok', '已在浏览器打开', '127.0.0.1:8080'); return; }
+  if (state.scene === 'training'){ toast('ok', '打开监控', '正在打开控制台监控页（原型演示）'); return; }
+  if (state.scene === 'portbusy'){ go('console'); toast('warn', '端口 8080 被占用', '请先处理占用，或改用 8081'); return; }
+  go('console');
+  state.scene = 'running';
+  renderLog('running', true);
+  paintScene();
+  $('#cState').textContent = '启动中…';
+  $('#cLed').className = 'led acc live';
+  setTimeout(() => toast('ok', '控制台已启动', '127.0.0.1:8080 已在浏览器打开'), 1750);
+}
+
+/* ---------- 交互接线 ---------- */
+$('#btnRun').onclick = launch;
+$('#btnRun2').onclick = launch;
+$('#btnKill').onclick = () => {
+  const wasTraining = state.scene === 'training';
+  setScene('idle');
+  toast('warn', wasTraining ? '训练已停止' : '控制台已停止', wasTraining ? '检查点已保留：weights/last.pt' : '');
+};
+$('#btnScan').onclick = () => {
+  $$('#faqList .frow').forEach((r, i) => {
+    r.classList.remove('flash'); void r.offsetWidth;
+    setTimeout(() => r.classList.add('flash'), RM ? 0 : i * 90);
+  });
+  toast('ok', '扫描完成', '5 项检查 · 4 通过 · 1 告警');
+};
+$$('[data-toast]').forEach(el => el.addEventListener('click', () => toast('ok', el.dataset.toast, '')));
+$$('.qcard').forEach(el => el.addEventListener('click', () => {
+  if (el.dataset.go){
+    go(el.dataset.go);
+    if (el.dataset.tab) selectTab(el.dataset.go === 'models' ? 'mod' : el.dataset.go, el.dataset.tab);
+  }
+}));
+$('[data-goto]').onclick = () => go('settings');
+$$('.switch').forEach(sw => sw.addEventListener('click', () => {
+  sw.classList.toggle('on');
+  sw.setAttribute('aria-checked', sw.classList.contains('on') ? 'true' : 'false');
+}));
+
+/* 配置模式（新手 / 专家） */
+function setExpert(on){
+  state.expert = on;
+  $('#win').classList.toggle('expert', on);
+  $$('#cfgMode button').forEach(b => b.classList.toggle('on', (b.dataset.cfgmode === 'expert') === on));
+  $('#cfgModeDesc').textContent = on ? '专家 · 显示全部选项' : '新手 · 已隐藏 12 个高级选项';
+  if (on) toast('acc', '已切换到专家模式', '代理、镜像、环境检测与路径覆盖已显示');
+}
+$$('#cfgMode button').forEach(b => b.onclick = () => setExpert(b.dataset.cfgmode === 'expert'));
+
+/* 弹层（外观 / 场景） */
+$('#themeBtn').addEventListener('click', () => { $('#scenarioPop').classList.remove('on'); $('#setPop') && $('#setPop').classList.remove('on'); });
+$('#scenarioBtn').onclick = (e) => { e.stopPropagation(); $('#themePop').classList.remove('on'); $('#scenarioPop').classList.toggle('on'); };
+$$('#scenarioPop .pop-i[data-scene]').forEach(el => el.onclick = () => {
+  setScene(el.dataset.scene);
+  $('#scenarioPop').classList.remove('on');
+  const needConsole = el.dataset.scene === 'running' || el.dataset.scene === 'training' || el.dataset.scene === 'portbusy';
+  if (needConsole) go('console'); else if (state.page === 'console') go('home');
+});
+$('#popClose').onclick = () => $('#scenarioPop').classList.remove('on');
+addEventListener('click', (e) => {
+  if (!e.target.closest('#scenarioPop') && !e.target.closest('#scenarioBtn')) $('#scenarioPop').classList.remove('on');
+});
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape'){ ['#themePop', '#scenarioPop'].forEach(p => $(p).classList.remove('on')); }
+  if (e.key === 'Enter' && e.target.tagName !== 'INPUT' && !e.target.closest('.pop') && state.page === 'home'){
+    e.preventDefault(); launch();
+  }
+});
+
+/* ---------- 初始化 ---------- */
+const q = new URLSearchParams(location.search);
+const qPage = q.get('page');
+if (qPage && ['home','advanced','faq','models','console','settings'].includes(qPage)) go(qPage);
+const qSet = q.get('set');
+if (qSet) selectTab('set', qSet);
+const qMod = q.get('mod');
+if (qMod) selectTab('mod', qMod);
+const qAdv = q.get('adv');
+if (qAdv) selectTab('adv', qAdv);
+if (q.get('expert') === '1') setExpert(true);
+const qScene = q.get('scene');
+if (qScene && SCENES.includes(qScene)) setScene(qScene); else setScene('idle');
+
+function fit(){
+  const scale = Math.min(1, (innerWidth - 24) / 1400, (innerHeight - 24) / 880);
+  $('#stageInner').style.transform = scale < 1 ? 'scale(' + scale + ')' : '';
+}
+addEventListener('resize', fit); fit();
+console.log('[AYT launcher v3] ready');
+</script>
+</body>
+</html>

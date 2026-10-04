@@ -1,0 +1,124 @@
+{
+  "probe": "ui-craft-studio/1.0",
+  "url": "file:///E:/%E9%A1%B9%E7%9B%AE/Auto-yolo-training/launcher-design/AYT-Launcher-v2.html?scene=portbusy#",
+  "ts": "2026-10-04T07:36:49.916Z",
+  "viewport": [
+    1560,
+    940
+  ],
+  "counts": {
+    "visible": 71,
+    "textEls": 12
+  },
+  "tiers": {
+    "fontSize": [
+      {
+        "v": "13",
+        "c": 5
+      },
+      {
+        "v": "12",
+        "c": 3
+      },
+      {
+        "v": "16",
+        "c": 2
+      },
+      {
+        "v": "14",
+        "c": 1
+      },
+      {
+        "v": "34",
+        "c": 1
+      }
+    ],
+    "fontWeight": [
+      {
+        "v": "440",
+        "c": 6
+      },
+      {
+        "v": "400",
+        "c": 4
+      },
+      {
+        "v": "520",
+        "c": 2
+      }
+    ],
+    "radius": [
+      {
+        "v": "8",
+        "c": 7
+      },
+      {
+        "v": "10",
+        "c": 2
+      },
+      {
+        "v": "full",
+        "c": 1
+      }
+    ],
+    "lineHeight": [
+      {
+        "v": "normal",
+        "c": 5
+      },
+      {
+        "v": "18",
+        "c": 3
+      },
+      {
+        "v": "24",
+        "c": 2
+      },
+      {
+        "v": "22",
+        "c": 1
+      },
+      {
+        "v": "37",
+        "c": 1
+      }
+    ],
+    "background": [
+      {
+        "v": "rgb(19, 17, 16)",
+        "c": 2
+      },
+      {
+        "v": "rgb(10, 9, 8)",
+        "c": 1
+      },
+      {
+        "v": "rgb(210, 118, 107)",
+        "c": 1
+      },
+      {
+        "v": "rgb(201, 163, 92)",
+        "c": 1
+      }
+    ]
+  },
+  "stats": {
+    "fontTierCount": 5,
+    "mainFontShare": 0.417,
+    "halfPixel": [],
+    "nonInteger": []
+  },
+  "contrast": {
+    "checked": 4,
+    "skipped": 8,
+    "fails": []
+  },
+  "findings": [
+    {
+      "severity": "INFO",
+      "rule": "contrast-checked",
+      "detail": "对比度扫描 4 个文本元素，失败 0 项",
+      "selectors": []
+    }
+  ]
+}

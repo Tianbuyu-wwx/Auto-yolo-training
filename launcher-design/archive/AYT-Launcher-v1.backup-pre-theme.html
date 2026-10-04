@@ -1,0 +1,2299 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<title>Auto YOLO Training · 启动器 — 设计稿 v1</title>
+
+<!-- 字体：已本地化（fonts/，317 个 woff2 切片，离线可用；来源 Fontsource）。
+     注意：可变字重包的字族名是 'Instrument Sans Variable'（CSS 中的 --f-sans 必须同名，否则静默回退）。 -->
+<link rel="stylesheet" href="fonts/instrument-serif-400.css" />
+<link rel="stylesheet" href="fonts/noto-serif-sc-400.css" />
+<link rel="stylesheet" href="fonts/instrument-sans-var.css" />
+<link rel="stylesheet" href="fonts/noto-sans-sc-400.css" />
+<link rel="stylesheet" href="fonts/noto-sans-sc-500.css" />
+<link rel="stylesheet" href="fonts/ibm-plex-mono-400.css" />
+<link rel="stylesheet" href="fonts/ibm-plex-mono-500.css" />
+
+<style>
+/* ==========================================================================
+   AYT 启动器 · 设计稿 v1 ——「暖石墨 · 鎏金铜 · 瓷白」
+   设计系统见《AYT启动器-设计方案-v1.md》§4；本文件为高保真可交互原型。
+   ========================================================================== */
+
+/* ---------- tokens ---------- */
+:root{
+  --bg:        #131110;
+  --bg-card:   #1a1715;
+  --bg-raise:  #231f1a;
+  --bg-deep:   #0c0a09;
+  --line:      rgba(244,236,222,.07);
+  --line2:     rgba(244,236,222,.14);
+
+  --ink:       #f2ece1;
+  --ink2:      #bdb2a0;
+  --ink3:      #97897a;
+
+  --brass:     #c9a35c;
+  --brass-hi:  #e9d3a2;
+  --brass-lo:  #8f7136;
+  --brass-dim: rgba(201,163,92,.16);
+
+  --ok:   #8fb07e;
+  --warn: #d99a4e;
+  --err:  #d2766b;
+
+  --f-serif: "Instrument Serif", "Noto Serif SC", "Songti SC", serif;
+  --f-sans:  "Instrument Sans Variable", "Instrument Sans", "Noto Sans SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+  --f-mono:  "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+
+  --r-lg: 10px;
+  --r:    10px;
+  --r-sm: 10px;
+
+  --t-fast: .15s; --t: .24s; --t-slow: .5s;
+  --e-out: cubic-bezier(.22,1,.36,1);
+  --e-io:  cubic-bezier(.65,0,.35,1);
+
+  --sh-float: 0 24px 60px -30px rgba(0,0,0,.85), 0 4px 18px -10px rgba(0,0,0,.5);
+
+  color-scheme: dark;
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; }
+body{
+  background:#0a0908;
+  color:var(--ink);
+  font-family:var(--f-sans);
+  font-size:13px; line-height:1.5;
+  font-weight:440;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+::selection{ background:rgba(201,163,92,.28); }
+
+/* ---------- 桌面背景 + 视口缩放舞台 ---------- */
+.desk{
+  position:fixed; inset:0;
+  background:
+    radial-gradient(1200px 700px at 18% -8%, rgba(255,236,206,.055), transparent 60%),
+    radial-gradient(900px 600px at 88% 108%, rgba(201,163,92,.05), transparent 62%),
+    linear-gradient(162deg, #0d0c0b 0%, #0a0908 52%, #0b0908 100%);
+}
+.desk::after{ /* 极轻的暗角，聚住画面 */
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(130% 110% at 50% 42%, transparent 58%, rgba(0,0,0,.55) 100%);
+}
+.stage{
+  position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+}
+.stage-inner{ transform-origin:center center; }
+
+/* ---------- 窗口 ---------- */
+.win{
+  width:1400px; height:880px;
+  border-radius:10px;
+  background:
+    linear-gradient(180deg, rgba(255,241,214,.022), rgba(255,241,214,0) 22%),
+    var(--bg);
+  border:1px solid rgba(255,244,225,.09);
+  box-shadow:0 60px 140px -60px rgba(0,0,0,.95), 0 24px 60px -30px rgba(0,0,0,.8), 0 0 0 1px rgba(0,0,0,.6);
+  overflow:hidden; position:relative;
+  display:flex; flex-direction:column;
+  animation:win-in .24s var(--e-out) both;
+}
+@keyframes win-in{ from{ opacity:0; transform:scale(.985) } to{ opacity:1; transform:none } }
+
+/* ---------- 标题栏 ---------- */
+.tbar{
+  height:44px; flex-shrink:0;
+  display:flex; align-items:center; gap:14px;
+  padding-left:18px;
+  -webkit-app-region:drag;           /* Electron/Tauri 拖拽区语义 */
+  border-bottom:1px solid var(--line);
+  background:rgba(255,244,225,.012);
+}
+.tb-brand{ display:flex; align-items:center; gap:10px; min-width:0; }
+.tb-mark{ width:18px; height:18px; flex-shrink:0; }
+.tb-name{
+  font-family:var(--f-serif); font-size:16px; letter-spacing:.01em;
+  color:var(--ink); white-space:nowrap;
+}
+.tb-tag{
+  font-size:12px; color:var(--ink3); letter-spacing:.14em;
+  border-left:1px solid var(--line2); padding-left:10px; margin-left:2px;
+}
+.tb-c{ flex:1; }
+.tb-r{ display:flex; align-items:center; -webkit-app-region:no-drag; }
+.tb-scene{
+  -webkit-app-region:no-drag;
+  display:inline-flex; align-items:center; gap:6px;
+  height:26px; padding:0 10px; margin-right:8px;
+  font-size:12px; letter-spacing:.06em; color:var(--ink3);
+  background:transparent; border:1px solid transparent; border-radius:var(--r-sm);
+  cursor:pointer; font-family:var(--f-sans);
+  transition:color var(--t-fast) var(--e-io), border-color var(--t-fast) var(--e-io);
+}
+.tb-scene:hover{ color:var(--ink2); border-color:var(--line2); }
+.tb-scene svg{ width:10px; height:10px; }
+.wctl{ display:flex; }
+.wctl button{
+  width:46px; height:44px; border:0; background:transparent; cursor:pointer;
+  display:grid; place-items:center; color:var(--ink3);
+  transition:background var(--t-fast) var(--e-io), color var(--t-fast) var(--e-io);
+}
+.wctl button:hover{ background:rgba(255,244,225,.06); color:var(--ink); }
+.wctl button.close:hover{ background:#b8332a; color:#fff; }
+.wctl svg{ width:11px; height:11px; }
+
+/* ---------- 主体 ---------- */
+.wbody{ flex:1; display:flex; min-height:0; }
+
+/* 左轨导航 */
+.rail{
+  width:232px; flex-shrink:0;
+  display:flex; flex-direction:column;
+  padding:18px 12px 14px;
+  border-right:1px solid var(--line);
+  background:rgba(255,244,225,.01);
+}
+.rn{
+  position:relative;
+  display:flex; align-items:center; gap:11px;
+  height:38px; padding:0 12px; margin-bottom:2px;
+  border-radius:10px; cursor:pointer; user-select:none;
+  color:var(--ink2); font-size:13px; text-decoration:none;
+  border:1px solid transparent;
+  transition:color var(--t-fast) var(--e-io), background var(--t-fast) var(--e-io), border-color var(--t-fast) var(--e-io);
+}
+.rn svg{ width:16px; height:16px; flex-shrink:0; opacity:.8; }
+.rn:hover{ color:var(--ink); background:rgba(255,244,225,.035); }
+.rn.on{
+  color:var(--ink); background:rgba(255,244,225,.05);
+  border-color:var(--line);
+}
+.rn.on svg{ color:var(--brass); opacity:1; }
+.rn.on::before{  /* 活动标记：一枚铜金指示灯，而不是描边色条 */
+  content:''; position:absolute; left:-1px; top:50%; transform:translateY(-50%);
+  width:3px; height:14px; border-radius:999px; background:var(--brass);
+  box-shadow:0 0 10px -2px rgba(201,163,92,.8);
+}
+.rail-gap{ flex:1; }
+.rail-sep{ height:1px; background:var(--line); margin:10px 10px 12px; }
+.rail-meta{
+  padding:2px 12px 0; font-size:12px; color:var(--ink3); line-height:1.6;
+}
+.rail-meta b{ display:block; color:var(--ink2); font-weight:500; font-size:12px; }
+.rail-meta .mono{ font-family:var(--f-mono); font-size:12px; color:var(--ink3); }
+
+/* 主区 */
+.main{ flex:1; min-width:0; position:relative; }
+.screen{
+  position:absolute; inset:0; overflow-y:auto; overflow-x:hidden;
+  padding:30px 36px 40px;
+  display:none;
+}
+.screen.on{ display:block; animation:scr-in .26s var(--e-out) both; }
+@keyframes scr-in{ from{ opacity:0; transform:translateY(8px) } to{ opacity:1; transform:none } }
+.screen::-webkit-scrollbar{ width:10px; }
+.screen::-webkit-scrollbar-thumb{ background:rgba(255,244,225,.1); border-radius:10px; border:3px solid transparent; background-clip:content-box; }
+.screen::-webkit-scrollbar-thumb:hover{ background:rgba(255,244,225,.18); background-clip:content-box; }
+
+/* ---------- 页头 ---------- */
+.phead{ display:flex; align-items:flex-end; gap:16px; margin-bottom:24px; }
+.phead-l{ flex:1; min-width:0; }
+.ph-t{ font-family:var(--f-serif); font-weight:400; font-size:26px; letter-spacing:.01em; line-height:1.1; }
+.ph-s{ margin-top:6px; font-size:13px; color:var(--ink3); }
+.ph-s .mono{ font-family:var(--f-mono); font-size:12px; }
+.phead-r{ display:flex; align-items:center; gap:10px; }
+
+/* ---------- 微标签 / 刻线 / 文本 ---------- */
+.micro{
+  font-size:12px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink3); font-weight:500;
+}
+.micro-cn{ font-size:12px; letter-spacing:.04em; color:var(--ink3); font-weight:500; }
+.rline{  /* 刻线：发丝线 + 居中小字 */
+  display:flex; align-items:center; gap:14px; margin:26px 0 16px;
+}
+.rline::before,.rline::after{ content:''; flex:1; height:1px; background:var(--line); }
+.rline span{ font-size:12px; letter-spacing:.12em; color:var(--ink3); white-space:nowrap; }
+.rline span i{ font-style:normal; font-family:var(--f-mono); letter-spacing:.04em; }
+.serif{ font-family:var(--f-serif); }
+.mono{ font-family:var(--f-mono); font-variant-numeric:tabular-nums; }
+.muted{ color:var(--ink2); } .faint{ color:var(--ink3); }
+.small{ font-size:12px; } .smaller{ font-size:12px; }
+
+/* ---------- LED / chip / kbd ---------- */
+.led{
+  width:6px; height:6px; border-radius:0; flex-shrink:0; display:inline-block;
+  background:var(--ink3); opacity:.55;
+}
+.led.ok{ background:var(--ok); opacity:1; }
+.led.warn{ background:var(--warn); opacity:1; }
+.led.err{ background:var(--err); opacity:1; }
+.led.brass{ background:var(--brass); opacity:1; }
+.led.live{ animation:breathe 3.5s var(--e-io) infinite; }
+@keyframes breathe{ 0%,100%{ opacity:.55 } 50%{ opacity:1 } }
+
+.chip{
+  display:inline-flex; align-items:center; gap:7px;
+  height:22px; padding:0 10px; border-radius:999px;
+  border:1px solid var(--line2); color:var(--ink2);
+  font-size:13px; letter-spacing:.02em; white-space:nowrap;
+}
+.chip .led{ width:5px; height:5px; }
+.chip.ok{ color:var(--ok); border-color:rgba(143,176,126,.35); }
+.chip.warn{ color:var(--warn); border-color:rgba(217,154,78,.35); }
+.chip.err{ color:var(--err); border-color:rgba(201,106,92,.4); }
+.chip.brass{ color:var(--brass); border-color:rgba(201,163,92,.4); }
+.chip.plain{ color:var(--ink3); }
+
+.kbd{
+  display:inline-block; min-width:17px; text-align:center;
+  padding:1px 5px; border-radius:0; border:1px solid var(--line2);
+  font-family:var(--f-mono); font-size:12px; color:var(--ink3);
+  background:rgba(255,244,225,.03);
+}
+
+/* ---------- 按钮 ---------- */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  height:36px; padding:0 16px; border-radius:var(--r);
+  border:1px solid var(--line2); background:rgba(255,244,225,.03); color:var(--ink);
+  font-family:var(--f-sans); font-size:13px; font-weight:480; letter-spacing:.01em;
+  cursor:pointer; white-space:nowrap;
+  transition:border-color var(--t-fast) var(--e-io), background var(--t-fast) var(--e-io), color var(--t-fast) var(--e-io), transform var(--t-fast) var(--e-out), filter var(--t-fast) var(--e-io);
+}
+.btn svg{ width:14px; height:14px; flex-shrink:0; }
+.btn:hover{ border-color:rgba(255,244,225,.24); background:rgba(255,244,225,.055); }
+.btn:active{ transform:translateY(1px); }
+.btn[disabled]{ opacity:.38; cursor:not-allowed; transform:none; }
+.btn.primary{  /* 鎏金主按钮：金属渐变 + 暗字 */
+  border:1px solid rgba(255,235,196,.55);
+  background:linear-gradient(180deg, #e6cd97 0%, #c9a35c 46%, #b28a45 100%);
+  color:#221809; font-weight:520;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5), 0 10px 30px -14px rgba(201,163,92,.55);
+}
+.btn.primary:hover{ filter:brightness(1.06); border-color:rgba(255,240,205,.7); }
+.btn.primary .kbd{ border-color:rgba(34,24,9,.3); color:rgba(34,24,9,.75); background:rgba(255,255,255,.16); }
+.btn.ghost{ background:transparent; border-color:var(--line2); color:var(--ink2); }
+.btn.ghost:hover{ color:var(--ink); }
+.btn.quiet{ background:transparent; border-color:transparent; color:var(--ink3); padding:0 10px; }
+.btn.quiet:hover{ color:var(--ink); border-color:var(--line); }
+.btn.danger{ background:transparent; border-color:rgba(201,106,92,.45); color:var(--err); }
+.btn.danger:hover{ background:rgba(201,106,92,.1); border-color:var(--err); }
+.btn.sm{ height:28px; padding:0 11px; font-size:13px; border-radius:var(--r-sm); }
+.btn.sm svg{ width:12px; height:12px; }
+.btn.xs{ height:24px; padding:0 9px; font-size:13px; border-radius:var(--r-sm); gap:6px; }
+.btn.xs svg{ width:11px; height:11px; }
+.btn.big{ height:46px; padding:0 22px; font-size:13px; border-radius:10px; font-weight:520; }
+.ibtn{
+  width:28px; height:28px; display:inline-grid; place-items:center;
+  border:1px solid transparent; border-radius:var(--r-sm); background:transparent;
+  color:var(--ink3); cursor:pointer;
+  transition:color var(--t-fast) var(--e-io), border-color var(--t-fast) var(--e-io), background var(--t-fast) var(--e-io);
+}
+.ibtn svg{ width:14px; height:14px; }
+.ibtn:hover{ color:var(--ink); border-color:var(--line); background:rgba(255,244,225,.04); }
+
+/* ---------- 模块面板 ---------- */
+.mod{
+  background:var(--bg-card);
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  padding:22px;
+  position:relative;
+}
+.mod + .mod{ margin-top:16px; }
+.mod-head{ display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+.mod-head .mh-t{ font-size:13px; font-weight:540; letter-spacing:.01em; }
+.mod-head .mh-c{ font-size:12px; color:var(--ink3); }
+.mod-head .sp{ flex:1; }
+
+/* ---------- KV 仪器行 ---------- */
+.kv{ display:flex; align-items:center; gap:10px; height:34px; }
+.kv + .kv{ border-top:1px dashed rgba(244,236,222,.05); }
+.kv .k{ font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink3); white-space:nowrap; }
+.kv .leader{ flex:1; border-bottom:1px dotted rgba(244,236,222,.12); transform:translateY(-3px); min-width:16px; }
+.kv .v{ font-family:var(--f-mono); font-size:12px; color:var(--ink2); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.kv .v b{ color:var(--ink); font-weight:500; }
+.kv .v .ok{ color:var(--ok); } .kv .v .warn{ color:var(--warn); }
+
+/* ---------- 分段刻度条（显存等） ---------- */
+.meter{ display:flex; gap:2px; align-items:center; }
+.meter i{
+  width:6px; height:10px; border-radius:0; background:rgba(255,244,225,.1);
+}
+.meter i.on{ background:var(--brass); }
+.meter i.on.soft{ background:rgba(201,163,92,.45); box-shadow:none; }
+
+/* ---------- 表格 ---------- */
+.tbl{ width:100%; border-collapse:collapse; table-layout:fixed; }
+.tbl th{
+  text-align:left; font-size:12px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--ink3); font-weight:500; padding:0 12px 9px;
+  border-bottom:1px solid var(--line2);
+}
+.tbl td{
+  padding:0 12px; height:46px; font-size:13px; color:var(--ink2);
+  border-bottom:1px solid var(--line); vertical-align:middle;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.tbl tbody tr{ transition:background var(--t-fast) var(--e-io); cursor:pointer; }
+.tbl tbody tr:hover{ background:rgba(255,244,225,.028); }
+.tbl tbody tr:hover .rowact{ opacity:1; }
+.tbl td .nm{ color:var(--ink); }
+.tbl td.num, .tbl th.num{ text-align:right; font-family:var(--f-mono); font-size:13px; font-variant-numeric:tabular-nums; }
+.rowact{ display:flex; gap:4px; justify-content:flex-end; opacity:0; transition:opacity var(--t-fast) var(--e-io); }
+.tbl tr:last-child td{ border-bottom:0; }
+.tbl.tall td{ height:auto; padding:10px 12px; line-height:1.35; }
+.tbl .sub2{ display:block; font-family:var(--f-mono); font-size:12px; color:var(--ink3); margin-top:2px; }
+
+/* 行内 mini 轨道（训练记录的六工位缩影） */
+.mini{ display:inline-flex; gap:3px; align-items:center; }
+.mini i{ width:9px; height:4px; border-radius:0; background:rgba(255,244,225,.13); }
+.mini i.d{ background:var(--ink2); }
+.mini i.f{ background:var(--err); }
+.mini i.n{ background:var(--brass); }
+
+/* ---------- 表单控件 ---------- */
+.field{ display:flex; flex-direction:column; gap:7px; }
+.field .fl{ display:flex; align-items:baseline; justify-content:space-between; }
+.field .fl .fl-n{ font-size:12px; color:var(--ink2); }
+.field .fl .fl-u{ font-size:12px; color:var(--ink3); font-family:var(--f-mono); }
+.inp{
+  height:36px; padding:0 12px; width:100%;
+  background:#14110e; color:var(--ink);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.35);
+  border:1px solid var(--line2); border-radius:var(--r);
+  font-family:var(--f-sans); font-size:13px; outline:none;
+  transition:border-color var(--t-fast) var(--e-io), box-shadow var(--t-fast) var(--e-io);
+}
+.inp:hover{ border-color:rgba(255,244,225,.22); }
+.inp:focus{ border-color:var(--brass); box-shadow:inset 0 1px 2px rgba(0,0,0,.35), 0 0 0 3px rgba(201,163,92,.14); }
+.inp.mono{ font-family:var(--f-mono); font-size:12px; }
+select.inp{ appearance:none; cursor:pointer; padding-right:30px;
+  background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2397897a' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 11px center;
+}
+.numwrap{ position:relative; }
+.numwrap .unit{
+  position:absolute; right:12px; top:50%; transform:translateY(-50%);
+  font-family:var(--f-mono); font-size:12px; color:var(--ink3); pointer-events:none;
+}
+.numwrap .inp{ padding-right:56px; font-family:var(--f-mono); font-size:12px; }
+
+/* 开关 */
+.switch{
+  position:relative; width:38px; height:22px; flex-shrink:0;
+  border-radius:999px; border:1px solid var(--line2);
+  background:var(--bg-deep); cursor:pointer; padding:0;
+  transition:background var(--t) var(--e-io), border-color var(--t) var(--e-io);
+}
+.switch::after{
+  content:''; position:absolute; top:2px; left:2px;
+  width:16px; height:16px; border-radius:999px;
+  background:var(--ink2);
+  transition:transform var(--t) var(--e-out), background var(--t) var(--e-io);
+}
+.switch.on{ background:rgba(201,163,92,.26); border-color:rgba(201,163,92,.55); }
+.switch.on::after{ transform:translateX(16px); background:var(--brass-hi); }
+
+/* 分段控件 */
+.seg{ display:inline-flex; border:1px solid var(--line2); border-radius:var(--r); overflow:hidden; padding:2px; gap:2px; background:rgba(0,0,0,.22); }
+.seg button{
+  height:28px; padding:0 14px; border:0; border-radius:10px; cursor:pointer;
+  background:transparent; color:var(--ink3); font-family:var(--f-sans); font-size:12px; font-weight:480;
+  transition:color var(--t-fast) var(--e-io), background var(--t-fast) var(--e-io);
+}
+.seg button:hover{ color:var(--ink2); }
+.seg button.on{ background:rgba(255,244,225,.07); color:var(--ink); box-shadow:inset 0 0 0 1px var(--line); }
+
+/* ---------- 日志井 ---------- */
+.logs{
+  background:var(--bg-deep); border:1px solid var(--line); border-radius:var(--r);
+  padding:12px 14px; font-family:var(--f-mono); font-size:12px; line-height:1.9;
+  color:var(--ink3); overflow:hidden; position:relative;
+}
+.logs .lg-h{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.logs .lg-h .micro{ font-size:12px; }
+.logs .lg-h .sp{ flex:1; }
+.logs .ln{ display:flex; gap:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.logs .ln .ts{ color:var(--ink3); flex-shrink:0; }
+.logs .ln .lv{ color:var(--ink3); flex-shrink:0; width:34px; }
+.logs .ln .ms{ color:var(--ink2); overflow:hidden; text-overflow:ellipsis; }
+.logs .ln.warn .ms{ color:var(--warn); }
+.logs .ln.err .ms{ color:var(--err); }
+.logs .ln.ok .ms{ color:var(--ok); }
+.logs .cursor{ display:inline-block; width:6px; height:12px; background:rgba(201,163,92,.6); animation:blink 1.1s steps(1) infinite; vertical-align:-2px; }
+@keyframes blink{ 50%{ opacity:0 } }
+
+/* ---------- 工具类 ---------- */
+.row{ display:flex; align-items:center; gap:10px; }
+.sp{ flex:1; }
+.gap8{ gap:8px; } .gap12{ gap:12px; } .gap16{ gap:16px; }
+.mt8{ margin-top:8px; } .mt12{ margin-top:12px; } .mt16{ margin-top:16px; } .mt20{ margin-top:20px; } .mt24{ margin-top:24px; }
+.hidden{ display:none !important; }
+.grid2{ display:grid; grid-template-columns:minmax(0,7fr) minmax(0,5fr); gap:16px; align-items:start; }
+
+/* 焦点可达性：桌面必备 */
+:focus-visible{ outline:2px solid rgba(201,163,92,.8); outline-offset:2px; }
+
+/* ---------- 无障碍与减动效 ---------- */
+@media (prefers-reduced-motion: reduce){
+  .win{ animation:none; }
+  .screen.on{ animation:none; }
+  .led.live{ animation:none; opacity:1; }
+  .logs .cursor{ animation:none; }
+  *{ transition-duration:.01ms !important; }
+}
+/* ==========================================================================
+   §A 启动台 —— 主控模块 / 就绪仪表 / 流水线轨道 / 快速开始
+   ========================================================================== */
+.lm{
+  display:grid; grid-template-columns:minmax(0,7fr) minmax(0,5fr);
+  background:var(--bg-card); border:1px solid var(--line2);
+  border-radius:var(--r-lg); overflow:hidden; position:relative;
+}
+.lm::before{ /* 主控模块的顶缘受光 —— 唯一一处「金属高光」 */
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg, transparent, rgba(233,211,162,.55) 30%, rgba(233,211,162,.55) 70%, transparent);
+  opacity:.5; transition:opacity var(--t-slow) var(--e-io);
+}
+.lm:hover::before{ opacity:.95; }
+.lm-left{ padding:26px 30px 26px 28px; min-width:0; }
+.lm-kicker{ display:flex; align-items:center; gap:10px; }
+.lm-kicker .ep{ font-family:var(--f-mono); font-size:12px; color:var(--ink3); letter-spacing:.02em; }
+.lm-word{
+  font-family:var(--f-serif); font-weight:400; font-size:30px; line-height:1.15;
+  letter-spacing:.01em; margin-top:12px; display:flex; align-items:baseline; gap:14px;
+}
+.lm-word .w-live{ font-size:13px; font-family:var(--f-sans); color:var(--ok); letter-spacing:.02em; }
+.lm-desc{ margin-top:11px; font-size:13px; line-height:1.7; color:var(--ink2); max-width:47ch; }
+.lm-actions{ display:flex; align-items:center; gap:10px; margin-top:22px; flex-wrap:wrap; }
+.lm-seq{ margin-top:18px; }
+.seq-track{ height:2px; border-radius:999px; background:rgba(255,244,225,.08); overflow:hidden; }
+.seq-track i{ display:block; height:100%; width:0%; background:var(--brass);
+  transition:width .45s var(--e-out); box-shadow:0 0 12px -2px rgba(201,163,92,.8); }
+.seq-tx{ margin-top:10px; display:flex; align-items:center; gap:9px; font-family:var(--f-mono); font-size:12px; color:var(--ink2); }
+.seq-tx .ph{ flex:1; height:1px; background:repeating-linear-gradient(90deg, rgba(201,163,92,.5) 0 5px, transparent 5px 11px); background-size:22px 1px; animation:shimmer 1.1s linear infinite; opacity:.6; }
+@keyframes shimmer{ to{ background-position:22px 0 } }
+.lm-err{
+  margin-top:18px; border:1px solid rgba(201,106,92,.42); border-radius:var(--r);
+  background:rgba(201,106,92,.07);
+  padding:13px 15px;
+}
+.lm-err .t{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--err); font-weight:500; }
+.lm-err .d{ margin-top:6px; font-size:12px; color:var(--ink2); line-height:1.65; }
+.lm-err .d .mono{ color:var(--ink); }
+.lm-err .a{ display:flex; gap:8px; margin-top:11px; }
+.lm-right{
+  border-left:1px solid var(--line); background:rgba(0,0,0,.16);
+  padding:20px 22px; display:flex; flex-direction:column; justify-content:center;
+}
+.inst{ display:flex; align-items:center; gap:10px; height:36px; }
+.inst + .inst{ border-top:1px dashed rgba(244,236,222,.055); }
+.inst .il{ font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink3); white-space:nowrap; }
+.inst .leader{ flex:1; border-bottom:1px dotted rgba(244,236,222,.12); transform:translateY(-3px); }
+.inst .iv{ font-family:var(--f-mono); font-size:12px; color:var(--ink); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.inst .iv small{ color:var(--ink3); font-size:12px; }
+.inst .meter{ margin-right:2px; }
+.inst-note{ margin-top:12px; font-size:12px; color:var(--ink3); line-height:1.6; }
+.inst-note .mono{ font-size:12px; }
+
+/* 训练进行中：主控左侧切换为训练卡 */
+.tcard{ display:flex; flex-direction:column; gap:12px; }
+.tcard .tw{ font-family:var(--f-serif); font-size:30px; line-height:1.15; }
+.tcard .tw .ep{ font-family:var(--f-mono); font-size:12px; color:var(--ink3); margin-left:12px; letter-spacing:.02em; }
+.tcard .tmeta{ display:flex; gap:26px; }
+.tcard .tm{ display:flex; flex-direction:column; gap:3px; }
+.tcard .tm .k{ font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink3); }
+.tcard .tm .v{ font-family:var(--f-mono); font-size:16px; color:var(--ink); font-variant-numeric:tabular-nums; }
+.tcard .tm .v small{ font-size:12px; color:var(--ink3); }
+.epochbar{ height:4px; border-radius:999px; background:rgba(255,244,225,.08); overflow:hidden; }
+.epochbar i{ display:block; height:100%; width:74%; background:var(--brass); position:relative; overflow:hidden; }
+.epochbar i::after{ content:''; position:absolute; inset:0; background:linear-gradient(100deg, transparent 25%, rgba(255,255,255,.35) 50%, transparent 75%); transform:translateX(-100%); animation:sheen 2.6s var(--e-io) infinite; }
+@keyframes sheen{ to{ transform:translateX(100%) } }
+
+/* 流水线轨道 */
+.pline{
+  margin-top:16px; display:grid; grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center; gap:26px;
+  border:1px solid var(--line); border-radius:var(--r); background:var(--bg-card);
+  padding:17px 24px;
+}
+.pl-cap .a{ font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink3); display:block; }
+.pl-cap .b{ font-size:12px; color:var(--ink3); margin-top:3px; }
+.stations{ display:flex; align-items:flex-start; }
+.st{ position:relative; flex:1; display:flex; flex-direction:column; align-items:center; gap:7px; padding:0 4px; cursor:pointer; }
+.st:not(:first-child)::before{
+  content:''; position:absolute; top:5px; right:calc(50% + 13px); width:calc(100% - 26px);
+  height:1px; background:var(--line2);
+}
+.st .lamp{ width:10px; height:10px; border-radius:0; background:transparent; box-shadow:inset 0 0 0 1px rgba(255,244,225,.26); transition:background var(--t) var(--e-io), box-shadow var(--t) var(--e-io); }
+.st .nm{ font-size:12px; color:var(--ink3); transition:color var(--t-fast) var(--e-io); }
+.st .mt{ font-family:var(--f-mono); font-size:12px; color:var(--ink3); }
+.st:hover .nm{ color:var(--ink); }
+.st.done .lamp{ background:var(--ink2); box-shadow:none; }
+.st.done .nm{ color:var(--ink2); }
+.st.now .lamp{ background:var(--brass); box-shadow:0 0 10px -1px rgba(201,163,92,.9); }
+.st.now .nm{ color:var(--ink); }
+.st.fail .lamp{ background:var(--err); box-shadow:0 0 10px -1px rgba(201,106,92,.8); }
+.st.fail .nm{ color:var(--err); }
+.pl-note{ text-align:right; font-size:12px; color:var(--ink3); line-height:1.65; max-width:210px; }
+.pl-note .mono{ font-size:12px; color:var(--ink2); }
+.pl-note b{ color:var(--ink2); font-weight:500; }
+
+/* 快速开始 */
+.qs .f{ margin-bottom:14px; }
+.qs .note{ display:flex; gap:8px; align-items:flex-start; margin-top:2px; font-size:12px; line-height:1.6; color:var(--ink3); }
+.qs .note.warn{ color:var(--warn); }
+.qs .note .led{ margin-top:6px; }
+
+/* 空态 */
+.empty{ padding:30px 4px; display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+.empty .ring{
+  width:34px; height:34px; border-radius:999px; border:1px dashed rgba(244,236,222,.22);
+  display:grid; place-items:center; margin-bottom:6px;
+}
+.empty .ring svg{ width:15px; height:15px; color:var(--ink3); }
+.empty .t{ font-size:13px; color:var(--ink2); }
+.empty .d{ font-size:12px; color:var(--ink3); line-height:1.65; max-width:52ch; }
+.empty .a{ margin-top:10px; display:flex; gap:8px; }
+
+/* ==========================================================================
+   §B 服务
+   ========================================================================== */
+.svc-head{ display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+.svc-head .nm{ font-size:13px; font-weight:540; }
+.svc-head .ep{ font-family:var(--f-mono); font-size:12px; color:var(--ink3); }
+.svc-head .sp{ flex:1; }
+.svc-head .acts{ display:flex; gap:8px; }
+.svc-grid{ display:grid; grid-template-columns:minmax(0,5fr) minmax(0,6fr); gap:22px; }
+.svc-grid .kv{ height:32px; }
+.svc-meta{ display:flex; flex-direction:column; }
+.svc-note{ grid-column:1 / -1; margin-top:14px; padding-top:14px; border-top:1px solid var(--line);
+  font-size:13px; color:var(--ink3); line-height:1.65; display:flex; gap:8px; align-items:flex-start; }
+.svc-note .led{ margin-top:6px; }
+.svc-note.warn{ color:var(--warn); }
+.svc-note.warn .mono{ color:var(--warn); }
+.pline-mini{ margin-top:12px; }
+
+/* ==========================================================================
+   §C 环境自检
+   ========================================================================== */
+.verdict{
+  display:flex; align-items:center; gap:16px;
+  border:1px solid var(--line2); border-radius:var(--r); background:var(--bg-card);
+  padding:18px 22px; margin-bottom:8px;
+}
+.verdict .vt{ font-family:var(--f-serif); font-size:26px; }
+.verdict .vs{ font-size:12px; color:var(--ink3); }
+.verdict .sp{ flex:1; }
+.egroup{ margin-top:22px; }
+.egroup-h{ display:flex; align-items:center; gap:12px; margin-bottom:2px; }
+.egroup-h .micro{ white-space:nowrap; }
+.egroup-h::after{ content:''; flex:1; height:1px; background:var(--line); }
+.egroup-h .cnt{ font-family:var(--f-mono); font-size:12px; color:var(--ink3); letter-spacing:.04em; }
+.erow{
+  display:grid; grid-template-columns:14px minmax(140px,1.2fr) minmax(120px,1.1fr) minmax(120px,1fr) auto;
+  align-items:center; gap:12px; height:46px; padding:0 4px 0 2px;
+  border-bottom:1px solid var(--line); cursor:pointer;
+}
+.erow:hover{ background:rgba(255,244,225,.024); }
+.erow .en{ font-size:13px; color:var(--ink); }
+.erow .ev{ font-family:var(--f-mono); font-size:13px; color:var(--ink2); font-variant-numeric:tabular-nums;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.erow .er{ font-size:13px; color:var(--ink3); }
+.erow .er.ok{ color:var(--ok); } .erow .er.warn{ color:var(--warn); } .erow .er.err{ color:var(--err); }
+.erow .ea{ display:flex; justify-content:flex-end; gap:6px; opacity:0; transition:opacity var(--t-fast) var(--e-io); }
+.erow:hover .ea{ opacity:1; }
+.erow .chev{ color:var(--ink3); transition:transform var(--t) var(--e-io); display:grid; place-items:center; }
+.erow.open .chev{ transform:rotate(90deg); }
+.edetail{ padding:2px 4px 16px 30px; display:none; }
+.edetail.on{ display:block; animation:scr-in .2s var(--e-out) both; }
+.edetail .d{ font-size:12px; color:var(--ink2); line-height:1.7; max-width:72ch; }
+.edetail .d .mono{ font-size:12px; color:var(--ink); }
+.edetail .a{ display:flex; gap:8px; margin-top:10px; }
+
+/* ==========================================================================
+   §D 资源
+   ========================================================================== */
+.asset-head{ display:flex; align-items:center; gap:14px; margin-bottom:6px; }
+.asset-head .sp{ flex:1; }
+.tab{ display:none; }
+.tab.on{ display:block; animation:scr-in .24s var(--e-out) both; }
+.tab-cap{ margin:4px 0 14px; font-size:13px; color:var(--ink3); display:flex; gap:8px; align-items:center; }
+
+/* 权重矩阵 */
+.fam{ margin-top:20px; }
+.fam:first-of-type{ margin-top:8px; }
+.fam-h{ display:flex; align-items:baseline; gap:12px; margin-bottom:11px; }
+.fam-h .fn{ font-family:var(--f-serif); font-size:16px; }
+.fam-h .fc{ font-family:var(--f-mono); font-size:12px; color:var(--ink3); }
+.fam-h::after{ content:''; flex:1; height:1px; background:var(--line); }
+.mrow{ display:flex; align-items:center; gap:10px; margin-bottom:9px; }
+.mrow .rl{ width:70px; flex-shrink:0; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink3); text-align:right; }
+.mchips{ display:flex; flex-wrap:wrap; gap:8px; }
+.mchip{
+  display:inline-flex; align-items:center; gap:8px;
+  height:30px; padding:0 11px; border-radius:var(--r-sm);
+  border:1px solid var(--line2); background:rgba(255,244,225,.02);
+  font-family:var(--f-mono); font-size:13px; color:var(--ink2); cursor:pointer;
+  transition:border-color var(--t-fast) var(--e-io), background var(--t-fast) var(--e-io), color var(--t-fast) var(--e-io);
+}
+.mchip:hover{ border-color:rgba(255,244,225,.28); color:var(--ink); }
+.mchip.local{ border-color:rgba(201,163,92,.45); color:var(--ink); background:rgba(201,163,92,.06); }
+.mchip .led{ width:5px; height:5px; }
+.mchip .dl{ color:var(--ink3); font-size:12px; }
+.mchip.busy{ cursor:progress; }
+.mchip .pbar{ width:34px; height:3px; border-radius:999px; background:rgba(255,244,225,.12); overflow:hidden; }
+.mchip .pbar i{ display:block; height:100%; width:0%; background:var(--brass); transition:width .3s linear; }
+
+/* ==========================================================================
+   §E 设置
+   ========================================================================== */
+.setwrap{ max-width:780px; }
+.sgroup-h{ display:flex; align-items:center; gap:12px; margin:30px 0 4px; }
+.sgroup:first-child .sgroup-h{ margin-top:2px; }
+.sgroup-h .micro{ white-space:nowrap; }
+.sgroup-h::after{ content:''; flex:1; height:1px; background:var(--line); }
+.sgroup-h .gd{ font-size:12px; color:var(--ink3); }
+.srow{
+  display:flex; align-items:center; gap:20px; min-height:58px; padding:10px 2px;
+  border-bottom:1px solid var(--line);
+}
+.srow:hover .sreset{ opacity:1; }
+.sl{ flex:1; min-width:0; }
+.sl .sn{ font-size:13px; color:var(--ink); }
+.sl .sd{ margin-top:3px; font-size:12px; color:var(--ink3); line-height:1.55; }
+.sl .sd .mono{ font-size:12px; }
+.sctrl{ display:flex; align-items:center; gap:10px; flex-shrink:0; }
+.sctrl .inp{ width:130px; }
+.sctrl.wide .inp{ width:340px; }
+.sreset{ opacity:0; }
+.srow.danger .sn{ color:var(--err); }
+.srow .pathv{ font-family:var(--f-mono); font-size:12px; color:var(--ink2); }
+
+/* ==========================================================================
+   §F 浮层：Toast / 弹出 / 右键 / 模态 / 向导
+   ========================================================================== */
+.toasts{ position:absolute; right:22px; bottom:22px; display:flex; flex-direction:column; gap:10px; z-index:70; pointer-events:none; }
+.toast{
+  pointer-events:auto; width:370px;
+  background:#241f19;
+  border:1px solid var(--line2); border-radius:10px;
+  box-shadow:var(--sh-float);
+  padding:13px 15px; display:flex; gap:11px; align-items:flex-start;
+  animation:toast-in .3s var(--e-out) both;
+}
+@keyframes toast-in{ from{ opacity:0; transform:translateY(10px) } to{ opacity:1; transform:none } }
+.toast.leaving{ animation:toast-out .22s var(--e-io) both; }
+@keyframes toast-out{ to{ opacity:0; transform:translateY(6px) } }
+.toast .led{ margin-top:6px; }
+.toast .tx{ flex:1; min-width:0; }
+.toast .tt{ font-size:13px; color:var(--ink); }
+.toast .tm2{ margin-top:3px; font-size:12px; color:var(--ink3); line-height:1.55; overflow-wrap:anywhere; }
+.toast .tm2 .mono{ font-size:12px; color:var(--ink2); }
+.toast .ta{ display:flex; gap:6px; margin-top:9px; }
+.toast .x{ flex-shrink:0; }
+
+.pop{
+  position:absolute; top:50px; right:14px; width:252px; z-index:80;
+  background:#251f1a;
+  border:1px solid var(--line2); border-radius:10px; box-shadow:var(--sh-float);
+  padding:8px; display:none;
+  animation:pop-in .2s var(--e-out) both;
+}
+@keyframes pop-in{ from{ opacity:0; transform:translateY(-6px) } to{ opacity:1; transform:none } }
+.pop.on{ display:block; }
+.pop .ph{ padding:7px 10px 8px; border-bottom:1px solid var(--line); margin-bottom:6px; }
+.pop .ph .a{ font-size:12px; color:var(--ink2); }
+.pop .ph .b{ font-size:12px; color:var(--ink3); margin-top:2px; }
+.pop-i{
+  display:flex; align-items:center; gap:10px; width:100%;
+  padding:8px 10px; border:0; border-radius:10px; background:transparent; cursor:pointer;
+  font-family:var(--f-sans); font-size:12px; color:var(--ink2); text-align:left;
+  transition:background var(--t-fast) var(--e-io), color var(--t-fast) var(--e-io);
+}
+.pop-i:hover{ background:rgba(255,244,225,.05); color:var(--ink); }
+.pop-i.on{ color:var(--ink); }
+.pop-i .sp{ flex:1; }
+.pop-i .hint{ font-size:12px; color:var(--ink3); }
+.pop-i .led{ margin-left:2px; }
+.pop-sep{ height:1px; background:var(--line); margin:6px 8px; }
+
+.ctx{
+  position:absolute; z-index:90; min-width:190px; display:none;
+  background:#27211b;
+  border:1px solid var(--line2); border-radius:10px; box-shadow:var(--sh-float);
+  padding:6px; animation:pop-in .16s var(--e-out) both;
+}
+.ctx.on{ display:block; }
+.ctx-i{
+  display:flex; align-items:center; gap:10px; width:100%; padding:7px 10px;
+  border:0; border-radius:10px; background:transparent; cursor:pointer;
+  font-family:var(--f-sans); font-size:12px; color:var(--ink2); text-align:left;
+}
+.ctx-i:hover{ background:rgba(255,244,225,.055); color:var(--ink); }
+.ctx-i.danger{ color:var(--err); }
+.ctx-i.danger:hover{ background:rgba(201,106,92,.1); }
+.ctx-i svg{ width:13px; height:13px; color:var(--ink3); }
+.ctx-sep{ height:1px; background:var(--line); margin:5px 8px; }
+
+.scrim{
+  position:absolute; inset:0; z-index:100; display:none;
+  background:rgba(8,6,5,.66); backdrop-filter:blur(3px);
+  align-items:center; justify-content:center;
+  animation:scrim-in .22s var(--e-out) both;
+}
+.scrim.on{ display:flex; }
+@keyframes scrim-in{ from{ opacity:0 } to{ opacity:1 } }
+.modal{
+  width:430px; background:#231e19;
+  border:1px solid var(--line2); border-radius:var(--r-lg);
+  box-shadow:var(--sh-float); padding:24px;
+  animation:pop-in .24s var(--e-out) both;
+}
+.modal .mt{ font-family:var(--f-serif); font-size:26px; }
+.modal .md{ margin-top:10px; font-size:13px; color:var(--ink2); line-height:1.7; }
+.modal .ma{ display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+
+/* 首启向导 */
+.wizard{
+  position:absolute; inset:0; z-index:110; display:none;
+  background:#13110e;
+  align-items:center; justify-content:center;
+}
+.wizard.on{ display:flex; }
+.wz{ width:560px; }
+.wz-steps{ display:flex; align-items:center; gap:10px; margin-bottom:26px; }
+.wz-steps .ws{ display:flex; align-items:center; gap:9px; }
+.wz-steps .d{ width:7px; height:7px; border-radius:0; background:rgba(255,244,225,.16); }
+.wz-steps .ws.on .d{ background:var(--brass); box-shadow:0 0 9px -1px rgba(201,163,92,.9); }
+.wz-steps .ws.done .d{ background:var(--ink2); }
+.wz-steps .l{ font-size:12px; color:var(--ink3); }
+.wz-steps .ws.on .l{ color:var(--ink); }
+.wz-steps .line{ flex:1; height:1px; background:var(--line2); }
+.wz-panel{ display:none; }
+.wz-panel.on{ display:block; animation:scr-in .3s var(--e-out) both; }
+.wz-t{ font-family:var(--f-serif); font-size:30px; line-height:1.15; }
+.wz-s{ margin-top:10px; font-size:13px; color:var(--ink2); line-height:1.7; }
+.wz-body{ margin-top:22px; }
+.wcheck{ display:flex; align-items:center; gap:11px; height:40px; opacity:0; transform:translateY(4px); }
+.wcheck.in{ animation:scr-in .3s var(--e-out) both; }
+.wcheck .nm{ font-size:13px; color:var(--ink2); flex:1; }
+.wcheck .vl{ font-family:var(--f-mono); font-size:12px; color:var(--ink3); }
+.wcheck.done .nm{ color:var(--ink); }
+.devopt{
+  display:flex; gap:14px; padding:16px; border-radius:var(--r); border:1px solid var(--line2);
+  background:rgba(255,244,225,.02); cursor:pointer; margin-bottom:12px; align-items:center;
+  transition:border-color var(--t-fast) var(--e-io), background var(--t-fast) var(--e-io);
+}
+.devopt:hover{ border-color:rgba(255,244,225,.25); }
+.devopt.on{ border-color:rgba(201,163,92,.6); background:rgba(201,163,92,.07); }
+.devopt .dt{ font-size:13px; color:var(--ink); }
+.devopt .dd{ font-size:12px; color:var(--ink3); margin-top:3px; }
+.devopt .tag{ margin-left:auto; }
+.wz-foot{ display:flex; align-items:center; gap:10px; margin-top:28px; }
+.wz-foot .sp{ flex:1; }
+/* __CSS_MORE__ */
+</style>
+</head>
+<body>
+<div class="desk"></div>
+<div class="stage"><div class="stage-inner" id="stageInner">
+  <div class="win" id="win">
+
+    <!-- ================= 标题栏 ================= -->
+    <header class="tbar">
+      <div class="tb-brand">
+        <svg class="tb-mark" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <circle cx="9" cy="9" r="7.1" stroke="#c9a35c" stroke-width="1.1" opacity=".9"/>
+          <path d="M9 2.4 A6.6 6.6 0 0 1 15.2 6.4" stroke="#e9d3a2" stroke-width="1.1" stroke-linecap="round"/>
+          <path d="M3.4 5.6 A6.6 6.6 0 0 0 9 15.6" stroke="rgba(242,236,225,.45)" stroke-width="1.1" stroke-linecap="round"/>
+          <circle cx="9" cy="9" r="1.7" fill="#c9a35c"/>
+        </svg>
+        <span class="tb-name">Auto YOLO Training</span>
+        <span class="tb-tag">启动器 · LAUNCHER</span>
+      </div>
+      <div class="tb-c"></div>
+      <div class="tb-r">
+        <button class="tb-scene" id="scenarioBtn" type="button" aria-haspopup="true">
+          <svg viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="3.6" stroke="currentColor" stroke-width="1.1"/><circle cx="5" cy="5" r="1" fill="currentColor"/></svg>
+          场景演示
+        </button>
+        <div class="wctl">
+          <button type="button" aria-label="最小化" title="最小化"><svg viewBox="0 0 11 11" fill="none"><path d="M1 5.5h9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button>
+          <button type="button" aria-label="最大化" title="最大化"><svg viewBox="0 0 11 11" fill="none"><rect x="1.2" y="1.2" width="8.6" height="8.6" rx="1.4" stroke="currentColor" stroke-width="1.1"/></svg></button>
+          <button type="button" class="close" aria-label="关闭" title="关闭"><svg viewBox="0 0 11 11" fill="none"><path d="M1.6 1.6l7.8 7.8M9.4 1.6L1.6 9.4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ================= 主体 ================= -->
+    <div class="wbody">
+      <nav class="rail" id="rail" aria-label="主导航">
+        <a class="rn on" href="#home" data-nav="home">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M4.4 2.8 13 8l-8.6 5.2V2.8Z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>
+          启动台
+        </a>
+        <a class="rn" href="#services" data-nav="services">
+          <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5.2" height="5.2" rx="1.4" stroke="currentColor" stroke-width="1.25"/><rect x="8.8" y="2" width="5.2" height="5.2" rx="1.4" stroke="currentColor" stroke-width="1.25"/><rect x="2" y="8.8" width="5.2" height="5.2" rx="1.4" stroke="currentColor" stroke-width="1.25"/><rect x="8.8" y="8.8" width="5.2" height="5.2" rx="1.4" stroke="currentColor" stroke-width="1.25"/></svg>
+          服务
+        </a>
+        <a class="rn" href="#env" data-nav="env">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M2 11.5a6 6 0 1 1 12 0" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/><path d="M8 11.5 11.2 7" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/><circle cx="8" cy="11.5" r="1.2" fill="currentColor"/></svg>
+          环境
+        </a>
+        <a class="rn" href="#assets" data-nav="assets">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M8 2.2 14 5.5 8 8.8 2 5.5 8 2.2Z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/><path d="M2 8.5l6 3.3 6-3.3" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/><path d="M2 11.5l6 3.3 6-3.3" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" opacity=".45"/></svg>
+          资源
+        </a>
+        <div class="rail-gap"></div>
+        <div class="rail-sep"></div>
+        <a class="rn" href="#settings" data-nav="settings">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/><circle cx="6" cy="4.5" r="1.6" fill="var(--bg)" stroke="currentColor" stroke-width="1.2"/><circle cx="10.5" cy="8" r="1.6" fill="var(--bg)" stroke="currentColor" stroke-width="1.2"/><circle cx="5" cy="11.5" r="1.6" fill="var(--bg)" stroke="currentColor" stroke-width="1.2"/></svg>
+          设置
+        </a>
+        <div class="rail-meta">
+          <b>项目环境</b>
+          <span class="mono">v0.1.0 · py3.12.7</span>
+        </div>
+      </nav>
+
+      <main class="main" id="main">
+        <!-- ==================== 启动台 ==================== -->
+        <section class="screen on" id="screen-home" data-screen="home">
+          <div class="phead">
+            <div class="phead-l">
+              <h1 class="ph-t">启动台</h1>
+              <p class="ph-s">上次自检 今天 04:52 · 环境就绪 · <span class="mono">E:\项目\Auto-yolo-training</span></p>
+            </div>
+            <div class="phead-r">
+              <button class="btn ghost sm" id="btnRecheck" type="button">
+                <svg viewBox="0 0 14 14" fill="none"><path d="M12 7a5 5 0 1 1-1.4-3.5M12 1.8v2.7h-2.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                重新检测
+              </button>
+            </div>
+          </div>
+
+          <!-- 主控模块 -->
+          <div class="lm" id="launchMod" data-state="stopped">
+            <div class="lm-left">
+              <!-- 空闲 / 启动中 / 失败 共用左列，由脚本切换 -->
+              <div id="lmMain">
+                <div class="lm-kicker">
+                  <span class="led" id="lmLed"></span>
+                  <span class="micro">本地控制台 · LOCAL CONSOLE</span>
+                  <span class="ep">127.0.0.1:8080</span>
+                </div>
+                <div class="lm-word"><span id="lmWord">未启动</span></div>
+                <p class="lm-desc" id="lmDesc">数据校验、训练配置、实时监控、模型库 —— 项目的全部界面，都在这一个页面里。</p>
+                <div class="lm-actions" id="lmActions">
+                  <button class="btn primary big" id="btnLaunchConsole" type="button">
+                    <svg viewBox="0 0 14 14" fill="none"><path d="M4.2 2.6 11.6 7l-7.4 4.4V2.6Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+                    <span id="btnLaunchLabel">启动控制台</span>
+                    <span class="kbd">Enter</span>
+                  </button>
+                  <button class="btn ghost" id="btnLaunchServe" type="button">启动推理服务</button>
+                  <button class="btn quiet" id="btnOpenDir" type="button">
+                    <svg viewBox="0 0 14 14" fill="none"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h2.6l1.2 1.4h4.2c.7 0 1.2.5 1.2 1.2v4.6c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2V4.2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+                    打开项目目录
+                  </button>
+                </div>
+              </div>
+
+              <!-- 训练进行中态 -->
+              <div id="lmTraining" class="tcard hidden">
+                <div class="lm-kicker">
+                  <span class="led brass live"></span>
+                  <span class="micro">训练进行中 · RUNNING</span>
+                  <span class="ep">data · yolo26n.pt</span>
+                </div>
+                <div class="tw">第 37 <span class="mono" style="font-size:16px;color:var(--ink3)">/ 50</span> 轮<span class="ep">已用 26:18 · 预计剩余 09:12</span></div>
+                <div class="epochbar"><i style="width:74%"></i></div>
+                <div class="tmeta">
+                  <div class="tm"><span class="k">Loss</span><span class="v">1.243</span></div>
+                  <div class="tm"><span class="k">mAP@50</span><span class="v">0.611</span></div>
+                  <div class="tm"><span class="k">显存</span><span class="v">11.2 <small>/ 15.9 GB</small></span></div>
+                </div>
+                <div class="lm-actions" style="margin-top:6px">
+                  <button class="btn primary" id="btnOpenMonitor" type="button">打开训练监控</button>
+                  <button class="btn danger" id="btnStopTraining" type="button">停止训练</button>
+                </div>
+              </div>
+
+              <!-- 启动序列（脚本填入阶段文字） -->
+              <div class="lm-seq hidden" id="lmSeq">
+                <div class="seq-track"><i id="seqBar"></i></div>
+                <div class="seq-tx"><span id="seqTx">正在准备环境…</span><span class="ph"></span></div>
+              </div>
+
+              <!-- 启动失败（端口占用） -->
+              <div class="lm-err hidden" id="lmErr">
+                <div class="t"><span class="led err"></span>启动失败 · 端口 8080 被占用</div>
+                <div class="d">进程 <span class="mono">12345</span> 正在监听 <span class="mono">127.0.0.1:8080</span>（可能已有一个控制台在运行）。</div>
+                <div class="a">
+                  <button class="btn sm" id="btnRetryPort" type="button">改用 8081 重试</button>
+                  <button class="btn sm danger" id="btnKillPort" type="button">结束占用进程</button>
+                  <button class="btn sm quiet" id="btnErrDetail" type="button">查看详情</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 就绪仪表 -->
+            <div class="lm-right">
+              <div class="micro" style="margin-bottom:8px">就绪仪表 · READINESS</div>
+              <div class="inst">
+                <span class="led ok"></span><span class="il">环境</span><span class="leader"></span>
+                <span class="iv">就绪 <small>· torch 2.9.0+cu130</small></span>
+              </div>
+              <div class="inst">
+                <span class="led ok"></span><span class="il">设备</span><span class="leader"></span>
+                <span class="iv">RTX 5080 <small>· 15.9 GB</small></span>
+              </div>
+              <div class="inst">
+                <span class="led ok"></span><span class="il">显存</span>
+                <span class="meter" id="vramMeter" aria-label="显存占用"></span>
+                <span class="iv" id="vramTxt">0.62 <small>/ 15.9 GB</small></span>
+              </div>
+              <div class="inst">
+                <span class="led ok"></span><span class="il">存储</span><span class="leader"></span>
+                <span class="iv">E: 321 GB <small>可用</small></span>
+              </div>
+              <div class="inst">
+                <span class="led warn"></span><span class="il">数据集</span><span class="leader"></span>
+                <span class="iv">4 / 6 <small>可训练</small></span>
+              </div>
+              <div class="inst-note">自检 12 项 · 11 通过 · 1 注意 —— 完整报告在「<a href="#env" data-nav="env" style="color:var(--brass);text-decoration:none">环境</a>」</div>
+            </div>
+          </div>
+
+          <!-- 流水线轨道 -->
+          <div class="pline" id="pline">
+            <div class="pl-cap"><span class="a">训练流水线</span><span class="b">PIPELINE · 最近一次</span></div>
+            <div class="stations">
+              <div class="st done" data-st="0"><span class="lamp"></span><span class="nm">校验</span><span class="mt">00:02</span></div>
+              <div class="st done" data-st="1"><span class="lamp"></span><span class="nm">配置</span><span class="mt">00:01</span></div>
+              <div class="st" data-st="2"><span class="lamp"></span><span class="nm">调参</span><span class="mt">跳过</span></div>
+              <div class="st fail" data-st="3"><span class="lamp"></span><span class="nm">训练</span><span class="mt">中断</span></div>
+              <div class="st" data-st="4"><span class="lamp"></span><span class="nm">评估</span><span class="mt">—</span></div>
+              <div class="st" data-st="5"><span class="lamp"></span><span class="nm">导出</span><span class="mt">—</span></div>
+            </div>
+            <div class="pl-note">最近一次 <b>data_auto</b><br><span class="mono">yolo26n · 50 epochs</span> · 中断于「训练」</div>
+          </div>
+
+          <!-- 最近训练 + 快速开始 -->
+          <div class="grid2" style="margin-top:16px">
+            <div class="mod" style="padding:18px 20px 10px">
+              <div class="mod-head">
+                <span class="mh-t">最近训练</span>
+                <span class="mh-c">4 条记录</span>
+                <span class="sp"></span>
+                <button class="btn xs quiet" id="btnAllRuns" type="button">全部记录</button>
+              </div>
+              <table class="tbl tall" id="recentTbl">
+                <colgroup><col style="width:34%"><col style="width:22%"><col style="width:10%"><col style="width:12%"><col style="width:22%"></colgroup>
+                <thead><tr>
+                  <th>运行</th><th>数据集</th><th class="num">轮数</th><th class="num">mAP@50</th><th>状态</th>
+                </tr></thead>
+                <tbody>
+                  <tr data-row>
+                    <td><span class="nm mono">data_auto</span><span class="sub2">yolo26n.pt</span></td>
+                    <td>data</td>
+                    <td class="num">50</td><td class="num">—</td>
+                    <td><span class="chip warn" style="height:20px"><span class="led warn"></span>中断于训练</span></td>
+                  </tr>
+                  <tr data-row>
+                    <td><span class="nm mono">_smoke_test_auto-2</span><span class="sub2">yolov8n.pt</span></td>
+                    <td>_smoke_test</td>
+                    <td class="num">2</td><td class="num">0.0082</td>
+                    <td><span class="chip ok" style="height:20px"><span class="led ok"></span>完成</span></td>
+                  </tr>
+                  <tr data-row>
+                    <td><span class="nm mono">_smoke_test_auto-3</span><span class="sub2">yolov8n.pt</span></td>
+                    <td>_smoke_test</td>
+                    <td class="num">1</td><td class="num">0.0000</td>
+                    <td><span class="chip ok" style="height:20px"><span class="led ok"></span>完成</span></td>
+                  </tr>
+                  <tr data-row>
+                    <td><span class="nm mono">_smoke_test_eval</span><span class="sub2">评估产物 · predictions.json</span></td>
+                    <td>_smoke_test</td>
+                    <td class="num">—</td><td class="num">—</td>
+                    <td><span class="chip plain" style="height:20px">仅评估</span></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="empty hidden" id="recentEmpty">
+                <div class="ring"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 12.5v-5M6.2 12.5v-9M9.8 12.5v-6M13.5 12.5v-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></div>
+                <div class="t">还没有训练记录</div>
+                <div class="d">从右侧「快速开始」试跑一次烟雾训练（_smoke_test · 1 轮，几十秒），或把已有的 runs/ 目录放入项目根。</div>
+                <div class="a"><button class="btn sm ghost" type="button" data-act="smoke">试跑烟雾训练</button></div>
+              </div>
+            </div>
+
+            <div class="mod qs">
+              <div class="mod-head">
+                <span class="mh-t">快速开始</span>
+                <span class="sp"></span>
+                <span class="mh-c">进入训练配置</span>
+              </div>
+              <div class="field f">
+                <div class="fl"><span class="fl-n">数据集</span><span class="fl-u">4 个可训练</span></div>
+                <select class="inp" id="qsDataset">
+                  <option>data · 371 图（1 项告警）</option>
+                  <option>ring cable lug-yolo · 266 图</option>
+                  <option>cable end sleeve-yolo · 340 图</option>
+                  <option>dummy_dataset · 4 图</option>
+                </select>
+              </div>
+              <div class="field f">
+                <div class="fl"><span class="fl-n">预训练模型</span><span class="fl-u">3 个本地</span></div>
+                <select class="inp" id="qsModel">
+                  <option>yolo26n.pt · 本地</option>
+                  <option>yolov8m.pt · 本地</option>
+                  <option>yolov8s.pt · 本地</option>
+                  <option>yolo11n.pt · 需下载</option>
+                </select>
+              </div>
+              <div class="field f">
+                <div class="fl"><span class="fl-n">训练轮数</span><span class="fl-u">epochs</span></div>
+                <div class="numwrap"><input class="inp" id="qsEpochs" value="150" inputmode="numeric" /><span class="unit">轮</span></div>
+              </div>
+              <div class="note warn hidden" id="qsWarn"><span class="led warn"></span><span>所选数据集的 val 集缺少标注（75/75），训练可以跑，但评估指标不可信。</span></div>
+              <div class="note"><span class="led" style="opacity:.5"></span><span>将在控制台打开训练配置页；也可以先「启动控制台」再手动挑选。</span></div>
+              <button class="btn mt16" id="btnQuickStart" type="button" style="width:100%">
+                <svg viewBox="0 0 14 14" fill="none"><path d="M2.5 7h9M8 3.5 11.5 7 8 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                配置并启动
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== 服务 ==================== -->
+        <section class="screen" id="screen-services" data-screen="services">
+          <div class="phead">
+            <div class="phead-l">
+              <h1 class="ph-t">服务</h1>
+              <p class="ph-s">本机进程 · 端口与日志 · 控制台与推理服务都只监听 <span class="mono">127.0.0.1</span></p>
+            </div>
+          </div>
+
+          <!-- 训练进行中（场景） -->
+          <div class="mod hidden" id="svcTrainingMod">
+            <div class="svc-head">
+              <span class="led brass live"></span>
+              <span class="nm">训练进行中 · data_auto</span>
+              <span class="ep">GPU 0 · yolo26n.pt</span>
+              <span class="sp"></span>
+              <div class="acts">
+                <button class="btn sm" id="btnOpenMonitor2" type="button">打开监控</button>
+                <button class="btn sm danger" id="btnStopTraining2" type="button">停止训练</button>
+              </div>
+            </div>
+            <div class="epochbar" style="margin-bottom:18px"><i style="width:74%"></i></div>
+            <div class="svc-grid">
+              <div class="svc-meta">
+                <div class="kv"><span class="k">轮次</span><span class="leader"></span><span class="v"><b>37</b> / 50</span></div>
+                <div class="kv"><span class="k">Loss</span><span class="leader"></span><span class="v">1.243</span></div>
+                <div class="kv"><span class="k">mAP@50</span><span class="leader"></span><span class="v">0.611</span></div>
+                <div class="kv"><span class="k">显存</span><span class="leader"></span><span class="v">11.2 / 15.9 GB</span></div>
+              </div>
+              <div class="logs">
+                <div class="lg-h"><span class="micro">训练日志</span><span class="sp"></span><span class="micro">每 1s 推送</span></div>
+                <div class="ln"><span class="ts">10:39:41</span><span class="lv">INFO</span><span class="ms">epoch 37/50 · box_loss 1.243 · mAP50 0.611</span></div>
+                <div class="ln"><span class="ts">10:39:42</span><span class="lv">INFO</span><span class="ms">val: scanning dataset/data/labels/val.cache …</span></div>
+                <div class="ln"><span class="ts">10:39:43</span><span class="lv">INFO</span><span class="ms">GPU mem 11.2G / 15.9G · util 97%<span class="cursor"></span></span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 控制台服务 -->
+          <div class="mod" id="svcConsole" data-state="stopped">
+            <div class="svc-head">
+              <span class="led" id="svcConsoleLed"></span>
+              <span class="nm">控制台服务</span>
+              <span class="ep">127.0.0.1:8080</span>
+              <span class="chip plain" id="svcConsoleChip"><span class="led"></span><span id="svcConsoleChipTxt">未启动</span></span>
+              <span class="sp"></span>
+              <div class="acts" id="svcConsoleActs">
+                <button class="btn sm" id="svcConsoleStart" type="button">启动</button>
+                <button class="btn sm ghost hidden" id="svcConsoleOpen" type="button">打开</button>
+                <button class="btn sm ghost hidden" id="svcConsoleStop" type="button">停止</button>
+                <button class="btn sm quiet hidden" id="svcConsoleRestart" type="button">重启</button>
+              </div>
+            </div>
+            <div class="svc-grid">
+              <div class="svc-meta">
+                <div class="kv"><span class="k">入口</span><span class="leader"></span><span class="v">ayt-web</span></div>
+                <div class="kv"><span class="k">界面</span><span class="leader"></span><span class="v">frontend/dist · <span class="ok">已构建</span></span></div>
+                <div class="kv"><span class="k">上次运行</span><span class="leader"></span><span class="v">今天 04:56</span></div>
+                <div class="kv"><span class="k">进程</span><span class="leader"></span><span class="v" id="svcConsolePid">—</span></div>
+              </div>
+              <div class="logs" id="svcConsoleLog">
+                <div class="lg-h"><span class="micro">日志 · 上次运行</span><span class="sp"></span><button class="ibtn" type="button" title="清空" style="width:22px;height:22px"><svg viewBox="0 0 14 14" fill="none" style="width:11px;height:11px"><path d="M2.5 4h9M5.5 4V2.8h3V4M3.6 4l.6 7h5.6l.6-7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+                <div class="lg-lines" id="svcConsoleLines">
+                  <div class="ln"><span class="ts">04:55:58</span><span class="lv">INFO</span><span class="ms">启动 控制台服务 · python -m src.api.admin</span></div>
+                  <div class="ln"><span class="ts">04:55:59</span><span class="lv">INFO</span><span class="ms">工作目录（dataset/ runs/ exports/ 都在这里）: E:\项目\Auto-yolo-training</span></div>
+                  <div class="ln"><span class="ts">04:56:00</span><span class="lv">INFO</span><span class="ms">Uvicorn running on http://127.0.0.1:8080 (Press CTRL+C to quit)</span></div>
+                  <div class="ln"><span class="ts">04:56:31</span><span class="lv">WARN</span><span class="ms">收到停止信号，已退出（exit 0）</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 推理服务 -->
+          <div class="mod" id="svcServe" data-state="stopped">
+            <div class="svc-head">
+              <span class="led" id="svcServeLed"></span>
+              <span class="nm">推理服务</span>
+              <span class="ep">127.0.0.1:8000</span>
+              <span class="chip plain" id="svcServeChip"><span class="led"></span><span id="svcServeChipTxt">未启动</span></span>
+              <span class="sp"></span>
+              <div class="acts" id="svcServeActs">
+                <button class="btn sm" id="svcServeStart" type="button">启动</button>
+                <button class="btn sm ghost hidden" id="svcServeOpen" type="button">打开文档</button>
+                <button class="btn sm ghost hidden" id="svcServeStop" type="button">停止</button>
+              </div>
+            </div>
+            <div class="svc-grid">
+              <div class="svc-meta">
+                <div class="kv"><span class="k">入口</span><span class="leader"></span><span class="v">ayt-serve</span></div>
+                <div class="kv"><span class="k">模型</span><span class="leader"></span><span class="v"><select class="inp" style="height:26px;width:auto;font-size:12px;font-family:var(--f-mono);padding:0 26px 0 8px"><option>best_20260918_002350.pt · _smoke_test</option><option>best_20260903_201730.pt · _smoke_test</option></select></span></div>
+                <div class="kv"><span class="k">白名单</span><span class="leader"></span><span class="v">runs/ · basemodels/</span></div>
+                <div class="kv"><span class="k">文档</span><span class="leader"></span><span class="v">/docs · OpenAPI</span></div>
+              </div>
+              <div class="logs">
+                <div class="lg-h"><span class="micro">日志 · 上次运行</span><span class="sp"></span><span class="micro">—</span></div>
+                <div class="ln"><span class="ms" style="color:var(--ink3)">尚未启动过推理服务。启动后这里显示请求日志。</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 后台任务 -->
+          <div class="mod">
+            <div class="svc-head">
+              <span class="led ok"></span>
+              <span class="nm">后台任务</span>
+              <span class="ep">任务队列 · worker</span>
+              <span class="chip plain"><span class="led"></span>空闲</span>
+              <span class="sp"></span>
+              <div class="acts"><button class="btn sm ghost" type="button">打开队列</button></div>
+            </div>
+            <div class="svc-grid">
+              <div class="svc-meta">
+                <div class="kv"><span class="k">队列</span><span class="leader"></span><span class="v">0 待执行 · 0 执行中</span></div>
+                <div class="kv"><span class="k">最近完成</span><span class="leader"></span><span class="v">—</span></div>
+                <div class="kv"><span class="k">通知</span><span class="leader"></span><span class="v">未配置 Webhook</span></div>
+              </div>
+              <div class="logs">
+                <div class="lg-h"><span class="micro">队列与通知</span><span class="sp"></span><span class="micro">logs/task_queue.db</span></div>
+                <div class="ln"><span class="ms" style="color:var(--ink3)">队列为空。队列任务在训练进行时才会出现。</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== 环境 ==================== -->
+        <section class="screen" id="screen-env" data-screen="env">
+          <div class="phead">
+            <div class="phead-l">
+              <h1 class="ph-t">环境</h1>
+              <p class="ph-s">自检 12 项 · 11 通过 · 1 项注意 · 检查于今天 04:52</p>
+            </div>
+            <div class="phead-r">
+              <button class="btn ghost sm" id="btnRecheck2" type="button">
+                <svg viewBox="0 0 14 14" fill="none"><path d="M12 7a5 5 0 1 1-1.4-3.5M12 1.8v2.7h-2.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                重新检测
+              </button>
+            </div>
+          </div>
+
+          <div class="verdict">
+            <span class="led ok"></span>
+            <div>
+              <div class="vt">环境就绪</div>
+              <div class="vs">1 项注意（数据集告警）不影响启动；需要时逐行展开查看详情与处置。</div>
+            </div>
+            <span class="sp"></span>
+            <span class="chip ok" style="height:24px"><span class="led ok"></span>可训练</span>
+          </div>
+
+          <div class="egroup">
+            <div class="egroup-h"><span class="micro">运行时 · RUNTIME</span><span class="cnt">4 项 · 全通过</span></div>
+            <div class="ewrap">
+              <div class="erow" data-expand>
+                <span class="led ok"></span>
+                <span class="en">Python 运行时</span>
+                <span class="ev">3.12.7 · 项目环境</span>
+                <span class="er ok">通过</span>
+                <span class="ea"><button class="btn xs quiet" type="button">详情</button><span class="chev"><svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+              </div>
+              <div class="edetail"><div class="d">基线要求 Python 3.12.x；当前 <span class="mono">C:\Python312</span> 为 3.12.7。控制台、训练与推理都从这个环境启动。</div></div>
+            </div>
+            <div class="ewrap">
+              <div class="erow" data-expand>
+                <span class="led ok"></span>
+                <span class="en">PyTorch</span>
+                <span class="ev">2.9.0+cu130</span>
+                <span class="er ok">通过</span>
+                <span class="ea"><button class="btn xs quiet" type="button">详情</button><span class="chev"><svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+              </div>
+              <div class="edetail"><div class="d">CUDA 构建（cu130）。CPU 版本也能跑，但训练会明显变慢；GPU 通道验收记录见项目 <span class="mono">docs/</span>。</div></div>
+            </div>
+            <div class="ewrap">
+              <div class="erow" data-expand>
+                <span class="led ok"></span>
+                <span class="en">CUDA 可用性</span>
+                <span class="ev">True · cuDNN 已加载</span>
+                <span class="er ok">通过</span>
+                <span class="ea"><button class="btn xs quiet" type="button">详情</button><span class="chev"><svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+              </div>
+              <div class="edetail"><div class="d">已通过实算校验（真算一遍 CUDA 矩阵乘并与 CPU 比对）；<span class="mono">make gpu-check</span> 可随时复检，秒级完成。</div></div>
+            </div>
+            <div class="ewrap">
+              <div class="erow" data-expand>
+                <span class="led ok"></span>
+                <span class="en">Ultralytics</span>
+                <span class="ev">8.4.143</span>
+                <span class="er ok">通过</span>
+                <span class="ea"><button class="btn xs quiet" type="button">详情</button><span class="chev"><svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+              </div>
+              <div class="edetail"><div class="d">高于锁定基线 8.4.102（本机环境差异，功能兼容）。训练、评估与导出均由它执行。</div></div>
+            </div>
+          </div>
+
+          <div class="egroup">
+            <div class="egroup-h"><span class="micro">硬件 · HARDWARE</span><span class="cnt">2 项 · 全通过</span></div>
+            <div class="ewrap">
+              <div class="erow" data-expand>
+                <span class="led ok"></span>
+                <span class="en">GPU</span>
+                <span class="ev">RTX 5080 Laptop · 16303 MiB</span>
+                <span class="er ok">通过</span>
+                <span class="ea"><button class="btn xs quiet" type="button">详情</button><span class="chev"><svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+              </div>
+              <div class="edetail"><div class="d">训练默认使用 <span class="mono">device=0</span>。显存 15.9 GB —— 大模型（yolov8x / imgsz 1280）建议降低 batch 或开 AMP。</div></div>
+            </div>
+            <div class="ewrap">
+              <div class="erow" data-expand>
+                <span class="led ok"></span>
+                <span class="en">显卡驱动</span>
+                <span class="ev">610.74</span>
+                <span class="er ok">通过</span>
+                <span class="ea"><button class="btn xs quiet" type="button">详情</button><span class="chev"><svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+              </div>
+              <div class="edetail"><div class="d">驱动版本满足 cu130 运行时要求。驱动升级不影响本项目文件。</div></div>
+            </div>
+          </div>
+
+          <div class="egroup">
+            <div class="egroup-h"><span class="micro">存储与数据 · STORAGE</span><span class="cnt">4 项 · 3 通过 · 1 注意</span></div>
+            <div class="ewrap">
+              <div class="erow" data-expand>
+                <span class="led ok"></span>
+                <span class="en">磁盘空间</span>
+                <span class="ev">E: 321 GB 可用 / 932 GB</span>
+                <span class="er ok">通过</span>
+                <span class="ea"><button class="btn xs quiet" type="button">详情</button><span class="chev"><svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+              </div>
+              <div class="edetail"><div class="d">训练产物按 run 归档；建议为每个数据集预留 20 GB 以上。回收站中的旧训练可在「设置 → 维护」清理。</div></div>
+            </div>
+            <div class="ewrap">
+              <div class="erow" data-expand>
+                <span class="led ok"></span>
+                <span class="en">数据目录可写</span>
+                <span class="ev">dataset/ · runs/ · exports/</span>
+                <span class="er ok">通过</span>
+                <span class="ea"><button class="btn xs quiet" type="button">详情</button><span class="chev"><svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+              </div>
+              <div class="edetail"><div class="d">三个目录都可写。数据集可以放入 <span class="mono">dataset/</span> 目录，或直接把 ZIP 拖进启动器窗口导入。</div></div>
+            </div>
+            <div class="ewrap">
+              <div class="erow" data-expand>
+                <span class="led ok"></span>
+                <span class="en">控制台界面</span>
+                <span class="ev">frontend/dist 已构建</span>
+                <span class="er ok">通过</span>
+                <span class="ea"><button class="btn xs quiet" type="button">详情</button><span class="chev"><svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+              </div>
+              <div class="edetail"><div class="d">启动控制台时后端会静态托管该目录。缺失时 <span class="mono">/</span> 只会返回一段 JSON 说明 —— 启动器会在启动前替你发现这一点。</div></div>
+            </div>
+            <div class="ewrap">
+              <div class="erow" data-expand>
+                <span class="led warn"></span>
+                <span class="en">数据集完整性</span>
+                <span class="ev">6 个目录 · 4 可训练 · 1 项告警</span>
+                <span class="er warn">注意</span>
+                <span class="ea"><button class="btn xs quiet" type="button">处置</button><span class="chev"><svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+              </div>
+              <div class="edetail"><div class="d"><span class="mono">data</span>：val 集中 75/75 张图像缺少对应标注 —— 用这个数据集训练出的 mAP 没有意义。另有 2 个目录（<span class="mono">_smoke_test</span>、<span class="mono">cabel-damage-mini</span>）缺 data.yaml，无法选入训练。</div>
+              <div class="a"><button class="btn xs ghost" type="button" data-goto="assets">打开数据集</button><button class="btn xs quiet" type="button">重新校验</button></div></div>
+            </div>
+          </div>
+
+          <div class="egroup">
+            <div class="egroup-h"><span class="micro">网络与端口 · NETWORK</span><span class="cnt">2 项 · 全通过</span></div>
+            <div class="ewrap">
+              <div class="erow" data-expand>
+                <span class="led ok"></span>
+                <span class="en">端口 8080</span>
+                <span class="ev">空闲</span>
+                <span class="er ok">通过</span>
+                <span class="ea"><button class="btn xs quiet" type="button">详情</button><span class="chev"><svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+              </div>
+              <div class="edetail"><div class="d">控制台监听端口。被占用时启动会自动改用下一个空闲端口，或在「设置 → 启动行为」里固定。</div></div>
+            </div>
+            <div class="ewrap">
+              <div class="erow" data-expand>
+                <span class="led ok"></span>
+                <span class="en">端口 8000</span>
+                <span class="ev">空闲</span>
+                <span class="er ok">通过</span>
+                <span class="ea"><button class="btn xs quiet" type="button">详情</button><span class="chev"><svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+              </div>
+              <div class="edetail"><div class="d">推理服务监听端口。<span class="mono">/docs</span> 提供 OpenAPI 文档，可在线试推理。</div></div>
+            </div>
+            <div class="svc-note" style="border-top:1px solid var(--line);margin-top:2px;padding:12px 2px 0">
+              <span class="led" style="opacity:.5;margin-top:6px"></span>
+              <span>可选：Webhook 通知未配置（钉钉 / 飞书 / 企业微信 / Slack）—— 在「设置 → 通知」里填地址即可启用训练完成提醒。</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== 资源 ==================== -->
+        <section class="screen" id="screen-assets" data-screen="assets">
+          <div class="phead">
+            <div class="phead-l">
+              <h1 class="ph-t">资源</h1>
+              <p class="ph-s">数据集 · 预训练权重 · 训练记录</p>
+            </div>
+          </div>
+
+          <div class="asset-head">
+            <div class="seg" id="assetSeg">
+              <button class="on" type="button" data-tab="data">数据集 · 6</button>
+              <button type="button" data-tab="weights">权重 · 27</button>
+              <button type="button" data-tab="runs">训练记录 · 4</button>
+            </div>
+            <span class="sp"></span>
+            <span class="faint smaller" id="assetHint">点击行查看详情</span>
+          </div>
+
+          <!-- 数据集 -->
+          <div class="tab on" id="tab-data">
+            <div class="tab-cap"><span>6 个目录 · 4 个可训练 · 2 个缺 data.yaml（不可选入训练）</span></div>
+            <div class="mod" style="padding:16px 18px 8px">
+              <table class="tbl">
+                <colgroup><col style="width:22%"><col style="width:9%"><col style="width:9%"><col style="width:19%"><col style="width:27%"><col style="width:14%"></colgroup>
+                <thead><tr><th>名称</th><th class="num">图像</th><th class="num">标注</th><th>状态</th><th>问题</th><th></th></tr></thead>
+                <tbody>
+                  <tr data-row>
+                    <td><span class="nm mono">_smoke_test</span></td>
+                    <td class="num">8</td><td class="num">4</td>
+                    <td><span class="chip warn" style="height:20px"><span class="led warn"></span>缺 data.yaml</span></td>
+                    <td style="color:var(--ink3)">—</td>
+                    <td><span class="rowact"><button class="btn xs quiet" type="button">校验</button><button class="btn xs quiet" type="button">目录</button></span></td>
+                  </tr>
+                  <tr data-row>
+                    <td><span class="nm mono">cabel-damage-mini</span></td>
+                    <td class="num">1318</td><td class="num">1318</td>
+                    <td><span class="chip warn" style="height:20px"><span class="led warn"></span>缺 data.yaml</span></td>
+                    <td style="color:var(--ink3)">—</td>
+                    <td><span class="rowact"><button class="btn xs quiet" type="button">校验</button><button class="btn xs quiet" type="button">目录</button></span></td>
+                  </tr>
+                  <tr data-row>
+                    <td><span class="nm mono">cable end sleeve-yolo</span></td>
+                    <td class="num">340</td><td class="num">340</td>
+                    <td><span class="chip ok" style="height:20px"><span class="led ok"></span>可训练</span></td>
+                    <td style="color:var(--ink3)">—</td>
+                    <td><span class="rowact"><button class="btn xs quiet" type="button">校验</button><button class="btn xs quiet" type="button">目录</button></span></td>
+                  </tr>
+                  <tr data-row>
+                    <td><span class="nm mono">data</span></td>
+                    <td class="num">371</td><td class="num">296</td>
+                    <td><span class="chip ok" style="height:20px"><span class="led ok"></span>可训练</span><span class="chip warn" style="height:20px;margin-left:6px"><span class="led warn"></span>1 项告警</span></td>
+                    <td><span class="issue" style="color:var(--warn)">val 集中有 75/75 张图像缺少对应标注</span></td>
+                    <td><span class="rowact"><button class="btn xs quiet" type="button">校验</button><button class="btn xs quiet" type="button">目录</button></span></td>
+                  </tr>
+                  <tr data-row>
+                    <td><span class="nm mono">dummy_dataset</span></td>
+                    <td class="num">4</td><td class="num">4</td>
+                    <td><span class="chip ok" style="height:20px"><span class="led ok"></span>可训练</span></td>
+                    <td style="color:var(--ink3)">—</td>
+                    <td><span class="rowact"><button class="btn xs quiet" type="button">校验</button><button class="btn xs quiet" type="button">目录</button></span></td>
+                  </tr>
+                  <tr data-row>
+                    <td><span class="nm mono">ring cable lug-yolo</span></td>
+                    <td class="num">266</td><td class="num">266</td>
+                    <td><span class="chip ok" style="height:20px"><span class="led ok"></span>可训练</span></td>
+                    <td style="color:var(--ink3)">—</td>
+                    <td><span class="rowact"><button class="btn xs quiet" type="button">校验</button><button class="btn xs quiet" type="button">目录</button></span></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="svc-note warn" style="border-top:1px solid var(--line);margin:6px 2px 10px;padding:12px 2px 0">
+                <span class="led warn" style="margin-top:6px"></span>
+                <span>1 个数据集的标注完整性存在问题，训练前请先核对「问题」列；控制台目前只做展示，不会在提交训练前强制拦截。</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 权重 -->
+          <div class="tab" id="tab-weights">
+            <div class="tab-cap"><span>27 个官方预训练权重 · 本地 3 个 · 点击下载，下载完成即标注为本地</span></div>
+            <div class="mod" style="padding:14px 22px 22px">
+              <div class="fam">
+                <div class="fam-h"><span class="fn">yolov5</span><span class="fc">3 个 · detect</span></div>
+                <div class="mrow"><span class="rl">detect</span><div class="mchips">
+                  <button class="mchip" data-model="yolov5n.pt" type="button"><span class="led"></span>yolov5n</button>
+                  <button class="mchip" data-model="yolov5s.pt" type="button"><span class="led"></span>yolov5s</button>
+                  <button class="mchip" data-model="yolov5m.pt" type="button"><span class="led"></span>yolov5m</button>
+                </div></div>
+              </div>
+              <div class="fam">
+                <div class="fam-h"><span class="fn">yolov8</span><span class="fc">14 个 · 4 种任务</span></div>
+                <div class="mrow"><span class="rl">detect</span><div class="mchips">
+                  <button class="mchip" data-model="yolov8n.pt" type="button"><span class="led"></span>yolov8n</button>
+                  <button class="mchip local" data-model="yolov8s.pt" type="button"><span class="led brass"></span>yolov8s</button>
+                  <button class="mchip local" data-model="yolov8m.pt" type="button"><span class="led brass"></span>yolov8m</button>
+                  <button class="mchip" data-model="yolov8l.pt" type="button"><span class="led"></span>yolov8l</button>
+                  <button class="mchip" data-model="yolov8x.pt" type="button"><span class="led"></span>yolov8x</button>
+                </div></div>
+                <div class="mrow"><span class="rl">segment</span><div class="mchips">
+                  <button class="mchip" data-model="yolov8n-seg.pt" type="button"><span class="led"></span>yolov8n-seg</button>
+                  <button class="mchip" data-model="yolov8s-seg.pt" type="button"><span class="led"></span>yolov8s-seg</button>
+                  <button class="mchip" data-model="yolov8m-seg.pt" type="button"><span class="led"></span>yolov8m-seg</button>
+                </div></div>
+                <div class="mrow"><span class="rl">pose</span><div class="mchips">
+                  <button class="mchip" data-model="yolov8n-pose.pt" type="button"><span class="led"></span>yolov8n-pose</button>
+                  <button class="mchip" data-model="yolov8s-pose.pt" type="button"><span class="led"></span>yolov8s-pose</button>
+                  <button class="mchip" data-model="yolov8m-pose.pt" type="button"><span class="led"></span>yolov8m-pose</button>
+                </div></div>
+                <div class="mrow"><span class="rl">classify</span><div class="mchips">
+                  <button class="mchip" data-model="yolov8n-cls.pt" type="button"><span class="led"></span>yolov8n-cls</button>
+                  <button class="mchip" data-model="yolov8s-cls.pt" type="button"><span class="led"></span>yolov8s-cls</button>
+                  <button class="mchip" data-model="yolov8m-cls.pt" type="button"><span class="led"></span>yolov8m-cls</button>
+                </div></div>
+              </div>
+              <div class="fam">
+                <div class="fam-h"><span class="fn">yolo11</span><span class="fc">5 个 · detect</span></div>
+                <div class="mrow"><span class="rl">detect</span><div class="mchips">
+                  <button class="mchip" data-model="yolo11n.pt" type="button"><span class="led"></span>yolo11n</button>
+                  <button class="mchip" data-model="yolo11s.pt" type="button"><span class="led"></span>yolo11s</button>
+                  <button class="mchip" data-model="yolo11m.pt" type="button"><span class="led"></span>yolo11m</button>
+                  <button class="mchip" data-model="yolo11l.pt" type="button"><span class="led"></span>yolo11l</button>
+                  <button class="mchip" data-model="yolo11x.pt" type="button"><span class="led"></span>yolo11x</button>
+                </div></div>
+              </div>
+              <div class="fam">
+                <div class="fam-h"><span class="fn">yolo26</span><span class="fc">5 个 · detect</span></div>
+                <div class="mrow"><span class="rl">detect</span><div class="mchips">
+                  <button class="mchip local" data-model="yolo26n.pt" type="button"><span class="led brass"></span>yolo26n</button>
+                  <button class="mchip" data-model="yolo26s.pt" type="button"><span class="led"></span>yolo26s</button>
+                  <button class="mchip" data-model="yolo26m.pt" type="button"><span class="led"></span>yolo26m</button>
+                  <button class="mchip" data-model="yolo26l.pt" type="button"><span class="led"></span>yolo26l</button>
+                  <button class="mchip" data-model="yolo26x.pt" type="button"><span class="led"></span>yolo26x</button>
+                </div></div>
+              </div>
+              <div class="svc-note" style="border-top:1px solid var(--line);margin-top:18px;padding:14px 2px 0">
+                <span class="led" style="opacity:.5;margin-top:6px"></span>
+                <span>本地权重存放于 <span class="mono">basemodels/</span>；下载来自 Ultralytics 官方源。铜金标记的为已就绪模型。</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 训练记录 -->
+          <div class="tab" id="tab-runs">
+            <div class="tab-cap"><span>4 条记录 · 产物在 <span class="mono">runs/detect/&lt;运行名&gt;/</span></span></div>
+            <div class="mod" style="padding:16px 18px 8px">
+              <table class="tbl">
+                <colgroup><col style="width:21%"><col style="width:13%"><col style="width:12%"><col style="width:7%"><col style="width:9%"><col style="width:17%"><col style="width:13%"><col style="width:8%"></colgroup>
+                <thead><tr><th>运行</th><th>数据集</th><th>模型</th><th class="num">轮数</th><th class="num">mAP@50</th><th>产物</th><th>状态</th><th></th></tr></thead>
+                <tbody>
+                  <tr data-row>
+                    <td><span class="nm mono">data_auto</span></td>
+                    <td>data</td><td class="mono">yolo26n.pt</td>
+                    <td class="num">50</td><td class="num">—</td>
+                    <td class="faint smaller">args.yaml</td>
+                    <td><span class="chip warn" style="height:20px"><span class="led warn"></span>中断</span></td>
+                    <td><span class="rowact"><button class="btn xs quiet" type="button" title="打开目录"><svg viewBox="0 0 14 14" fill="none" style="width:11px;height:11px"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h2.6l1.2 1.4h4.2c.7 0 1.2.5 1.2 1.2v4.6c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2V4.2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></button></span></td>
+                  </tr>
+                  <tr data-row>
+                    <td><span class="nm mono">_smoke_test_auto-2</span></td>
+                    <td>_smoke_test</td><td class="mono">yolov8n.pt</td>
+                    <td class="num">2</td><td class="num">0.0082</td>
+                    <td class="faint smaller">权重 · results.csv · 曲线</td>
+                    <td><span class="chip ok" style="height:20px"><span class="led ok"></span>完成</span></td>
+                    <td><span class="rowact"><button class="btn xs quiet" type="button" title="打开目录"><svg viewBox="0 0 14 14" fill="none" style="width:11px;height:11px"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h2.6l1.2 1.4h4.2c.7 0 1.2.5 1.2 1.2v4.6c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2V4.2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></button></span></td>
+                  </tr>
+                  <tr data-row>
+                    <td><span class="nm mono">_smoke_test_auto-3</span></td>
+                    <td>_smoke_test</td><td class="mono">yolov8n.pt</td>
+                    <td class="num">1</td><td class="num">0.0000</td>
+                    <td class="faint smaller">权重 · results.csv · 曲线</td>
+                    <td><span class="chip ok" style="height:20px"><span class="led ok"></span>完成</span></td>
+                    <td><span class="rowact"><button class="btn xs quiet" type="button" title="打开目录"><svg viewBox="0 0 14 14" fill="none" style="width:11px;height:11px"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h2.6l1.2 1.4h4.2c.7 0 1.2.5 1.2 1.2v4.6c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2V4.2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></button></span></td>
+                  </tr>
+                  <tr data-row>
+                    <td><span class="nm mono">_smoke_test_eval</span></td>
+                    <td>_smoke_test</td><td class="mono">—</td>
+                    <td class="num">—</td><td class="num">—</td>
+                    <td class="faint smaller">predictions.json · 评估图</td>
+                    <td><span class="chip plain" style="height:20px">仅评估</span></td>
+                    <td><span class="rowact"><button class="btn xs quiet" type="button" title="打开目录"><svg viewBox="0 0 14 14" fill="none" style="width:11px;height:11px"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h2.6l1.2 1.4h4.2c.7 0 1.2.5 1.2 1.2v4.6c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2V4.2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></button></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== 设置 ==================== -->
+        <section class="screen" id="screen-settings" data-screen="settings">
+          <div class="phead">
+            <div class="phead-l">
+              <h1 class="ph-t">设置</h1>
+              <p class="ph-s">偏好保存在 <span class="mono">configs/launcher.json</span> · 修改即时生效</p>
+            </div>
+          </div>
+
+          <div class="setwrap">
+            <div class="sgroup">
+              <div class="sgroup-h"><span class="micro">启动行为 · LAUNCH</span></div>
+              <div class="srow">
+                <div class="sl"><div class="sn">控制台端口</div><div class="sd">控制台监听的本地端口；被占用时启动会自动改用下一个空闲端口。</div></div>
+                <div class="sctrl"><div class="numwrap"><input class="inp" value="8080" /><span class="unit">端口</span></div></div>
+                <button class="ibtn sreset" type="button" title="恢复默认"><svg viewBox="0 0 14 14" fill="none"><path d="M12 7a5 5 0 1 1-1.4-3.5M12 1.8v2.7h-2.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              </div>
+              <div class="srow">
+                <div class="sl"><div class="sn">推理服务端口</div><div class="sd">ayt-serve 的监听端口，默认 <span class="mono">8000</span>。</div></div>
+                <div class="sctrl"><div class="numwrap"><input class="inp" value="8000" /><span class="unit">端口</span></div></div>
+                <button class="ibtn sreset" type="button" title="恢复默认"><svg viewBox="0 0 14 14" fill="none"><path d="M12 7a5 5 0 1 1-1.4-3.5M12 1.8v2.7h-2.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              </div>
+              <div class="srow">
+                <div class="sl"><div class="sn">启动后自动打开浏览器</div><div class="sd">控制台就绪后自动在默认浏览器中打开。</div></div>
+                <div class="sctrl"><button class="switch on" type="button" role="switch" aria-checked="true"></button></div>
+              </div>
+              <div class="srow">
+                <div class="sl"><div class="sn">关闭窗口时最小化到托盘</div><div class="sd">托盘菜单与主界面同功能；训练进行中关闭窗口不会中断训练。</div></div>
+                <div class="sctrl"><button class="switch on" type="button" role="switch" aria-checked="true"></button></div>
+              </div>
+              <div class="srow">
+                <div class="sl"><div class="sn">开机自动启动</div><div class="sd">登录 Windows 后自动运行启动器（最小化到托盘）。</div></div>
+                <div class="sctrl"><button class="switch" type="button" role="switch" aria-checked="false"></button></div>
+              </div>
+            </div>
+
+            <div class="sgroup">
+              <div class="sgroup-h"><span class="micro">训练默认 · DEFAULTS</span></div>
+              <div class="srow">
+                <div class="sl"><div class="sn">默认设备</div><div class="sd">传给 Ultralytics 的 <span class="mono">device</span> 参数。</div></div>
+                <div class="sctrl"><select class="inp" style="width:190px"><option>自动检测（GPU 优先）</option><option>CPU</option><option>GPU 0（RTX 5080）</option></select></div>
+              </div>
+              <div class="srow">
+                <div class="sl"><div class="sn">工作线程</div><div class="sd">数据加载线程数，建议为 CPU 核心数的 60%～80%。</div></div>
+                <div class="sctrl"><div class="numwrap"><input class="inp" value="8" /><span class="unit">线程</span></div></div>
+                <button class="ibtn sreset" type="button" title="恢复默认"><svg viewBox="0 0 14 14" fill="none"><path d="M12 7a5 5 0 1 1-1.4-3.5M12 1.8v2.7h-2.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              </div>
+              <div class="srow">
+                <div class="sl"><div class="sn">默认训练轮数</div><div class="sd">新建训练配置时的预填值。</div></div>
+                <div class="sctrl"><div class="numwrap"><input class="inp" value="150" /><span class="unit">轮</span></div></div>
+                <button class="ibtn sreset" type="button" title="恢复默认"><svg viewBox="0 0 14 14" fill="none"><path d="M12 7a5 5 0 1 1-1.4-3.5M12 1.8v2.7h-2.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              </div>
+              <div class="srow">
+                <div class="sl"><div class="sn">默认跳过数据校验</div><div class="sd">勾选后训练前不再校验数据集 —— 可能用坏数据训练，评估指标不可信。</div></div>
+                <div class="sctrl"><button class="switch" type="button" role="switch" aria-checked="false"></button></div>
+              </div>
+            </div>
+
+            <div class="sgroup">
+              <div class="sgroup-h"><span class="micro">路径 · PATHS</span></div>
+              <div class="srow">
+                <div class="sl"><div class="sn">项目根目录</div></div>
+                <div class="sctrl"><span class="pathv">E:\项目\Auto-yolo-training</span><button class="btn xs ghost" type="button">打开</button></div>
+              </div>
+              <div class="srow">
+                <div class="sl"><div class="sn">数据集目录</div></div>
+                <div class="sctrl"><span class="pathv">dataset\</span><button class="btn xs ghost" type="button">打开</button></div>
+              </div>
+              <div class="srow">
+                <div class="sl"><div class="sn">权重目录</div></div>
+                <div class="sctrl"><span class="pathv">basemodels\</span><button class="btn xs ghost" type="button">打开</button></div>
+              </div>
+              <div class="srow">
+                <div class="sl"><div class="sn">产物目录</div></div>
+                <div class="sctrl"><span class="pathv">runs\detect\</span><button class="btn xs ghost" type="button">打开</button></div>
+              </div>
+            </div>
+
+            <div class="sgroup">
+              <div class="sgroup-h"><span class="micro">通知 · NOTIFICATIONS</span></div>
+              <div class="srow">
+                <div class="sl"><div class="sn">Webhook 地址</div><div class="sd">支持 钉钉 / 飞书 / 企业微信 / Slack（内置域名白名单校验）。</div></div>
+                <div class="sctrl wide"><input class="inp" placeholder="https://oapi.dingtalk.com/robot/send?access_token=…" /><button class="btn sm ghost" type="button">发送测试</button></div>
+              </div>
+              <div class="srow">
+                <div class="sl"><div class="sn">训练完成 / 失败时推送</div><div class="sd">包含数据集、耗时与最终指标。</div></div>
+                <div class="sctrl"><button class="switch on" type="button" role="switch" aria-checked="true"></button></div>
+              </div>
+            </div>
+
+            <div class="sgroup">
+              <div class="sgroup-h"><span class="micro">维护 · MAINTENANCE</span></div>
+              <div class="srow">
+                <div class="sl"><div class="sn">打开日志目录</div><div class="sd">训练日志、队列数据库与通知记录都在 <span class="mono">logs/</span>。</div></div>
+                <div class="sctrl"><button class="btn sm ghost" type="button">打开 logs\</button></div>
+              </div>
+              <div class="srow danger">
+                <div class="sl"><div class="sn">清理回收站</div><div class="sd">runs\.recycle 中 2 个已删除的训练 · 1.4 GB —— 删除后不可恢复。</div></div>
+                <div class="sctrl"><button class="btn sm danger" type="button" data-act="cleanRecycle">清理…</button></div>
+              </div>
+            </div>
+
+            <div class="sgroup">
+              <div class="sgroup-h"><span class="micro">关于 · ABOUT</span></div>
+              <div class="srow">
+                <div class="sl"><div class="sn">Auto YOLO Training 启动器</div><div class="sd">v0.1.0 · Python 3.12.7 · 界面构建 2026-10-04 · MIT License</div></div>
+                <div class="sctrl"><button class="btn sm ghost" type="button">检查更新</button><button class="btn sm ghost" type="button">文档</button></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- ==================== 浮层 ==================== -->
+    <div class="pop" id="scenarioPop">
+      <div class="ph"><div class="a">场景演示</div><div class="b">仅影响此原型 · 不会真正执行命令</div></div>
+      <button class="pop-i on" type="button" data-scene="idle"><span class="led ok"></span>就绪 · 空闲<span class="sp"></span><span class="hint">默认</span></button>
+      <button class="pop-i" type="button" data-scene="starting"><span class="led brass"></span>服务启动中<span class="sp"></span><span class="hint">过渡态</span></button>
+      <button class="pop-i" type="button" data-scene="training"><span class="led brass"></span>训练进行中<span class="sp"></span><span class="hint">data_auto</span></button>
+      <button class="pop-i" type="button" data-scene="portbusy"><span class="led err"></span>端口被占用<span class="sp"></span><span class="hint">错误态</span></button>
+      <button class="pop-i" type="button" data-scene="firstrun"><span class="led"></span>首次启动向导<span class="sp"></span><span class="hint">向导</span></button>
+      <button class="pop-i" type="button" data-scene="empty"><span class="led"></span>全新机器<span class="sp"></span><span class="hint">空环境</span></button>
+      <div class="pop-sep"></div>
+      <button class="pop-i" type="button" id="popClose"><span class="sp"></span>关闭<span class="hint">Esc</span></button>
+    </div>
+
+    <div class="ctx" id="ctxMenu"></div>
+
+    <div class="scrim" id="scrim">
+      <div class="modal">
+        <div class="mt" id="modalT">确认操作</div>
+        <div class="md" id="modalD"></div>
+        <div class="ma">
+          <button class="btn ghost" type="button" id="modalCancel">取消</button>
+          <button class="btn danger" type="button" id="modalOk">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 首启向导 -->
+    <div class="wizard" id="wizard">
+      <div class="wz">
+        <div class="wz-steps" id="wzSteps">
+          <div class="ws on" data-step="1"><span class="d"></span><span class="l">环境检测</span></div>
+          <span class="line"></span>
+          <div class="ws" data-step="2"><span class="d"></span><span class="l">默认设备</span></div>
+          <span class="line"></span>
+          <div class="ws" data-step="3"><span class="d"></span><span class="l">开始使用</span></div>
+        </div>
+
+        <div class="wz-panel on" id="wzP1">
+          <div class="wz-t">先做一次体检，再出发。</div>
+          <div class="wz-s">启动器会核对运行环境 —— 缺什么、能不能训，一次说清。</div>
+          <div class="wz-body" id="wzChecks"></div>
+          <div class="wz-foot">
+            <button class="btn ghost" type="button" id="wzRecheck">重新检测</button>
+            <span class="sp"></span>
+            <button class="btn primary" type="button" id="wzNext1" disabled>下一步</button>
+          </div>
+        </div>
+
+        <div class="wz-panel" id="wzP2">
+          <div class="wz-t">默认用哪块设备训练？</div>
+          <div class="wz-s">之后随时可以在「设置 → 训练默认」里修改。</div>
+          <div class="wz-body">
+            <div class="devopt on" data-dev="gpu">
+              <span class="led ok"></span>
+              <div><div class="dt">GPU · RTX 5080 Laptop</div><div class="dd">CUDA 13.0 · 15.9 GB 显存 —— 预期比 CPU 快 30～60 倍</div></div>
+              <span class="tag chip ok" style="height:22px"><span class="led ok"></span>推荐</span>
+            </div>
+            <div class="devopt" data-dev="cpu">
+              <span class="led" style="opacity:.5"></span>
+              <div><div class="dt">CPU 兼容模式</div><div class="dd">不占用显卡，适合后台跑小规模烟雾测试</div></div>
+            </div>
+          </div>
+          <div class="wz-foot">
+            <button class="btn quiet" type="button" id="wzBack2">上一步</button>
+            <span class="sp"></span>
+            <button class="btn primary" type="button" id="wzNext2">下一步</button>
+          </div>
+        </div>
+
+        <div class="wz-panel" id="wzP3">
+          <div class="wz-t">一切就绪。</div>
+          <div class="wz-s">环境 11 项通过、1 项注意（<span class="mono">data</span> 数据集缺 val 标注，训练前建议先处置）。</div>
+          <div class="wz-body">
+            <div class="wcheck in done"><span class="led ok"></span><span class="nm">下一步 —— 启动控制台，开始第一次训练</span><span class="vl">Enter</span></div>
+            <div class="wcheck in done" style="animation-delay:.08s"><span class="led" style="opacity:.5"></span><span class="nm">也可以先把数据集 ZIP 拖进窗口导入</span><span class="vl">拖放</span></div>
+          </div>
+          <div class="wz-foot">
+            <button class="btn quiet" type="button" id="wzBack3">上一步</button>
+            <span class="sp"></span>
+            <button class="btn ghost" type="button" id="wzSkip">先逛逛</button>
+            <button class="btn primary big" type="button" id="wzFinish">启动控制台</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 拖放遮罩 -->
+    <style>/* 拖放遮罩（就近定义，仅此一处使用） */
+      .drop{ position:absolute; inset:0; z-index:120; display:none; align-items:center; justify-content:center;
+        background:rgba(10,8,7,.72); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px); }
+      .drop.on{ display:flex; }
+      .dropin{ width:420px; padding:40px 30px; text-align:center;
+        border:1.5px dashed rgba(201,163,92,.55); border-radius:var(--r-lg);
+        background:rgba(201,163,92,.05); }
+      .dropin svg{ width:26px; height:26px; color:var(--brass); }
+      .dropin .t{ margin-top:14px; font-family:var(--f-serif); font-size:26px; }
+      .dropin .d{ margin-top:8px; font-size:12px; color:var(--ink3); line-height:1.65; }
+    </style>
+    <div class="drop" id="dropZone">
+      <div class="dropin">
+        <svg viewBox="0 0 26 26" fill="none"><path d="M13 17V4M13 4 8 9M13 4l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v4.5A2.5 2.5 0 0 0 6.5 22h13a2.5 2.5 0 0 0 2.5-2.5V15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <div class="t">松开即可导入数据集</div>
+        <div class="d">支持 YOLO 目录结构或 ZIP 压缩包 —— 导入后自动扫描与校验。</div>
+      </div>
+    </div>
+
+    <div class="toasts" id="toasts"></div>
+  </div>
+</div></div>
+
+<script>
+'use strict';
+/* ==========================================================================
+   AYT 启动器 · 原型交互
+   状态机：scene（演示场景）/ console / serve / training
+   所有网络类行为都是「原型演示」——不执行任何真实命令。
+   ========================================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+const state = { screen:'home', scene:'idle', console:'stopped', serve:'stopped', training:false, _seq:0 };
+
+/* ---------- 视口缩放（1400×880 设计稿等比适配） ---------- */
+function fit(){
+  const s = Math.min((innerWidth - 56) / 1400, (innerHeight - 48) / 880, 1);
+  $('#stageInner').style.transform = 'scale(' + s + ')';
+}
+addEventListener('resize', fit); fit();
+
+/* ---------- 导航 ---------- */
+const SCREENS = ['home','services','env','assets','settings'];
+function nav(name){
+  if (!SCREENS.includes(name)) name = 'home';
+  state.screen = name;
+  $$('.screen').forEach(el => el.classList.toggle('on', el.dataset.screen === name));
+  $$('.rn').forEach(el => el.classList.toggle('on', el.dataset.nav === name));
+  history.replaceState(null, '', '#' + name);
+  $('#scenarioPop').classList.remove('on');
+  const sc = $('.screen.on'); if (sc) sc.scrollTop = 0;
+}
+$$('.rn').forEach(el => el.addEventListener('click', e => { e.preventDefault(); nav(el.dataset.nav); }));
+$$('[data-nav]:not(.rn)').forEach(el => el.addEventListener('click', e => { e.preventDefault(); nav(el.dataset.nav); }));
+$$('[data-goto]').forEach(el => el.addEventListener('click', e => { e.preventDefault(); nav(el.dataset.goto); }));
+addEventListener('hashchange', () => { const h = (location.hash || '').slice(1); if (SCREENS.includes(h)) nav(h); });
+
+/* ---------- Toast ---------- */
+function toast(o){
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = '<span class="led ' + (o.tone || 'ok') + '"></span>'
+    + '<div class="tx"><div class="tt"></div>' + (o.msg ? '<div class="tm2">' + o.msg + '</div>' : '')
+    + '<div class="ta hidden"></div></div>'
+    + '<button class="ibtn x" type="button" aria-label="关闭"><svg viewBox="0 0 11 11" fill="none" style="width:9px;height:9px"><path d="M1.6 1.6l7.8 7.8M9.4 1.6L1.6 9.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></button>';
+  $('.tt', el).textContent = o.title;
+  if (o.msg) $('.tm2', el).innerHTML = o.msg;
+  const close = () => { el.classList.add('leaving'); setTimeout(() => el.remove(), 240); };
+  const ta = $('.ta', el);
+  if (o.actions && o.actions.length){
+    ta.classList.remove('hidden');
+    o.actions.forEach(a => {
+      const b = document.createElement('button');
+      b.className = 'btn xs ghost'; b.type = 'button'; b.textContent = a.label;
+      b.onclick = () => { if (a.fn) a.fn(); close(); };
+      ta.appendChild(b);
+    });
+  }
+  $('.x', el).onclick = close;
+  $('#toasts').appendChild(el);
+  setTimeout(close, o.ms || 4600);
+  while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove();
+}
+
+/* ---------- 显存刻度 ---------- */
+function vram(used, total = 15.9){
+  const segs = 32, on = Math.max(1, Math.round(used / total * segs));
+  $('#vramMeter').innerHTML = Array.from({length: segs}, (_, i) => '<i class="' + (i < on ? 'on' : '') + '"></i>').join('');
+  $('#vramTxt').innerHTML = used.toFixed(2) + ' <small>/ ' + total + ' GB</small>';
+}
+
+/* ---------- 服务 UI 同步 ---------- */
+const SVC = {
+  console: { led:'#svcConsoleLed', chip:'#svcConsoleChip', chipTxt:'#svcConsoleChipTxt', pid:'#svcConsolePid',
+             start:'#svcConsoleStart', open:'#svcConsoleOpen', stop:'#svcConsoleStop', restart:'#svcConsoleRestart' },
+  serve:   { led:'#svcServeLed', chip:'#svcServeChip', chipTxt:'#svcServeChipTxt',
+             start:'#svcServeStart', open:'#svcServeOpen', stop:'#svcServeStop' },
+};
+function paintService(key, st){
+  const m = SVC[key]; if (!m) return;
+  const chip = $(m.chip), led = $(m.led);
+  led.className = 'led' + (st === 'running' ? ' ok' : st === 'starting' ? ' brass live' : st === 'error' ? ' err' : '');
+  chip.className = 'chip ' + (st === 'running' ? 'ok' : st === 'starting' ? 'brass' : st === 'error' ? 'err' : 'plain');
+  $(m.chipTxt).textContent = st === 'running' ? '运行中' : st === 'starting' ? '启动中…' : st === 'error' ? '启动失败' : '未启动';
+  const set = (sel, show) => { if (m[sel]) $(m[sel]).classList.toggle('hidden', !show); };
+  set('start', st === 'stopped' || st === 'error');
+  set('open', st === 'running');
+  set('stop', st === 'running');
+  set('restart', st === 'running');
+  if (key === 'console') $('#svcConsolePid').textContent = st === 'running' ? '48216' : '—';
+}
+
+/* ---------- 启动台主控同步 ---------- */
+const LM_WORD = { stopped:'未启动', starting:'启动中…', running:'运行中', error:'启动失败' };
+const LM_DESC = {
+  stopped:'数据校验、训练配置、实时监控、模型库 —— 项目的全部界面，都在这一个页面里。',
+  starting:'正在拉起本地服务，界面稍后就绪。',
+  running:'服务运行在 127.0.0.1:8080 —— 打开浏览器即可使用控制台的全部界面。',
+  error:'端口被占用，控制台没能起来。可以换一个端口重试，或结束占用进程。',
+};
+function syncLaunch(){
+  const st = state.console, lm = $('#launchMod');
+  lm.dataset.state = st;
+  $('#lmWord').textContent = LM_WORD[st];
+  $('#lmLed').className = 'led' + (st === 'running' ? ' ok' : st === 'starting' ? ' brass live' : st === 'error' ? ' err' : '');
+  $('#lmDesc').textContent = LM_DESC[st];
+  const btn = $('#btnLaunchConsole');
+  btn.disabled = st === 'starting';
+  $('#btnLaunchLabel').textContent = st === 'running' ? '打开控制台' : st === 'starting' ? '启动中…' : '启动控制台';
+  $('#btnLaunchServe').classList.toggle('hidden', st === 'running');
+  $('#lmErr').classList.toggle('hidden', st !== 'error');
+  $('#lmSeq').classList.toggle('hidden', st !== 'starting');
+  paintService('console', st);
+}
+
+/* ---------- 控制台启动序列（编舞） ---------- */
+async function startConsole(){
+  if (state.console === 'running' || state.console === 'starting') return;
+  const tk = ++state._seq;
+  state.console = 'starting'; syncLaunch();
+  $('#lmErr').classList.add('hidden');
+  $('#seqBar').style.width = '6%';
+  const steps = [
+    ['正在准备环境…', 24],
+    ['正在校验构建产物（frontend/dist）…', 52],
+    ['正在绑定 127.0.0.1:8080…', 78],
+    ['正在预热界面与数据集索引…', 93],
+  ];
+  for (let i = 0; i < steps.length; i++){
+    if (tk !== state._seq) return;
+    $('#seqTx').textContent = steps[i][0];
+    $('#seqBar').style.width = steps[i][1] + '%';
+    await sleep(RM ? 60 : (i === 2 ? 920 : 560));
+    if (state.scene === 'portbusy' && i === 2){ failConsole(); return; }
+  }
+  if (tk !== state._seq) return;
+  $('#seqBar').style.width = '100%';
+  await sleep(RM ? 50 : 420);
+  if (tk !== state._seq) return;
+  state.console = 'running'; syncLaunch();
+  const n = new Date(), hh = String(n.getHours()).padStart(2,'0'), mm = String(n.getMinutes()).padStart(2,'0'), ss = String(n.getSeconds()).padStart(2,'0');
+  logAppend([
+    {ts: hh+':'+mm+':'+ss, lv:'INFO', msg:'启动 控制台服务 · python -m src.api.admin'},
+    {ts: hh+':'+mm+':'+ss, lv:'INFO', msg:'工作目录（dataset/ runs/ exports/ 都在这里）: E:\\项目\\Auto-yolo-training'},
+    {ts: hh+':'+mm+':'+String(+ss+1).padStart(2,'0'), lv:'INFO', msg:'Uvicorn running on http://127.0.0.1:8080 (Press CTRL+C to quit)', tone:'ok'},
+  ]);
+  $('#svcConsoleLog .micro').textContent = '日志 · 本次运行';
+  toast({ tone:'ok', title:'控制台已启动', msg:'<span class="mono">http://127.0.0.1:8080</span> 已就绪',
+          actions:[{ label:'打开控制台', fn: openConsole }] });
+}
+function failConsole(){
+  state.console = 'error'; syncLaunch();
+  toast({ tone:'err', title:'启动失败 · 端口 8080 被占用',
+          msg:'进程 <span class="mono">12345</span> 正在监听该端口。可改用 8081 重试。' });
+}
+function stopConsole(){
+  if (state.console !== 'running') return;
+  ++state._seq;
+  state.console = 'stopped'; syncLaunch();
+  const n = new Date();
+  logAppend([{ts: [n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':'), lv:'WARN', msg:'收到停止信号，已退出（exit 0）'}]);
+  toast({ tone:'info', title:'控制台已停止', msg:'端口 8080 已释放。' });
+}
+function openConsole(){
+  toast({ tone:'ok', title:'已在默认浏览器打开', msg:'<span class="mono">http://127.0.0.1:8080</span>（原型演示）' });
+}
+function logAppend(lines){
+  const box = $('#svcConsoleLines');
+  lines.forEach(l => {
+    const d = document.createElement('div');
+    d.className = 'ln' + (l.tone ? ' ' + l.tone : '');
+    d.innerHTML = '<span class="ts">' + l.ts + '</span><span class="lv">' + l.lv + '</span><span class="ms">' + l.msg + '</span>';
+    box.appendChild(d);
+  });
+  while (box.children.length > 8) box.firstChild.remove();
+}
+
+/* ---------- 推理服务启动（短序列） ---------- */
+async function startServe(){
+  if (state.serve === 'running' || state.serve === 'starting') return;
+  const tk = (state.__s = (state.__s || 0) + 1);
+  state.serve = 'starting'; paintService('serve', 'starting');
+  $('#lmSeq').classList.remove('hidden');
+  $('#seqBar').style.width = '30%'; $('#seqTx').textContent = '正在加载模型 best_20260918_002350.pt…';
+  await sleep(RM ? 60 : 780);
+  if (tk !== state.__s || state.serve !== 'starting') return;
+  $('#seqBar').style.width = '72%'; $('#seqTx').textContent = '正在绑定 127.0.0.1:8000…';
+  await sleep(RM ? 60 : 680);
+  if (tk !== state.__s || state.serve !== 'starting') return;
+  state.serve = 'running'; paintService('serve', 'running');
+  $('#lmSeq').classList.add('hidden'); $('#seqBar').style.width = '0%';
+  toast({ tone:'ok', title:'推理服务已启动', msg:'<span class="mono">http://127.0.0.1:8000/docs</span> · OpenAPI 文档可用',
+          actions:[{ label:'打开文档', fn: () => toast({tone:'ok', title:'已在浏览器打开', msg:'<span class="mono">http://127.0.0.1:8000/docs</span>（原型演示）'}) }] });
+}
+
+/* ---------- 场景切换 ---------- */
+const SCENES = ['idle','starting','training','portbusy','firstrun','empty'];
+function setScene(name){
+  if (!SCENES.includes(name)) name = 'idle';
+  state.scene = name;
+  ++state._seq;
+  state.__s = (state.__s || 0) + 1;
+  $$('#scenarioPop .pop-i[data-scene]').forEach(el => el.classList.toggle('on', el.dataset.scene === name));
+  /* —— 全部回到基准 —— */
+  state.training = false;
+  $('#svcTrainingMod').classList.add('hidden');
+  $('#lmTraining').classList.add('hidden');
+  $('#lmMain').classList.remove('hidden');
+  $('#recentTbl').classList.remove('hidden');
+  $('#recentEmpty').classList.add('hidden');
+  $('#btnQuickStart').disabled = false;
+  vram(0.62);
+  setStations([1,1,0,-1,0,0]);
+  $('.pl-note').innerHTML = '最近一次 <b>data_auto</b><br><span class="mono">yolo26n · 50 epochs</span> · 中断于「训练」';
+
+  if (name === 'starting'){
+    state.console = 'starting'; state.serve = 'stopped'; paintService('serve','stopped');
+    syncLaunch();
+    $('#seqBar').style.width = '52%';
+    $('#seqTx').textContent = '正在校验构建产物（frontend/dist）…';
+  } else if (name === 'training'){
+    state.console = 'running'; state.serve = 'stopped'; paintService('serve','stopped');
+    syncLaunch(); state.training = true;
+    $('#lmMain').classList.add('hidden');
+    $('#lmTraining').classList.remove('hidden');
+    $('#svcTrainingMod').classList.remove('hidden');
+    vram(11.2);
+    setStations([1,1,0,2,0,0]);
+    $('.pl-note').innerHTML = '进行中 <b>data_auto</b><br><span class="mono">第 37 / 50 轮</span> · 预计剩余 09:12';
+  } else if (name === 'portbusy'){
+    state.console = 'error'; state.serve = 'stopped'; paintService('serve','stopped');
+    syncLaunch();
+    logAppend([{ts:'—', lv:'ERR ', msg:'ERROR: [Errno 10048] 端口 127.0.0.1:8080 已被占用（PID 12345）', tone:'err'}]);
+  } else if (name === 'firstrun'){
+    state.console = 'stopped'; state.serve = 'stopped'; syncLaunch(); paintService('serve','stopped');
+    openWizard();
+  } else if (name === 'empty'){
+    state.console = 'stopped'; state.serve = 'stopped'; syncLaunch(); paintService('serve','stopped');
+    $('#recentTbl').classList.add('hidden');
+    $('#recentEmpty').classList.remove('hidden');
+    $('#btnQuickStart').disabled = true;
+    $$('.lm-right .inst')[4].querySelector('.iv').innerHTML = '0 / 0 <small>可训练</small>';
+    setStations([0,0,0,0,0,0]);
+    $('.pl-note').innerHTML = '还没有运行过训练<br><span class="mono">从「快速开始」出发</span>';
+  } else {
+    state.console = 'stopped'; state.serve = 'stopped'; syncLaunch(); paintService('serve','stopped');
+    $('#seqBar').style.width = '0%';
+  }
+  if (name !== 'empty') $$('.lm-right .inst')[4].querySelector('.iv').innerHTML = '4 / 6 <small>可训练</small>';
+}
+function setStations(arr){ /* 1=done 2=now(活动) 0=待 -1=fail */
+  $$('.stations .st').forEach((st, i) => {
+    const v = arr[i];
+    st.classList.toggle('done', v === 1);
+    st.classList.toggle('now', v === 2);
+    st.classList.toggle('fail', v === -1);
+  });
+}
+
+/* ---------- 场景弹出 ---------- */
+$('#scenarioBtn').onclick = (e) => { e.stopPropagation(); $('#scenarioPop').classList.toggle('on'); };
+$$('#scenarioPop .pop-i[data-scene]').forEach(el => el.onclick = () => { setScene(el.dataset.scene); $('#scenarioPop').classList.remove('on'); });
+$('#popClose').onclick = () => $('#scenarioPop').classList.remove('on');
+addEventListener('click', (e) => { if (!e.target.closest('#scenarioPop') && !e.target.closest('#scenarioBtn')) $('#scenarioPop').classList.remove('on'); });
+
+/* ---------- 向导 ---------- */
+const WZ_CHECKS = [
+  ['Python 运行时', '3.12.7'], ['PyTorch', '2.9.0+cu130'], ['CUDA', '可用 · cuDNN 已加载'],
+  ['GPU', 'RTX 5080 Laptop · 16 GB'], ['磁盘空间', 'E: 321 GB 可用'], ['数据集与权重', '6 目录 · 3 权重'],
+];
+let wzStep = 1, wzTimers = [];
+function openWizard(){
+  wzStep = 1; paintWizard(); $('#wizard').classList.add('on'); runChecks();
+}
+function paintWizard(){
+  $$('#wzSteps .ws').forEach(ws => {
+    const n = +ws.dataset.step;
+    ws.classList.toggle('on', n === wzStep);
+    ws.classList.toggle('done', n < wzStep);
+  });
+  $$('.wz-panel').forEach((p, i) => p.classList.toggle('on', i === wzStep - 1));
+}
+function runChecks(){
+  wzTimers.forEach(t => clearTimeout(t)); wzTimers = [];
+  const host = $('#wzChecks'); host.innerHTML = '';
+  $('#wzNext1').disabled = true;
+  WZ_CHECKS.forEach((c, i) => wzTimers.push(setTimeout(() => {
+    const d = document.createElement('div');
+    d.className = 'wcheck in';
+    d.innerHTML = '<span class="led ok"></span><span class="nm">' + c[0] + '</span><span class="vl">' + c[1] + '</span>';
+    host.appendChild(d);
+    if (i === WZ_CHECKS.length - 1) wzTimers.push(setTimeout(() => { $('#wzNext1').disabled = false; }, RM ? 60 : 320));
+  }, RM ? i * 40 : i * 360)));
+}
+$('#wzRecheck').onclick = runChecks;
+$('#wzNext1').onclick = () => { if (!$('#wzNext1').disabled){ wzStep = 2; paintWizard(); } };
+$('#wzBack2').onclick = () => { wzStep = 1; paintWizard(); };
+$('#wzNext2').onclick = () => { wzStep = 3; paintWizard(); };
+$('#wzBack3').onclick = () => { wzStep = 2; paintWizard(); };
+$('#wzSkip').onclick = () => { $('#wizard').classList.remove('on'); toast({ tone:'info', title:'向导已跳过', msg:'随时可以在设置里重新检查环境。' }); };
+$('#wzFinish').onclick = () => { $('#wizard').classList.remove('on'); setScene('idle'); startConsole(); };
+$$('.devopt').forEach(el => el.onclick = () => { $$('.devopt').forEach(x => x.classList.remove('on')); el.classList.add('on'); });
+
+/* ---------- 资源页 tabs ---------- */
+$('#assetSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  $$('#assetSeg button').forEach(x => x.classList.toggle('on', x === b));
+  $$('.tab').forEach(t => t.classList.toggle('on', t.id === 'tab-' + b.dataset.tab));
+  $('#assetHint').textContent = b.dataset.tab === 'weights' ? '点击模型卡片下载 / 查看' : '点击行查看详情';
+});
+
+/* ---------- 模型下载模拟 ---------- */
+document.addEventListener('click', (e) => {
+  const chip = e.target.closest('.mchip'); if (!chip) return;
+  const name = chip.dataset.model;
+  if (chip.classList.contains('local')){
+    toast({ tone:'ok', title:name + ' 已在本地', msg:'<span class="mono">basemodels/' + name + '</span>',
+            actions:[{ label:'打开目录', fn: () => toast({ tone:'ok', title:'已打开 basemodels/', msg:'原型演示' }) }] });
+    return;
+  }
+  if (chip.classList.contains('busy')) return;
+  chip.classList.add('busy');
+  const bar = document.createElement('span'); bar.className = 'pbar'; bar.innerHTML = '<i></i>';
+  chip.appendChild(bar);
+  let p = 0;
+  const iv = setInterval(() => {
+    p += 7 + Math.random() * 16;
+    if (p >= 100){
+      clearInterval(iv);
+      chip.classList.remove('busy'); chip.classList.add('local');
+      chip.querySelector('.led').className = 'led brass';
+      bar.remove();
+      toast({ tone:'ok', title:name + ' 下载完成', msg:'已保存到 <span class="mono">basemodels/</span> · 来源 Ultralytics 官方' });
+    } else { bar.querySelector('i').style.width = p + '%'; }
+  }, RM ? 40 : 200);
+});
+
+/* ---------- 数据集行：校验 / 右键 ---------- */
+const ctx = $('#ctxMenu');
+function showCtx(x, y, items){
+  ctx.innerHTML = '';
+  items.forEach(it => {
+    if (it === '-' ){ const s = document.createElement('div'); s.className = 'ctx-sep'; ctx.appendChild(s); return; }
+    const b = document.createElement('button');
+    b.className = 'ctx-i' + (it.danger ? ' danger' : ''); b.type = 'button';
+    b.innerHTML = (it.icon || '') + '<span>' + it.label + '</span>';
+    b.onclick = () => { ctx.classList.remove('on'); if (it.fn) it.fn(); };
+    ctx.appendChild(b);
+  });
+  ctx.classList.add('on');
+  const r = $('#win').getBoundingClientRect();
+  const mw = 200, mh = items.length * 36 + 14;
+  const lx = Math.min(x, r.width - mw - 12), ly2 = Math.min(y, r.height - mh - 12);
+  ctx.style.left = Math.max(8, lx) + 'px';
+  ctx.style.top = Math.max(8, ly2) + 'px';
+}
+addEventListener('click', () => ctx.classList.remove('on'));
+$('#win').addEventListener('contextmenu', (e) => {
+  const row = e.target.closest('[data-row]');
+  const chip = e.target.closest('.mchip');
+  if (!row && !chip) return;
+  e.preventDefault();
+  const r = $('#win').getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  if (chip){
+    const name = chip.dataset.model;
+    showCtx(x, y, [
+      { label:'复制文件名', fn: () => toast({ tone:'info', title:'已复制', msg:'<span class="mono">' + name + '</span>' }) },
+      { label:'在文件管理器中显示', fn: () => toast({ tone:'ok', title:'已在资源管理器中显示', msg:'原型演示' }) },
+    ]);
+  } else {
+    const nm = row.querySelector('.nm') ? row.querySelector('.nm').textContent : '记录';
+    showCtx(x, y, [
+      { label:'打开产物目录', fn: () => toast({ tone:'ok', title:'已打开目录', msg:'<span class="mono">runs/detect/' + nm + '/</span>' }) },
+      { label:'在控制台中打开', fn: () => toast({ tone:'ok', title:'控制台', msg:'将在浏览器中打开该记录的详情页（原型演示）' }) },
+      '-',
+      { label:'复制名称', fn: () => toast({ tone:'info', title:'已复制', msg:'<span class="mono">' + nm + '</span>' }) },
+    ]);
+  }
+});
+
+/* ---------- 数据集校验按钮 ---------- */
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b || b.textContent.trim() !== '校验') return;
+  e.stopPropagation();
+  b.disabled = true; const old = b.textContent; b.textContent = '校验中…';
+  setTimeout(() => {
+    b.disabled = false; b.textContent = old;
+    const row = b.closest('tr');
+    const nm = row && row.querySelector('.nm') ? row.querySelector('.nm').textContent : '';
+    if (nm === 'data') toast({ tone:'warn', title:'校验完成 · data', msg:'错误 0 · 警告 2 —— val 集中有 75/75 张图像缺少对应标注' });
+    else toast({ tone:'ok', title:'校验完成 · ' + nm, msg:'验证结果: 通过 · 错误 0 · 警告 0' });
+  }, RM ? 120 : 950);
+});
+
+/* ---------- 环境行展开 ---------- */
+$$('.erow[data-expand]').forEach(row => {
+  row.addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    const det = row.nextElementSibling;
+    row.classList.toggle('open'); det.classList.toggle('on');
+  });
+});
+
+/* ---------- 重新检测 ---------- */
+['#btnRecheck', '#btnRecheck2'].forEach(sel => {
+  const b = $(sel); if (!b) return;
+  b.addEventListener('click', () => {
+    b.disabled = true; const old = b.innerHTML;
+    b.innerHTML = '检测中…';
+    setTimeout(() => { b.disabled = false; b.innerHTML = old;
+      toast({ tone:'ok', title:'自检完成', msg:'12 项 · 11 通过 · 1 项注意（数据集告警）' }); }, RM ? 150 : 1100);
+  });
+});
+
+/* ---------- 主控 / 服务按钮 ---------- */
+$('#btnLaunchConsole').onclick = () => {
+  if (state.console === 'running') return openConsole();
+  if (state.console === 'starting') return;
+  startConsole();
+};
+$('#btnLaunchServe').onclick = startServe;
+$('#svcConsoleStart').onclick = startConsole;
+$('#svcConsoleOpen').onclick = openConsole;
+$('#svcConsoleStop').onclick = stopConsole;
+$('#svcConsoleRestart').onclick = () => { stopConsole(); setTimeout(startConsole, RM ? 60 : 320); };
+$('#svcServeStart').onclick = startServe;
+$('#svcServeOpen').onclick = () => toast({ tone:'ok', title:'已打开 OpenAPI 文档', msg:'<span class="mono">http://127.0.0.1:8000/docs</span>（原型演示）' });
+$('#svcServeStop').onclick = () => { state.serve = 'stopped'; paintService('serve','stopped'); toast({ tone:'info', title:'推理服务已停止' }); };
+$('#btnRetryPort').onclick = () => { state.scene = 'idle'; $('#lmErr').classList.add('hidden'); startConsole(); };
+$('#btnKillPort').onclick = () => { state.scene = 'idle'; $('#lmErr').classList.add('hidden'); startConsole(); };
+$('#btnErrDetail').onclick = () => toast({ tone:'info', title:'占用详情', msg:'PID <span class="mono">12345</span> · python.exe · 启动于 04:55 —— 也可能是上一次未退出的控制台。' });
+$('#btnOpenDir').onclick = () => toast({ tone:'ok', title:'已打开项目目录', msg:'<span class="mono">E:\\项目\\Auto-yolo-training</span>' });
+$('#btnQuickStart').onclick = () => {
+  if ($('#btnQuickStart').disabled) return;
+  if (state.console !== 'running' && state.console !== 'starting'){
+    toast({ tone:'info', title:'控制台未启动', msg:'正在为你启动控制台，稍后自动打开训练配置…' });
+    startConsole();
+    setTimeout(() => toast({ tone:'ok', title:'训练配置已打开', msg:'数据集 与 模型 取自左侧选择（原型演示）', actions:[{ label:'打开控制台', fn: openConsole }] }), RM ? 300 : 3000);
+  } else {
+    toast({ tone:'ok', title:'训练配置已打开', msg:'数据集 与 模型 取自左侧选择（原型演示）', actions:[{ label:'打开控制台', fn: openConsole }] });
+  }
+};
+$('#qsDataset').onchange = (e) => { $('#qsWarn').classList.toggle('hidden', !e.target.value.startsWith('data')); };
+$('#btnAllRuns').onclick = () => { nav('assets'); $$('#assetSeg button').forEach(x => x.classList.toggle('on', x.dataset.tab === 'runs')); $$('.tab').forEach(t => t.classList.toggle('on', t.id === 'tab-runs')); };
+$$('.stations .st').forEach(st => st.onclick = () => { nav('assets'); $$('#assetSeg button').forEach(x => x.classList.toggle('on', x.dataset.tab === 'runs')); $$('.tab').forEach(t => t.classList.toggle('on', t.id === 'tab-runs')); toast({ tone:'info', title:'训练记录', msg:'按工位筛选训练记录（原型演示）' }); });
+$('#btnOpenMonitor').onclick = () => toast({ tone:'ok', title:'训练监控', msg:'将在浏览器打开 <span class="mono">/train/monitor</span>（原型演示）' });
+$('#btnOpenMonitor2').onclick = $('#btnOpenMonitor').onclick;
+$('#btnStopTraining').onclick = () => confirmStop();
+$('#btnStopTraining2').onclick = () => confirmStop();
+
+/* ---------- 确认对话框 ---------- */
+let modalOk = null;
+function confirmModal(t, d, okLabel, fn){
+  $('#modalT').textContent = t; $('#modalD').innerHTML = d;
+  $('#modalOk').textContent = okLabel; modalOk = fn;
+  $('#scrim').classList.add('on');
+}
+function confirmStop(){
+  confirmModal('停止训练？', 'data_auto 进行到第 <span class="mono">37 / 50</span> 轮。已保存的检查点（每 10 轮）可随时续训。', '停止训练', () => {
+    setScene('idle');
+    toast({ tone:'warn', title:'训练已停止', msg:'检查点已保留：<span class="mono">runs/detect/data_auto/weights/last.pt</span>' });
+  });
+}
+$('#modalCancel').onclick = () => { $('#scrim').classList.remove('on'); modalOk = null; };
+$('#modalOk').onclick = () => { $('#scrim').classList.remove('on'); const f = modalOk; modalOk = null; if (f) f(); };
+$('#scrim').onclick = (e) => { if (e.target === $('#scrim')) { $('#scrim').classList.remove('on'); modalOk = null; } };
+
+/* ---------- 设置页控件 ---------- */
+$$('.switch').forEach(sw => sw.addEventListener('click', () => {
+  sw.classList.toggle('on');
+  sw.setAttribute('aria-checked', sw.classList.contains('on') ? 'true' : 'false');
+}));
+$$('.sreset').forEach(b => b.addEventListener('click', () => toast({ tone:'info', title:'已恢复默认值', msg:'原型演示' })));
+$$('.srow .btn, .sgroup .btn').forEach(b => {
+  if (b.id || b.onclick) return;
+  b.addEventListener('click', () => {
+    const t = b.textContent.trim();
+    if (t.startsWith('清理')) confirmModal('清理回收站？', '将永久删除 <span class="mono">runs\\.recycle</span> 中的 2 个训练（1.4 GB），不可恢复。', '清理', () => toast({ tone:'ok', title:'已清理回收站', msg:'释放 1.4 GB' }));
+    else if (t === '发送测试') toast({ tone:'ok', title:'测试通知已发送', msg:'若 Webhook 配置正确，几秒内会收到消息（原型演示）' });
+    else if (t === '检查更新') toast({ tone:'ok', title:'已是最新版本', msg:'v0.1.0 · 构建 2026-10-04' });
+    else if (t === '打开 logs\\') toast({ tone:'ok', title:'已打开日志目录', msg:'<span class="mono">logs\\</span>' });
+    else if (t === '打开') toast({ tone:'ok', title:'已打开目录', msg:'原型演示' });
+    else if (t === '文档') toast({ tone:'ok', title:'文档', msg:'<span class="mono">docs/</span> · 快速开始、数据集、API（原型演示）' });
+    else if (t === '打开队列') toast({ tone:'ok', title:'任务队列', msg:'将在浏览器打开 <span class="mono">/queue</span>（原型演示）' });
+  });
+});
+
+/* ---------- 键盘 ---------- */
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape'){
+    $('#scenarioPop').classList.remove('on'); ctx.classList.remove('on');
+    $('#scrim').classList.remove('on'); $('#wizard').classList.remove('on');
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === ','){ e.preventDefault(); nav('settings'); }
+});
+
+/* ---------- 拖放导入（视觉原型） ---------- */
+let dragDepth = 0;
+$('#win').addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; $('#dropZone').classList.add('on'); });
+$('#win').addEventListener('dragleave', () => { if (--dragDepth <= 0){ dragDepth = 0; $('#dropZone').classList.remove('on'); } });
+$('#win').addEventListener('dragover', (e) => e.preventDefault());
+$('#win').addEventListener('drop', (e) => {
+  e.preventDefault(); dragDepth = 0; $('#dropZone').classList.remove('on');
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  toast({ tone:'ok', title:'数据集导入（原型演示）', msg: f ? '文件：<span class="mono">' + f.name + '</span> —— 真实版本将上传、解压、扫描并校验。' : '真实版本将上传、解压、扫描并校验。' });
+});
+
+/* ---------- 初始化 ---------- */
+paintService('console','stopped'); paintService('serve','stopped'); syncLaunch(); vram(0.62);
+const q = new URLSearchParams(location.search);
+const initScene = q.get('scene');
+if (initScene) setScene(initScene); else setScene('idle');
+const initScreen = (location.hash || '#home').slice(1);
+nav(SCREENS.includes(initScreen) ? initScreen : 'home');
+console.log('[AYT launcher] prototype ready · scene=' + state.scene + ' screen=' + state.screen);
+</script>
+</body>
+</html>

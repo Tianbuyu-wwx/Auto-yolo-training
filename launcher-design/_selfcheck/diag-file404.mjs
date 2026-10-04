@@ -1,0 +1,10 @@
+import { createRequire } from 'module';
+const require = createRequire('C:/Users/Tianbuyu/AppData/Local/hermes/skills/creative/ui-craft-studio/package.json');
+const { chromium } = require('playwright');
+const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH, headless: true });
+const page = await browser.newPage();
+page.on('requestfailed', r => console.log('FAILED:', r.url().slice(-90), '::', r.failure() && r.failure().errorText));
+page.on('console', m => { if (m.type() === 'error') console.log('[err]', m.text().slice(0, 160)); });
+await page.goto('file:///E:/%E9%A1%B9%E7%9B%AE/Auto-yolo-training/launcher-design/AYT-Launcher-v8.html', { waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(2500);
+await browser.close();

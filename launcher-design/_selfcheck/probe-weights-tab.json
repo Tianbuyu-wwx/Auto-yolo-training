@@ -1,0 +1,16 @@
+{
+  "screen": "assets · 权重标签页",
+  "method": "Playwright 标签页切换测算（run_probe CLI 仅支持 URL 导航，无法点击标签页）",
+  "generatedAt": "2026-10-03 21:41",
+  "totalTexts": 51,
+  "distribution": {
+    "26px": 1,
+    "13px": 31,
+    "12px": 15,
+    "16px": 4
+  },
+  "topSize": "13px",
+  "topShare": 0.61,
+  "halfPixel": [],
+  "note": "半像素字号 0；主字号占比 61%"
+}

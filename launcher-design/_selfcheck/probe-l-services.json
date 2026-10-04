@@ -1,0 +1,156 @@
+{
+  "probe": "ui-craft-studio/1.0",
+  "url": "file:///E:/%E9%A1%B9%E7%9B%AE/Auto-yolo-training/launcher-design/_lighttest.html#services",
+  "ts": "2026-10-04T06:57:03.191Z",
+  "viewport": [
+    1560,
+    940
+  ],
+  "counts": {
+    "visible": 176,
+    "textEls": 67
+  },
+  "tiers": {
+    "fontSize": [
+      {
+        "v": "12",
+        "c": 50
+      },
+      {
+        "v": "13",
+        "c": 15
+      },
+      {
+        "v": "16",
+        "c": 1
+      },
+      {
+        "v": "26",
+        "c": 1
+      }
+    ],
+    "fontWeight": [
+      {
+        "v": "440",
+        "c": 52
+      },
+      {
+        "v": "500",
+        "c": 6
+      },
+      {
+        "v": "400",
+        "c": 3
+      },
+      {
+        "v": "480",
+        "c": 3
+      },
+      {
+        "v": "540",
+        "c": 3
+      }
+    ],
+    "radius": [
+      {
+        "v": "10",
+        "c": 19
+      },
+      {
+        "v": "full",
+        "c": 3
+      }
+    ],
+    "lineHeight": [
+      {
+        "v": "18",
+        "c": 27
+      },
+      {
+        "v": "23",
+        "c": 19
+      },
+      {
+        "v": "20",
+        "c": 12
+      },
+      {
+        "v": "normal",
+        "c": 5
+      },
+      {
+        "v": "19",
+        "c": 2
+      },
+      {
+        "v": "24",
+        "c": 1
+      },
+      {
+        "v": "29",
+        "c": 1
+      }
+    ],
+    "background": [
+      {
+        "v": "rgb(106, 95, 79)",
+        "c": 5
+      },
+      {
+        "v": "rgb(247, 243, 236)",
+        "c": 3
+      },
+      {
+        "v": "rgb(234, 227, 216)",
+        "c": 3
+      },
+      {
+        "v": "rgb(227, 220, 207)",
+        "c": 1
+      },
+      {
+        "v": "rgb(239, 233, 223)",
+        "c": 1
+      },
+      {
+        "v": "rgb(251, 248, 242)",
+        "c": 1
+      },
+      {
+        "v": "rgb(81, 117, 63)",
+        "c": 1
+      }
+    ]
+  },
+  "stats": {
+    "fontTierCount": 4,
+    "mainFontShare": 0.746,
+    "halfPixel": [],
+    "nonInteger": []
+  },
+  "contrast": {
+    "checked": 53,
+    "skipped": 14,
+    "fails": []
+  },
+  "findings": [
+    {
+      "severity": "P2",
+      "rule": "all-caps",
+      "detail": "全大写拉丁文本 5 处（GGUF/CUDA 类技术缩写可豁免，需写明理由）",
+      "selectors": [
+        "div.tb-brand > span.tb-tag :: \"启动器 · LAUNCHER\"",
+        "div.ln > span.lv :: \"INFO\"",
+        "div.ln > span.lv :: \"INFO\"",
+        "div.ln > span.lv :: \"INFO\"",
+        "div.ln > span.lv :: \"WARN\""
+      ]
+    },
+    {
+      "severity": "INFO",
+      "rule": "contrast-checked",
+      "detail": "对比度扫描 53 个文本元素，失败 0 项",
+      "selectors": []
+    }
+  ]
+}

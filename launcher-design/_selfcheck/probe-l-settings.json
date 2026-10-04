@@ -1,0 +1,163 @@
+{
+  "probe": "ui-craft-studio/1.0",
+  "url": "file:///E:/%E9%A1%B9%E7%9B%AE/Auto-yolo-training/launcher-design/_lighttest.html#settings",
+  "ts": "2026-10-04T06:57:18.039Z",
+  "viewport": [
+    1560,
+    940
+  ],
+  "counts": {
+    "visible": 242,
+    "textEls": 80
+  },
+  "tiers": {
+    "fontSize": [
+      {
+        "v": "12",
+        "c": 43
+      },
+      {
+        "v": "13",
+        "c": 35
+      },
+      {
+        "v": "16",
+        "c": 1
+      },
+      {
+        "v": "26",
+        "c": 1
+      }
+    ],
+    "fontWeight": [
+      {
+        "v": "440",
+        "c": 57
+      },
+      {
+        "v": "480",
+        "c": 9
+      },
+      {
+        "v": "500",
+        "c": 8
+      },
+      {
+        "v": "400",
+        "c": 6
+      }
+    ],
+    "radius": [
+      {
+        "v": "10",
+        "c": 24
+      },
+      {
+        "v": "full",
+        "c": 10
+      }
+    ],
+    "lineHeight": [
+      {
+        "v": "20",
+        "c": 45
+      },
+      {
+        "v": "18",
+        "c": 17
+      },
+      {
+        "v": "normal",
+        "c": 14
+      },
+      {
+        "v": "19",
+        "c": 2
+      },
+      {
+        "v": "24",
+        "c": 1
+      },
+      {
+        "v": "29",
+        "c": 1
+      }
+    ],
+    "background": [
+      {
+        "v": "rgb(251, 248, 242)",
+        "c": 6
+      },
+      {
+        "v": "rgb(234, 227, 216)",
+        "c": 3
+      },
+      {
+        "v": "rgb(227, 220, 207)",
+        "c": 1
+      },
+      {
+        "v": "rgb(239, 233, 223)",
+        "c": 1
+      },
+      {
+        "v": "rgb(253, 251, 247)",
+        "c": 1
+      }
+    ]
+  },
+  "stats": {
+    "fontTierCount": 4,
+    "mainFontShare": 0.538,
+    "halfPixel": [],
+    "nonInteger": []
+  },
+  "contrast": {
+    "checked": 3,
+    "skipped": 77,
+    "fails": []
+  },
+  "findings": [
+    {
+      "severity": "P2",
+      "rule": "main-font-share",
+      "detail": "主字号占比 54%（<60%）",
+      "selectors": []
+    },
+    {
+      "severity": "P2",
+      "rule": "all-caps",
+      "detail": "全大写拉丁文本 8 处（GGUF/CUDA 类技术缩写可豁免，需写明理由）",
+      "selectors": [
+        "div.tb-brand > span.tb-tag :: \"启动器 · LAUNCHER\"",
+        "div.sgroup-h > span.micro :: \"外观 · APPEARANCE\"",
+        "div.sgroup-h > span.micro :: \"启动行为 · LAUNCH\"",
+        "div.sgroup-h > span.micro :: \"训练默认 · DEFAULTS\"",
+        "div.sgroup-h > span.micro :: \"路径 · PATHS\"",
+        "div.sgroup-h > span.micro :: \"通知 · NOTIFICATIONS\"",
+        "div.sgroup-h > span.micro :: \"维护 · MAINTENANCE\"",
+        "div.sgroup-h > span.micro :: \"关于 · ABOUT\""
+      ]
+    },
+    {
+      "severity": "P2",
+      "rule": "gradient-heavy",
+      "detail": "渐变背景/文字 7 处（>4 过多）",
+      "selectors": [
+        "body > div.desk",
+        "div#win",
+        "div.tsw > button.sw-brass.on",
+        "div.tsw > button.sw-celadon",
+        "div.tsw > button.sw-indigo",
+        "div.tsw > button.sw-ink",
+        "div.tsw > button.tcustom"
+      ]
+    },
+    {
+      "severity": "INFO",
+      "rule": "contrast-checked",
+      "detail": "对比度扫描 3 个文本元素，失败 0 项",
+      "selectors": []
+    }
+  ]
+}

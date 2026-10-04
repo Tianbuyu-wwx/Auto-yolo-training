@@ -1,0 +1,159 @@
+{
+  "probe": "ui-craft-studio/1.0",
+  "url": "file:///E:/%E9%A1%B9%E7%9B%AE/Auto-yolo-training/launcher-design/AYT-Launcher-v3.html?page=settings#",
+  "ts": "2026-10-04T08:29:32.409Z",
+  "viewport": [
+    1560,
+    940
+  ],
+  "counts": {
+    "visible": 141,
+    "textEls": 31
+  },
+  "tiers": {
+    "fontSize": [
+      {
+        "v": "12",
+        "c": 12
+      },
+      {
+        "v": "13",
+        "c": 11
+      },
+      {
+        "v": "11",
+        "c": 7
+      },
+      {
+        "v": "15",
+        "c": 1
+      }
+    ],
+    "fontWeight": [
+      {
+        "v": "400",
+        "c": 13
+      },
+      {
+        "v": "440",
+        "c": 9
+      },
+      {
+        "v": "500",
+        "c": 6
+      },
+      {
+        "v": "520",
+        "c": 3
+      }
+    ],
+    "radius": [
+      {
+        "v": "8",
+        "c": 9
+      },
+      {
+        "v": "10",
+        "c": 9
+      },
+      {
+        "v": "full",
+        "c": 6
+      },
+      {
+        "v": "12",
+        "c": 4
+      },
+      {
+        "v": "6",
+        "c": 1
+      }
+    ],
+    "lineHeight": [
+      {
+        "v": "normal",
+        "c": 13
+      },
+      {
+        "v": "20",
+        "c": 9
+      },
+      {
+        "v": "17",
+        "c": 7
+      },
+      {
+        "v": "18",
+        "c": 1
+      },
+      {
+        "v": "23",
+        "c": 1
+      }
+    ],
+    "background": [
+      {
+        "v": "rgb(12, 10, 9)",
+        "c": 3
+      },
+      {
+        "v": "rgb(19, 17, 16)",
+        "c": 2
+      },
+      {
+        "v": "rgb(35, 31, 26)",
+        "c": 2
+      },
+      {
+        "v": "rgb(10, 9, 8)",
+        "c": 1
+      }
+    ]
+  },
+  "stats": {
+    "fontTierCount": 4,
+    "mainFontShare": 0.387,
+    "halfPixel": [],
+    "nonInteger": []
+  },
+  "contrast": {
+    "checked": 28,
+    "skipped": 3,
+    "fails": []
+  },
+  "findings": [
+    {
+      "severity": "P2",
+      "rule": "main-font-share",
+      "detail": "主字号占比 39%（<60%）",
+      "selectors": []
+    },
+    {
+      "severity": "P1",
+      "rule": "radius-tiers",
+      "detail": "圆角 5 档（>3）：8px×9 / 10px×9 / fullpx×6 / 12px×4 / 6px×1",
+      "selectors": []
+    },
+    {
+      "severity": "P2",
+      "rule": "gradient-heavy",
+      "detail": "渐变背景/文字 8 处（>4 过多）",
+      "selectors": [
+        "body > div.desk",
+        "div#win",
+        "nav.rail > button.rit.on",
+        "span.tsw > button.sw-brass.on",
+        "span.tsw > button.sw-celadon",
+        "span.tsw > button.sw-indigo",
+        "span.tsw > button.sw-ink",
+        "span.tsw > button.tcustom"
+      ]
+    },
+    {
+      "severity": "INFO",
+      "rule": "contrast-checked",
+      "detail": "对比度扫描 28 个文本元素，失败 0 项",
+      "selectors": []
+    }
+  ]
+}

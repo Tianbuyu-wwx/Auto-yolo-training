@@ -1,0 +1,186 @@
+{
+  "probe": "ui-craft-studio/1.0",
+  "url": "file:///E:/%E9%A1%B9%E7%9B%AE/Auto-yolo-training/launcher-design/_lighttest.html?scene=firstrun#home",
+  "ts": "2026-10-04T06:57:33.039Z",
+  "viewport": [
+    1560,
+    940
+  ],
+  "counts": {
+    "visible": 319,
+    "textEls": 120
+  },
+  "tiers": {
+    "fontSize": [
+      {
+        "v": "12",
+        "c": 70
+      },
+      {
+        "v": "13",
+        "c": 46
+      },
+      {
+        "v": "30",
+        "c": 2
+      },
+      {
+        "v": "16",
+        "c": 1
+      },
+      {
+        "v": "26",
+        "c": 1
+      }
+    ],
+    "fontWeight": [
+      {
+        "v": "440",
+        "c": 96
+      },
+      {
+        "v": "500",
+        "c": 9
+      },
+      {
+        "v": "480",
+        "c": 6
+      },
+      {
+        "v": "400",
+        "c": 4
+      },
+      {
+        "v": "520",
+        "c": 3
+      },
+      {
+        "v": "540",
+        "c": 2
+      }
+    ],
+    "radius": [
+      {
+        "v": "10",
+        "c": 23
+      },
+      {
+        "v": "full",
+        "c": 4
+      }
+    ],
+    "lineHeight": [
+      {
+        "v": "18",
+        "c": 75
+      },
+      {
+        "v": "20",
+        "c": 19
+      },
+      {
+        "v": "normal",
+        "c": 11
+      },
+      {
+        "v": "19",
+        "c": 5
+      },
+      {
+        "v": "16",
+        "c": 4
+      },
+      {
+        "v": "22",
+        "c": 2
+      },
+      {
+        "v": "35",
+        "c": 2
+      },
+      {
+        "v": "24",
+        "c": 1
+      }
+    ],
+    "background": [
+      {
+        "v": "rgb(81, 117, 63)",
+        "c": 12
+      },
+      {
+        "v": "rgb(247, 243, 236)",
+        "c": 4
+      },
+      {
+        "v": "rgb(251, 248, 242)",
+        "c": 3
+      },
+      {
+        "v": "rgb(239, 233, 223)",
+        "c": 2
+      },
+      {
+        "v": "rgb(106, 95, 79)",
+        "c": 2
+      },
+      {
+        "v": "rgb(176, 138, 62)",
+        "c": 2
+      },
+      {
+        "v": "rgb(141, 97, 30)",
+        "c": 2
+      },
+      {
+        "v": "rgb(91, 82, 65)",
+        "c": 2
+      },
+      {
+        "v": "rgb(227, 220, 207)",
+        "c": 1
+      },
+      {
+        "v": "rgb(169, 68, 55)",
+        "c": 1
+      }
+    ]
+  },
+  "stats": {
+    "fontTierCount": 5,
+    "mainFontShare": 0.583,
+    "halfPixel": [],
+    "nonInteger": []
+  },
+  "contrast": {
+    "checked": 102,
+    "skipped": 18,
+    "fails": []
+  },
+  "findings": [
+    {
+      "severity": "P2",
+      "rule": "main-font-share",
+      "detail": "主字号占比 58%（<60%）",
+      "selectors": []
+    },
+    {
+      "severity": "P2",
+      "rule": "all-caps",
+      "detail": "全大写拉丁文本 5 处（GGUF/CUDA 类技术缩写可豁免，需写明理由）",
+      "selectors": [
+        "div.tb-brand > span.tb-tag :: \"启动器 · LAUNCHER\"",
+        "div.lm-kicker > span.micro :: \"本地控制台 · LOCAL CONSOLE\"",
+        "div.lm-right > div.micro :: \"就绪仪表 · READINESS\"",
+        "div.pl-cap > span.b :: \"PIPELINE · 最近一次\"",
+        "div.wcheck.in > span.nm :: \"CUDA\""
+      ]
+    },
+    {
+      "severity": "INFO",
+      "rule": "contrast-checked",
+      "detail": "对比度扫描 102 个文本元素，失败 0 项",
+      "selectors": []
+    }
+  ]
+}
