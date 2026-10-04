@@ -103,7 +103,17 @@ class TestStageFrontendAssets:
         monkeypatch.setattr(stage, "SOURCE", tmp_path / "dist")
         monkeypatch.setattr(stage, "TARGET", tmp_path / "static")
         assert stage.main([]) == 2
-        assert "pnpm build" in capsys.readouterr().err
+        assert "找不到前端产物" in capsys.readouterr().err
+
+    def test_reuses_snapshot_when_source_retired(self, tmp_path, monkeypatch, capsys):
+        """Vue 退役后：frontend/dist 不在、包内快照在 → 直接复用快照并返回 0。"""
+        target = tmp_path / "static"
+        target.mkdir()
+        (target / "index.html").write_text("<div id=app>", encoding="utf-8")
+        monkeypatch.setattr(stage, "SOURCE", tmp_path / "dist")
+        monkeypatch.setattr(stage, "TARGET", target)
+        assert stage.main([]) == 0
+        assert "退役" in capsys.readouterr().out
 
     def test_stages_and_then_check_is_clean(self, tmp_path, monkeypatch, capsys):
         source = tmp_path / "dist"

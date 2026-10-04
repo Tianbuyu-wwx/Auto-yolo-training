@@ -89,12 +89,8 @@ scripts/
 !requirements.txt
 !requirements-dev.txt
 
-# 前端依赖与产物不进上下文：
-#   - node_modules 有 5500+ 文件，灌进去会让上下文膨胀且拖慢每次构建；
-#     镜像内的依赖由 Dockerfile 的 frontend stage 用 pnpm --frozen-lockfile 重装
-#   - dist 是本地陈旧产物，镜像内必须现构建，否则会发布过期的界面
-frontend/node_modules/
-frontend/dist/
+# 前端源码/产物不进上下文：Vue 已退役，镜像只服务 API（/ 返回 JSON 提示）
+frontend/
 # 镜像内现构建前端；本地装填的包内副本若带进去，resolve_frontend_dist 会优先用它
 # —— 那就等于把过期的界面打进镜像
 src/api/static/

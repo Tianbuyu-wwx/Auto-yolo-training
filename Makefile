@@ -132,39 +132,21 @@ gpu-check:  ## 只做 GPU 环境/kernel 检查（秒级，不跑训练）
 tensorboard:  ## 启动 TensorBoard 查看训练曲线（runs/ 目录）
 	$(PYTHON) -m tensorboard.main --logdir runs
 
-# ---------- 前端（Vue SPA，frontend/）----------
-# 前端是控制台的主界面；Gradio 那套已冻结，仅作历史入口保留。
-.PHONY: frontend-install
-frontend-install:  ## 安装前端依赖（pnpm，严格按 lockfile）
-	cd frontend && $(PNPM) install --frozen-lockfile
-
-.PHONY: frontend-dev
-frontend-dev:  ## 启动前端开发服务器（http://127.0.0.1:5173，/api 与 /ws 代理到 8080）
-	cd frontend && $(PNPM) dev
-
-.PHONY: frontend-build
-frontend-build:  ## 构建前端产物到 frontend/dist
-	cd frontend && $(PNPM) build
-
-.PHONY: frontend-test
-frontend-test:  ## 跑前端组件测试（Vitest）
-	cd frontend && $(PNPM) test
-
-.PHONY: frontend-check
-frontend-check:  ## 构建前端并校验产物预算（CI 同款门禁）
-	cd frontend && $(PNPM) build && $(PNPM) check-bundle
-
-.PHONY: frontend-check-all
-frontend-check-all:  ## 前端全套门禁：测试 + 构建 + 产物预算
-	cd frontend && $(PNPM) test && $(PNPM) build && $(PNPM) check-bundle
-
-.PHONY: frontend-preview
-frontend-preview:  ## 本地预览已构建的前端（需后端另跑 ayt-web）
-	cd frontend && $(PNPM) preview
-
+# ---------- 网页控制台 ----------
+# Vue 网页端已退役（桌面启动器为唯一前端，见 src/launcher/）。
+# 下面 web 目标只启动 API 服务本体；/ 在无 SPA 产物时返回 JSON 提示。
 .PHONY: web
-web:  ## 启动控制台（后端 + 已构建的前端，http://127.0.0.1:8080）
+web:  ## 启动 API 服务（http://127.0.0.1:8080；网页端已退役）
 	$(PYTHON) -m src.api.admin --host 127.0.0.1 --port 8080
+
+# ---------- 桌面启动器 ----------
+.PHONY: launcher
+launcher:  ## 启动桌面启动器（pywebview 壳 + 内嵌管理面后端，自动挑空闲端口）
+	$(PYTHON) -m src.launcher.app
+
+.PHONY: launcher-smoke
+launcher-smoke:  ## 启动器冒烟：开窗 8 秒后自动关闭（无交互，自动化验收用）
+	$(PYTHON) -m src.launcher.app --smoke 8
 
 # ---------- 文档 ----------
 .PHONY: docs-install

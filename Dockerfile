@@ -13,38 +13,12 @@
 # 默认入口是 ``bash``，用户可手动执行 ``ayt-web`` / ``ayt-train`` / ``ayt-serve`` 等。
 # 容器启动后不会自动跑训练——避免容器生命周期与训练状态混淆。
 #
-# 关于前端：控制台主界面是 Vue SPA（frontend/），由 Stage 1 构建，
-# 产物 COPY 到 /as/frontend/dist —— src/api/admin.py 就是按这个路径找 dist 的，
-# 找不到会退化成一段 JSON 提示（界面上就只剩一个 JSON 文本，没有控制台）。
+# 关于前端：Vue 网页端已退役（桌面启动器 src/launcher 为唯一前端）。
+# /as/frontend/dist 的 SPA 静态根不再随镜像提供，src/api/admin.py 找不到时
+# 退化为一段 JSON 提示；容器只作 API 服务用途。
 
 ARG PYTHON_VERSION=3.12.13
 ARG TORCH_VARIANT=cpu
-
-# ----------------------------------------------------------------------
-# Stage 1: frontend（构建 Vue SPA）
-# ----------------------------------------------------------------------
-FROM node:22-slim AS frontend
-
-WORKDIR /fe
-
-# 先只拷依赖清单：只要 lockfile 没变，pnpm install 这一层就能命中缓存，
-# 改业务代码不会触发重新安装依赖。
-# pnpm-workspace.yaml 与 .npmrc 是必需的 —— 前者登记了 esbuild 的构建白名单，
-# 后者改了 pnpm 的依赖校验行为，缺任何一个都会导致依赖树与本地不一致。
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml frontend/.npmrc ./
-
-# corepack 会按 package.json 的 packageManager 字段拉取指定 pnpm 版本，
-# 避免 CI/本地/镜像三处 pnpm 版本漂移导致 --frozen-lockfile 失败
-# （本仓库钉的是 pnpm@11.22.0）。
-# COREPACK_ENABLE_DOWNLOAD_PROMPT=0 是必需的：corepack >= 0.20 在首次下载
-# package manager 前会交互式问一句 Y/n，而 docker build 没有 TTY ——
-# 不同 corepack 版本对此的处理并不一致（有的跳过，有的直接 abort），
-# 显式关掉这个提示才能让构建行为确定。
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-RUN corepack enable && pnpm install --frozen-lockfile
-
-COPY frontend/ ./
-RUN pnpm build
 
 # ----------------------------------------------------------------------
 # Stage 2: builder（独立 /opt/venv 便于 COPY 到 runtime）
@@ -142,9 +116,7 @@ COPY --chown=ayt:ayt src/ ./src/
 COPY --chown=ayt:ayt train.py tune.py eval.py export.py serve.py validate_data.py gradio_app.py ayt_models.py ./
 COPY --chown=ayt:ayt test/ ./test/
 
-# 前端产物。路径必须是 /as/frontend/dist —— src/api/admin.py 由 PROJECT_ROOT
-# 拼出 frontend/dist 作为 SPA 的静态根，放在别处等于没放。
-COPY --from=frontend --chown=ayt:ayt /fe/dist ./frontend/dist
+# 前端产物：Vue 网页端已退役，这里不再提供 SPA 静态根（/ 返回 JSON 提示）。
 
 # 数据/模型/产物目录（运行时挂载）
 # .ci/ 也要一起建并 chown：YOLO_CONFIG_DIR / MPLCONFIGDIR 指到这里，缺了它

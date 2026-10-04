@@ -50,8 +50,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if not (SOURCE / "index.html").is_file():
-        print(f"[stage] 找不到前端产物：{SOURCE}\n"
-              f"        先构建：cd frontend && pnpm install && pnpm build", file=sys.stderr)
+        if (TARGET / "index.html").is_file():
+            print(
+                "[stage] frontend/dist 不存在（Vue 网页端已退役，启动器为唯一前端）；"
+                "复用包内静态快照 src/api/static/，无需装填。"
+            )
+            return 0
+        print(f"[stage] 找不到前端产物：{SOURCE}（且包内快照也不存在）", file=sys.stderr)
         return 2
 
     if args.check:
