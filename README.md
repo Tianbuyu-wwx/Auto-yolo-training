@@ -2,13 +2,13 @@
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-378%20passed-brightgreen.svg)](#测试)
+[![Tests](https://img.shields.io/badge/tests-402%20passed-brightgreen.svg)](#测试)
 [![Ruff](https://img.shields.io/badge/lint-ruff-blue.svg)](https://github.com/astral-sh/ruff)
 [![Docker](https://img.shields.io/badge/docker-cpu%20%7C%20cu128-2496ED.svg)](Dockerfile)
 
 通用 YOLO 模型自动训练平台：数据校验、训练、评估、导出、推理一体化。支持 YOLOv5 / YOLOv8 / YOLOv11 / YOLO26 全系列，4 大任务类型（检测 / 分割 / 姿态 / 分类）。
 
-面向需要在受控环境中建立训练基线的开发者与团队。提供 **Web 控制台**、命令行、FastAPI 推理服务三种入口，并支持 Docker 一键部署。Web 控制台是主界面（Vue 3 SPA，`frontend/`）；原 Gradio 界面已冻结，仅作历史入口保留。
+面向需要在受控环境中建立训练基线的开发者与团队。提供 **桌面启动器**、命令行、FastAPI 推理服务三种入口，并支持 Docker 一键部署。桌面启动器（pywebview 壳）是唯一主界面；原 Vue 网页端与 Gradio 界面均已退役。
 
 ---
 
@@ -23,9 +23,9 @@
 | **导出** | 12 种格式（ONNX / TensorRT / OpenVINO / TorchScript / CoreML / TFLite / 等） |
 | **注册表** | ModelRegistry 自动注册训练产物；控制台可注册版本、打标、对比、晋升生产、删除 |
 | **模型** | 27 个预训练权重（4 家族 × 5 尺寸 + 4 任务），自动识别 + 一键下载 |
-| **接口** | **Web 控制台（Vue 3 SPA，7 页）** + CLI（`ayt-web` / `ayt-train` 等 9 个）+ FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
-| **部署** | Dockerfile（CPU + cu128 双 tag，含前端构建阶段） + docker-compose（4 profile） + Makefile（35 目标） |
-| **质量** | pytest 378 passed / 1 skipped（Windows + Linux 双平台）+ 覆盖率门禁 ≥69% + ruff 全量规则 + Vitest 组件测试 100 条 + pip-audit 依赖审计 + 打包链路（wheel 内含控制台界面，twine check + 装后自检） + 数据集清单（`make dataset-manifest` / `dataset-verify`，回答"这次用的是哪份数据"） + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含前端构建与产物预算门禁） |
+| **接口** | **桌面启动器（pywebview，9 页）** + CLI（`ayt-train` / `ayt-serve` 等 9 个）+ FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
+| **部署** | Dockerfile（CPU + cu128 双 tag，纯 API 服务） + docker-compose（4 profile） + Makefile |
+| **质量** | pytest 402 passed / 2 skipped（Windows + Linux 双平台）+ 覆盖率门禁 ≥69% + ruff 全量规则 + pip-audit 依赖审计 + 打包链路（wheel 内含界面资源，twine check + 装后自检） + 数据集清单（`make dataset-manifest` / `dataset-verify`，回答"这次用的是哪份数据"） + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含桌面启动器 e2e 冒烟） |
 
 ---
 
@@ -72,7 +72,7 @@ docker run -it --rm -p 8080:8080 -p 8000:8000 \
     ayt:cpu
 
 # 容器内：
-ayt-web    --host 0.0.0.0 --port 8080   # Web 控制台（Vue SPA + 管理面 API）→ http://localhost:8080
+ayt-web    --host 0.0.0.0 --port 8080   # 管理面 API（启动器 / API 客户端连它）→ http://localhost:8080
 ayt-serve  --host 0.0.0.0               # FastAPI 推理服务
 ayt-train  my_dataset --model yolov8s.pt --epochs 100   # 训练
 
@@ -82,8 +82,8 @@ docker run --gpus all -it --rm -p 8080:8080 -p 8000:8000 \
     -v $(pwd)/dataset:/as/dataset ayt:cu128
 ```
 
-> 镜像内已包含构建好的前端产物（构建时由独立的 Node 阶段生成并拷贝到
-> `/as/frontend/dist`），`ayt-web` 启动后直接可用，无需在容器里装 Node。
+> 镜像不再包含网页界面（Vue 已退役），`ayt-web` 只提供 API；
+> 图形界面请用宿主机的桌面启动器（`make launcher`）。
 
 > 构建时若下载 PyPI 超时（国内直连常见），pip 会把它报成
 > `Cannot install X because these package versions have conflicting dependencies` ——
@@ -104,74 +104,53 @@ docker compose --profile gpu up         # 启动 GPU bash 容器
 
 ---
 
-## 🖥 Web 控制台
+## 🖥 桌面启动器（唯一前端）
 
-控制台是这套工具的主界面，前端源码在 `frontend/`（Vue 3 + Vite），后端是
-`src/api/admin.py` 的管理面 FastAPI。7 个页面：总览 / 数据集 / 训练配置 /
-训练监控 / 结果 · 模型库 / 模型注册中心 / 任务队列。
-
-### 生产模式（单进程，同源）
-
-```bash
-make frontend-build          # 构建到 frontend/dist
-make web                     # 等价于 python -m src.api.admin --host 127.0.0.1 --port 8080
-# 打开 http://127.0.0.1:8080
-```
-
-后端按 `包内 static/ → 仓库 frontend/dist` 的顺序找界面（源码运行走后者，
-`pip` 装出来的 wheel 走前者 —— 打包时已把前端产物装进 `src/api/static/`），
-找到后静态托管并启用 SPA 回退；**两处都没有时 `/` 只返回一段 JSON 提示**——
-界面空白先查这里。
-
-### 开发模式（热更新）
+启动器是日常使用的主界面：pywebview 窗口壳 + 内嵌管理面后端（自动挑空闲端口、
+随窗口启停）。9 个页面：首页 / 数据集 / 训练配置 / 训练监控 / 模型库 / 注册中心 /
+队列 / 环境自检 / 设置 —— 「选数据集 → 调参 → 开训 → 看曲线 → 导出 → 注册版本」
+全流程都在这里点出来。
 
 ```bash
-make frontend-install        # pnpm install --frozen-lockfile
-make frontend-dev            # Vite 起在 5173，/api 与 /ws 代理到 8080
-# 另一个终端：
-make web                     # 后端 API
-# 打开 http://127.0.0.1:5173
+pip install -e ".[launcher]"     # 装启动器依赖（pywebview）
+make launcher                    # 或：python -m src.launcher
 ```
 
-### 前端测试与产物预算
+窗口即控制台：无边框设计、右上自绘最小化/最大化/关闭，顶栏空白处可拖动。
+没有 GPU 的机器也能安装（界面照常可用，只是训练不可用）。
 
-前端有两道门禁。**组件测试**（Vitest + jsdom）：
+### e2e 验证（开发者）
 
 ```bash
-make frontend-test           # 等价于 cd frontend && pnpm test
+make launcher-smoke              # 开窗数秒后自动关闭（无交互验收）
+cd launcher-design/_selfcheck
+node check-v8.mjs                # 9 页布局审计：溢出 / 越界 / 重叠 / 死链
+node e2e-live.mjs                # 真后端端到端：真数据渲染 + 动作拦截（21 断言）
 ```
 
-覆盖 REST/WS 封装的边界（错误转文案、WS 自动重连）、组件判定逻辑
-（占位态、状态→文案映射）、以及**「后端空数据时 7 个页面都能挂载」的整页冒烟**
-—— 后者是前端唯一能自动发现整页白屏的手段。
-
-**产物体积预算**，CI 会跑，本地可单独执行：
+### API 服务与推理服务
 
 ```bash
-make frontend-check          # 构建 + 校验预算
+make web                     # 管理面 API（无界面；/ 返回 JSON 提示）
+ayt-serve                    # FastAPI 推理服务（http://127.0.0.1:8000，含 OpenAPI 文档）
 ```
 
-首屏 JS 预算 160 KB、单个 chunk 500 KB。首屏资产由 `dist/index.html` 解析得出，
-所以路由懒加载的页面与按需加载的图表库不会被算进首屏。
-
-> **视口要求**：控制台定位为桌面端工具，最低支持 **1024px** 视口宽度。
-> 更窄的窗口会显示明确的提示页，而不是让布局静默破版。
-
-### 前端目录结构
+### 启动器组成与验证工具链
 
 ```
-frontend/
-├── index.html
-├── vite.config.js          # 开发代理 + 生产分 chunk 策略
-├── scripts/check-bundle.mjs# 产物预算门禁
-├── test/                   # Vitest 脚手架（假 api 模块 + 空数据契约）
-└── src/
-    ├── main.js  router.js  App.vue
-    ├── lib/                # api.js（REST + WS 封装）、toast.js（全局反馈）
-    ├── styles/tokens.css   # 全部设计 token 与组件样式（单一样式来源）
-    ├── components/         # LineChart / LogConsole / ToastHost
-    └── pages/              # 7 个页面 + NotFoundPage
+src/launcher/                # 运行时（启动器本体）
+├── app.py                   # pywebview 窗口壳 + LauncherWinAPI（窗口控制/文件对话框）
+├── backend.py               # 内嵌管理面后端（子进程 uvicorn，自动挑端口）
+├── features.py              # 推理服务生命周期 / 打开路径 / 诊断包 / ZIP 上传
+└── static/                  # UI 包：index.html（v8 冻结原型）+ live.js（真数据层）+ fonts/
+
+launcher-design/             # 设计源与验证工具链（v8 冻结 + _selfcheck 脚本）
+├── AYT-Launcher-v8.html     # 设计源（冻结基线）
+└── _selfcheck/              # check-v8 / smoke-v8 / audit-v8 / e2e-live / e2e-full
 ```
+
+`live.js` 是双模式数据层：`file://` 下为原型演示；`http(s)` 下探测 `/api/health`
+接管真数据、真动作与 WebSocket 训练流。
 
 ---
 
@@ -195,7 +174,7 @@ frontend/
 |---|---|
 | `make help` | 显示所有目标 |
 | `make install` | 安装运行时 + 开发依赖 |
-| `make test` | 跑测试套件（379 tests） |
+| `make test` | 跑测试套件（404 tests） |
 | `make test-cov-gate` | 覆盖率门禁（CI 同款：地板 69%，基线 73%） |
 | `make audit` | 依赖安全审计（pip-audit，本地看全量） |
 | `make lint` | ruff 检查 |
@@ -205,15 +184,11 @@ frontend/
 | `make smoke-validate` | 烟雾数据校验 |
 | `make gpu-check` | GPU 环境/kernel 检查（秒级，不跑训练） |
 | `make gpu-smoke` | GPU 通道验收：标记用例 + 真跑一次 CUDA 训练 |
-| `make frontend-install` | 安装前端依赖（pnpm，严格按 lockfile） |
-| `make frontend-dev` | 启动前端开发服务器（http://127.0.0.1:5173） |
-| `make frontend-build` | 构建前端产物到 `frontend/dist` |
-| `make frontend-test` | 跑前端组件测试（Vitest） |
-| `make frontend-check` | 构建前端并校验产物预算（CI 同款门禁） |
-| `make frontend-check-all` | 前端全套门禁：测试 + 构建 + 产物预算 |
-| `make web` | 启动控制台（后端 + 已构建的前端，http://127.0.0.1:8080） |
-| `make dist` | 打包 sdist + wheel（含前端产物）并 twine check |
-| `make dist-check` | 校验包内静态资源与 `frontend/dist` 是否一致 |
+| `make launcher` | 启动桌面启动器（pywebview 壳 + 内嵌管理面后端，自动挑空闲端口） |
+| `make launcher-smoke` | 启动器冒烟：开窗数秒后自动关闭（自动化验收） |
+| `make web` | 启动 API 服务（http://127.0.0.1:8080；网页端已退役，无界面） |
+| `make dist` | 打包 sdist + wheel 并 twine check |
+| `make dist-check` | 校验包内静态资源与源码一致 |
 | `make docs-install` | 安装 MkDocs 依赖 |
 | `make docs` | 本地启动 MkDocs 预览（http://127.0.0.1:8000） |
 | `make docs-build` | 构建 MkDocs 静态站点（`site/`） |
@@ -236,7 +211,7 @@ ayt-eval      # 评估
 ayt-export    # 导出
 ayt-serve     # FastAPI 推理
 ayt-validate  # 数据校验
-ayt-web       # Web 控制台（Vue SPA + 管理面 API，默认 127.0.0.1:8080）
+ayt-web       # 管理面 API（桌面启动器/客户端连它；网页端已退役，默认 127.0.0.1:8080）
 ayt-gradio    # Gradio 界面（已冻结，仅作历史入口）
 ayt-models    # 预训练模型清单与下载（list / local / download）
 ```
@@ -350,7 +325,7 @@ python ayt_models.py download yolov8n.pt
 ## 🧪 测试
 
 ```bash
-# 跑全部 CPU-safe 测试（379 tests）
+# 跑全部 CPU-safe 测试（404 tests）
 make test
 
 # 跑单个文件
@@ -360,7 +335,7 @@ python -m pytest test/test_data_validator.py -v
 make test-cov
 ```
 
-**测试统计**：378 passed, 1 skipped in ~20s（`pytest -m "not gpu and not training"`）。
+**测试统计**：402 passed, 2 skipped in ~26s（`pytest -m "not gpu and not training"`）。
 
 > **GPU 通道**：`gpu` 标记的用例不在上面这条命令里（GitHub 托管的 runner 没有 GPU）。
 > 本机验证用 `make gpu-smoke` —— 它先跑标记用例（驱动可见性、算力、**真算一遍 CUDA

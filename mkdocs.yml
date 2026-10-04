@@ -83,7 +83,7 @@ markdown_extensions:
 nav:
   - 首页: README.md
   - 快速开始: quickstart.md
-  - Web 控制台: console.md
+  - 桌面启动器: launcher.md
   - 数据集: datasets.md
   - API 推理服务: api.md
   - 打包与发布: publishing.md

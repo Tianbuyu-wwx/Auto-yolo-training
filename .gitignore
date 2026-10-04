@@ -126,6 +126,7 @@ full-analysis-*.md
 generalization-plan-*.md
 frontend-review-*.md
 frontend-optimization-plan-*.md
+launcher-plan-*.md
 
 # Ultralytics 运行期生成（与 YOLO_CONFIG_DIR 配置无关的 fallback 目录）
 Ultralytics/
@@ -145,3 +146,12 @@ configs/**/dummy_dataset_*.yaml
 # （device / epochs / imgsz / batch 全变），入库只会带来「跑一次训练就脏一棵树」
 # 的假改动。上面那条 dummy_dataset_* 规则只覆盖了测试生成的，这里补齐全部。
 configs/train/*_auto.yaml
+
+# 启动器设计过程产物（本地保留；设计源 AYT-Launcher-v8.html + _selfcheck 脚本入库）
+launcher-design/shots/
+launcher-design/_ref/
+launcher-design/_selfcheck/*.png
+launcher-design/_selfcheck/archive/
+
+# 历史分析/规划文档归档区（本地参考，不入版本库）
+docs/archive/

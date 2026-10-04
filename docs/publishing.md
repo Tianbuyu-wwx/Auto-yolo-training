@@ -2,31 +2,26 @@
 
 本页是**维护者**视角的发布流程；普通使用者只需 `pip install auto-yolo-training`。
 
-## 为什么打包这一步有坑
+## 关于打包
 
-控制台是 FastAPI 托管的一堆静态文件，而它们生成在仓库根的 `frontend/dist` ——
-**不在任何 Python 包里**。不特殊处理的话，`pip install` 出来的 wheel 只有 API：
-`ayt-web` 起来了，但首页返回一段 JSON 提示。所以打包链路里多了一步「装填」：
-
-```
-pnpm build  →  frontend/dist  ──stage_frontend_assets.py──▶  src/api/static/  →  wheel
-```
-
-运行时按 `显式指定 > 包内 static/ > 仓库 frontend/dist` 的顺序找界面
-（`src/api/admin.py::resolve_frontend_dist`），所以源码运行与安装运行都能用。
+界面运行时不再包含 Web 前端（Vue 已退役，桌面启动器为唯一前端）。仓库里保留一个
+历史快照目录 `src/api/static/`（旧控制台的最后构建），打包时直接打进 wheel。
+运行时 `resolve_frontend_dist` 按 `显式指定 > 包内 static/ > 仓库 frontend/dist`
+的顺序找 SPA 产物；找不到时 `/` 返回一段 JSON 提示，属**正常降级**（启动器不受影响，
+它显式指定自己的 UI 目录）。
 
 ## 本地打一个包（不发布）
 
 ```bash
-make dist          # 构建前端 → 装填 → build → twine check（产物在 dist/）
-make dist-check    # 只校验包内静态资源与 frontend/dist 是否一致（CI 用）
+make dist          # 装填静态资源 → build → twine check（产物在 dist/）
+make dist-check    # 只校验包内静态资源与源码快照是否一致（CI 用）
 ```
 
 装到临时环境里自测（推荐每次发版前做一次）：
 
 ```bash
 uv venv /tmp/ayt-check && uv pip install --python /tmp/ayt-check/bin/python dist/*.whl
-cd /tmp && /tmp/ayt-check/bin/ayt-web --port 18099    # 首页应当是控制台界面
+cd /tmp && /tmp/ayt-check/bin/ayt-web --port 18099    # 首页返回 JSON 提示属正常（无界面产物）
 ```
 
 ## 发版流程
@@ -34,7 +29,7 @@ cd /tmp && /tmp/ayt-check/bin/ayt-web --port 18099    # 首页应当是控制台
 1. 改版本号：`pyproject.toml` 的 `version`（当前 `0.1.0`）；
 2. 更新 `README.md` / `docs/about.md` 里可机检的数字（测试数、页面数）并重跑
    `python scripts/sync_docs_readme.py` —— `test/test_docs_consistency.py` 会挡住漂移；
-3. 本地全绿：`make test`、`make lint`、`make frontend-check-all`；
+3. 本地全绿：`make test`、`make lint`、`make launcher-smoke`（桌面壳冒烟）；
 4. 打标签并推送：
 
    ```bash

@@ -117,6 +117,7 @@ def test_readme_numbers_match_the_suite() -> None:
 # ----------------------------------------------------------------------
 # 3. README / 控制台文档里的页面数 == frontend 实际页面数
 # ----------------------------------------------------------------------
+@pytest.mark.skipif(not PAGES_DIR.is_dir(), reason="Vue 前端已退役（桌面启动器为唯一前端）")
 def test_documented_page_count_matches_frontend() -> None:
     """README 与 console.md 宣称的页面数必须等于 frontend/src/pages 下的实际页面数"""
     pages = [p for p in PAGES_DIR.glob("*.vue") if p.name != "NotFoundPage.vue"]
