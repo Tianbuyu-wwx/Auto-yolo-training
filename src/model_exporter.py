@@ -247,17 +247,26 @@ class ModelExporter:
 
             model = YOLO(str(model_path))
 
-            # 构建导出参数
-            export_kwargs = {
-                "format": fmt,
-                "imgsz": imgsz,
+            # 构建导出参数（按格式过滤：ultralytics 8.3+ 对不支持的参数会硬报错，
+            # 如 workspace 仅支持 engine）
+            export_kwargs = {"format": fmt, "imgsz": imgsz}
+            _fmt_extra = {
+                "onnx": ("half", "dynamic", "simplify", "opset"),
+                "engine": ("half", "dynamic", "workspace"),
+                "openvino": ("half", "dynamic"),
+                "torchscript": ("half",),
+            }.get(fmt, ("half",))
+            _vals = {
                 "half": half,
-                "int8": int8,
                 "dynamic": dynamic,
                 "simplify": simplify,
                 "opset": opset,
                 "workspace": workspace,
             }
+            for _k in _fmt_extra:
+                export_kwargs[_k] = _vals[_k]
+            if int8:
+                export_kwargs["int8"] = True
 
             # 执行导出
             export_path = model.export(**export_kwargs)

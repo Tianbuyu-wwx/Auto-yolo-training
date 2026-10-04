@@ -2,7 +2,7 @@
 管理面 API（前端升级 M1）
 
 把 DatasetService / TrainingService / TaskQueue 包成 REST + WebSocket，
-供独立前端（frontend/，Vue 3 SPA）使用；Gradio 版与之并行，共用同一服务层。
+供启动器（桌面壳，唯一前端）与 API 客户端使用；Gradio 版与之并行，共用同一服务层。
 
 挂载方式：
     from src.api.admin import create_admin_app
@@ -787,6 +787,114 @@ def create_admin_app(
             "status": "ok",
             "model_loaded": training_svc.state.is_running,
         }
+
+    @app.get("/api/launcher/env-report")
+    def launcher_env_report():
+        """启动器环境自检（轻量采样：不 import torch——元数据 + nvidia-smi 子进程）。
+
+        设计约束：GPU 信息走 ``nvidia-smi`` 子进程而不是 ``torch.cuda``——后者会
+        在管理面进程里初始化 CUDA 上下文（占显存、拖慢冷启动），对「只是看一眼
+        环境」的诉求完全不值得。torch/ultralytics 版本用包元数据读，同样零 import。
+        """
+        import platform as _platform
+        import shutil as _shutil
+        import subprocess as _subprocess
+        from importlib import metadata as _metadata
+
+        def _pkg_version(name: str) -> str | None:
+            try:
+                return _metadata.version(name)
+            except Exception:
+                return None
+
+        gpu: dict[str, str | None] = {"name": None, "memory": None, "driver": None}
+        try:
+            proc = _subprocess.run(
+                ["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader"],
+                capture_output=True,
+                text=True,
+                timeout=4,
+            )
+            if proc.returncode == 0 and proc.stdout.strip():
+                parts = [p.strip() for p in proc.stdout.strip().splitlines()[0].split(",")]
+                if len(parts) >= 3:
+                    gpu = {"name": parts[0], "memory": parts[1], "driver": parts[2]}
+        except Exception:
+            pass
+
+        disks: dict[str, dict[str, int]] = {}
+        try:
+            disk_roots = [base]
+            for letter in ("C", "D", "E", "F"):
+                root = Path(f"{letter}:\\")
+                if root.exists():
+                    disk_roots.append(root)
+            for root in disk_roots:
+                try:
+                    usage = _shutil.disk_usage(str(root))
+                    key = str(root.drive + "\\") if getattr(root, "drive", "") else str(root)
+                    disks[key] = {"total_gb": round(usage.total / 1e9), "free_gb": round(usage.free / 1e9)}
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        return {
+            "python": _platform.python_version(),
+            "platform": f"{_platform.system()} {_platform.release()}",
+            "torch": _pkg_version("torch"),
+            "ultralytics": _pkg_version("ultralytics"),
+            "gpu": gpu,
+            "disks": disks,
+            "base_dir": str(base),
+        }
+
+    # ================ 启动器扩展：推理服务 / 受控打开 / 诊断包 / 回收站 ================
+    from src.launcher.features import InferenceManager, diag_pack as _diag_pack, open_path as _open_path
+
+    _inference_mgr = InferenceManager(base)
+
+    @app.get("/api/inference/status")
+    def inference_status():
+        return _inference_mgr.status()
+
+    @app.post("/api/inference/start")
+    def inference_start(model_path: str | None = None):
+        result = _inference_mgr.start(model_path=model_path)
+        if result.get("status") == "error":
+            raise HTTPException(400, result.get("message", "推理服务启动失败"))
+        return result
+
+    @app.post("/api/inference/stop")
+    def inference_stop():
+        return _inference_mgr.stop()
+
+    @app.post("/api/launcher/open-path")
+    def launcher_open_path(rel_path: str):
+        result = _open_path(rel_path, base)
+        if result["status"] == "error":
+            raise HTTPException(400, result["message"])
+        return result
+
+    @app.post("/api/launcher/diag-pack")
+    def launcher_diag_pack():
+        return _diag_pack(base)
+
+    @app.post("/api/recycle/purge")
+    def recycle_purge(name: str | None = None):
+        """永久删除回收站条目（缺省清空全部）。"""
+        import shutil as _shutil
+
+        recycle_dir = dataset_svc.recycle_dir
+        if not recycle_dir.is_dir():
+            return {"status": "ok", "removed": 0}
+        targets = [recycle_dir / name] if name else [p for p in recycle_dir.iterdir() if p.is_dir()]
+        removed = 0
+        for target in targets:
+            if target.is_dir() and target.parent == recycle_dir:
+                _shutil.rmtree(target, ignore_errors=True)
+                removed += 1
+        return {"status": "ok", "removed": removed}
 
     # ------------------------------------------------------------------
     # 前端静态托管（vite build 产物存在时，SPA 回退到 index.html）

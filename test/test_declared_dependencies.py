@@ -49,6 +49,7 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 # 把它留在必需依赖里等于让所有人生成 40MB+ 的安装体积去装一个不用的界面。
 OPTIONAL_FEATURE_IMPORTS = {
     "gradio": "已冻结的 Gradio 界面（pyproject extra: [gradio]）",
+    "webview": "桌面启动器窗口壳（pyproject extra: [launcher]）",
 }
 
 

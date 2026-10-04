@@ -56,6 +56,10 @@ tensorrt = ["tensorrt>=10.0"]
 # 控制台（ayt-web）与训练/推理链路都不依赖它；未安装时 `ayt-gradio`
 # 会打印可操作的报错而不是 ImportError 堆栈。
 gradio = ["gradio>=5.0"]
+# 桌面启动器（Phase 1+）：pywebview 壳 + 内嵌管理面后端。
+# 默认不安装：pip install 'auto-yolo-training[launcher]'
+# （Windows 走 WebView2；训练/控制台链路不依赖它，只有 ayt-launcher 需要。）
+launcher = ["pywebview>=6.2"]
 # 开发与测试。含 gradio：测试会导入 UI 模块（test_phase1 / test_phase3）
 dev = [
     "gradio>=5.0",
@@ -109,6 +113,8 @@ include = ["src*"]
 # 形态就是「控制台 + API」。
 [tool.setuptools.package-data]
 "src.api" = ["static/*", "static/**/*"]
+# 启动器 UI 是手写静态文件（无构建步骤），直接随包分发。
+"src.launcher" = ["static/*", "static/**/*"]
 
 [project.scripts]
 # 阶段 B3：安装后系统 PATH 可直接调用
@@ -123,6 +129,8 @@ ayt-models = "ayt_models:main"  # 阶段 C5：预训练模型清单与下载
 # 管理面 Web（FastAPI + Vue SPA）。src/api/admin.py 的 CLI 文档字符串一直宣称
 # 存在该入口，但此前从未注册，导致 pip install -e . 后 ayt-web 不可用。
 ayt-web = "src.api.admin:main"
+# 桌面启动器：内嵌管理面后端 + pywebview 窗口（需要 [launcher] extra）
+ayt-launcher = "src.launcher.app:main"
 
 [project.gui-scripts]
 # Windows 菜单项；不影响 Unix
