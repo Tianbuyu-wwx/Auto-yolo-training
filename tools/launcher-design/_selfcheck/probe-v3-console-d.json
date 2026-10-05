@@ -1,0 +1,134 @@
+{
+  "probe": "ui-craft-studio/1.0",
+  "url": "file:///E:/%E9%A1%B9%E7%9B%AE/Auto-yolo-training/tools/launcher-design/AYT-Launcher-v3.html?page=console&scene=running#",
+  "ts": "2026-10-04T08:29:27.629Z",
+  "viewport": [
+    1560,
+    940
+  ],
+  "counts": {
+    "visible": 105,
+    "textEls": 39
+  },
+  "tiers": {
+    "fontSize": [
+      {
+        "v": "12",
+        "c": 36
+      },
+      {
+        "v": "11",
+        "c": 1
+      },
+      {
+        "v": "13",
+        "c": 1
+      },
+      {
+        "v": "15",
+        "c": 1
+      }
+    ],
+    "fontWeight": [
+      {
+        "v": "440",
+        "c": 30
+      },
+      {
+        "v": "400",
+        "c": 8
+      },
+      {
+        "v": "520",
+        "c": 1
+      }
+    ],
+    "radius": [
+      {
+        "v": "10",
+        "c": 7
+      },
+      {
+        "v": "7",
+        "c": 3
+      },
+      {
+        "v": "8",
+        "c": 2
+      },
+      {
+        "v": "6",
+        "c": 1
+      },
+      {
+        "v": "full",
+        "c": 1
+      }
+    ],
+    "lineHeight": [
+      {
+        "v": "22",
+        "c": 27
+      },
+      {
+        "v": "normal",
+        "c": 9
+      },
+      {
+        "v": "17",
+        "c": 1
+      },
+      {
+        "v": "20",
+        "c": 1
+      },
+      {
+        "v": "23",
+        "c": 1
+      }
+    ],
+    "background": [
+      {
+        "v": "rgb(19, 17, 16)",
+        "c": 2
+      },
+      {
+        "v": "rgb(10, 9, 8)",
+        "c": 1
+      },
+      {
+        "v": "rgb(12, 10, 9)",
+        "c": 1
+      },
+      {
+        "v": "rgb(143, 176, 126)",
+        "c": 1
+      }
+    ]
+  },
+  "stats": {
+    "fontTierCount": 4,
+    "mainFontShare": 0.923,
+    "halfPixel": [],
+    "nonInteger": []
+  },
+  "contrast": {
+    "checked": 35,
+    "skipped": 4,
+    "fails": []
+  },
+  "findings": [
+    {
+      "severity": "P1",
+      "rule": "radius-tiers",
+      "detail": "圆角 5 档（>3）：10px×7 / 7px×3 / 8px×2 / 6px×1 / fullpx×1",
+      "selectors": []
+    },
+    {
+      "severity": "INFO",
+      "rule": "contrast-checked",
+      "detail": "对比度扫描 35 个文本元素，失败 0 项",
+      "selectors": []
+    }
+  ]
+}

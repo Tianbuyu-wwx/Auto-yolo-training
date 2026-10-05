@@ -46,7 +46,7 @@ inference / launcher）+ WebSocket。没有界面产物时 `/` 返回 JSON 提�
 
 ```bash
 make launcher-smoke                 # 开窗数秒自关（无交互验收）
-cd launcher-design/_selfcheck
+cd tools/launcher-design/_selfcheck
 node check-v8.mjs                   # 布局审计（溢出 / 越界 / 重叠 / 死链 × 9 页）
 node e2e-live.mjs                   # 真后端 e2e（21 断言：真数据渲染 + 动作拦截）
 python e2e-full.py --epochs 3       # 全链路：真训练 + 注册 + 导出 + 推理（需 GPU）

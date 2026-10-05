@@ -148,10 +148,11 @@ configs/**/dummy_dataset_*.yaml
 configs/train/*_auto.yaml
 
 # 启动器设计过程产物（本地保留；设计源 AYT-Launcher-v8.html + _selfcheck 脚本入库）
-launcher-design/shots/
-launcher-design/_ref/
-launcher-design/_selfcheck/*.png
-launcher-design/_selfcheck/archive/
+tools/launcher-design/fonts/
+tools/launcher-design/shots/
+tools/launcher-design/_ref/
+tools/launcher-design/_selfcheck/*.png
+tools/launcher-design/_selfcheck/archive/
 
 # 历史分析/规划文档归档区（本地参考，不入版本库）
 docs/archive/

@@ -106,6 +106,8 @@ docker compose --profile gpu up         # 启动 GPU bash 容器
 
 ## 🖥 桌面启动器（唯一前端）
 
+![AYT 启动器](docs/images/launcher.png)
+
 启动器是日常使用的主界面：pywebview 窗口壳 + 内嵌管理面后端（自动挑空闲端口、
 随窗口启停）。9 个页面：首页 / 数据集 / 训练配置 / 训练监控 / 模型库 / 注册中心 /
 队列 / 环境自检 / 设置 —— 「选数据集 → 调参 → 开训 → 看曲线 → 导出 → 注册版本」
@@ -123,7 +125,7 @@ make launcher                    # 或：python -m src.launcher
 
 ```bash
 make launcher-smoke              # 开窗数秒后自动关闭（无交互验收）
-cd launcher-design/_selfcheck
+cd tools/launcher-design/_selfcheck
 node check-v8.mjs                # 9 页布局审计：溢出 / 越界 / 重叠 / 死链
 node e2e-live.mjs                # 真后端端到端：真数据渲染 + 动作拦截（21 断言）
 ```
@@ -144,7 +146,7 @@ src/launcher/                # 运行时（启动器本体）
 ├── features.py              # 推理服务生命周期 / 打开路径 / 诊断包 / ZIP 上传
 └── static/                  # UI 包：index.html（v8 冻结原型）+ live.js（真数据层）+ fonts/
 
-launcher-design/             # 设计源与验证工具链（v8 冻结 + _selfcheck 脚本）
+tools/launcher-design/             # 设计源与验证工具链（v8 冻结 + _selfcheck 脚本）
 ├── AYT-Launcher-v8.html     # 设计源（冻结基线）
 └── _selfcheck/              # check-v8 / smoke-v8 / audit-v8 / e2e-live / e2e-full
 ```

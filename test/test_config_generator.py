@@ -156,7 +156,12 @@ class TestConfigGenerator(unittest.TestCase):
             epochs=10,
         )
         self.assertIsInstance(config, TrainingConfig)
-        self.assertEqual(config.model, "yolov8n.pt")
+        # 本地 basemodels/ 缓存命中同名权重时会解析为绝对路径（下载缓存优先）；
+        # 全新克隆里保持原名。两种都合法。
+        self.assertTrue(
+            config.model == "yolov8n.pt" or config.model.endswith("yolov8n.pt"),
+            f"unexpected model resolution: {config.model}",
+        )
         self.assertEqual(config.epochs, 10)
 
     def test_discover_datasets(self):
