@@ -104,7 +104,10 @@ dataset/**/*.rar
 # 测试用 dummy + smoke 数据集（CI 与本地共享）
 !dataset/dummy_dataset/**
 !dataset/_smoke_test/**
+# 重包含之后再次排除缓存/派生文件（后匹配优先）
 dataset/_smoke_test/**/*.cache
+dataset/_smoke_test/**/*.npy
+dataset/dummy_dataset/**/*.npy
 
 # Temporary files
 *.tmp
@@ -141,6 +144,11 @@ configs/**/dummy_dataset_*.yaml
 # （device / epochs / imgsz / batch 全变），入库只会带来「跑一次训练就脏一棵树」
 # 的假改动。上面那条 dummy_dataset_* 规则只覆盖了测试生成的，这里补齐全部。
 configs/train/*_auto.yaml
+
+# 数据集路径配置与训练配置快照：ConfigGenerator 的生成物（每个数据集一份，
+# 随训练自动重写）。与 configs/train/*_auto.yaml 同类，不入库。
+configs/models/data*.yaml
+configs/train/*_config.yaml
 
 # 启动器设计过程产物段已移除（设计源与工具链随仓库精简清理，见 git 历史 c4e63db）
 
