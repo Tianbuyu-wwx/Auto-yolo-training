@@ -29,32 +29,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.22.0
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile
-
-      - name: Build frontend
-        working-directory: frontend
-        run: pnpm build
-
-      - name: Stage frontend assets into the package
+      # Vue 网页端已退役（桌面启动器是唯一前端）：静态快照 src/api/static/
+      # 随仓库维护，快照已存在时这步是 no-op——保留它是轮子完整性的记录点。
+      - name: Stage static assets into the package
         run: python scripts/stage_frontend_assets.py
 
       - name: Install packaging tools
@@ -86,6 +68,47 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  setup-exe:
+    # 单文件安装器 AYT-Setup.exe：Windows runner 构建，随 Release 分发。
+    # 双击 = 图形安装向导；换机器时先跑它装环境，再开桌面启动器。
+    runs-on: windows-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write        # softprops/action-gh-release 需要写 Release
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: python -m pip install --upgrade pyinstaller pillow
+
+      - name: Build AYT-Setup.exe
+        run: python installer/build_setup.py --clean
+
+      # 冒烟：打包体里的扫描器要真跑起来并产出报告（防「能打包但装完不能用」）
+      - name: Smoke test (frozen exe runs the scanner)
+        shell: bash
+        run: |
+          ./installer/dist/AYT-Setup.exe --selftest
+          python -c "import json,os,tempfile;p=os.path.join(tempfile.gettempdir(),'ayt-selftest.json');d=json.load(open(p,encoding='utf-8'));assert isinstance(d.get('interpreters'),list),d;print('selftest ok ->',p)"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AYT-Setup
+          path: installer/dist/AYT-Setup.exe
+
+      - name: Attach installer to the GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/dist/AYT-Setup.exe
 
   publish:
     needs: build

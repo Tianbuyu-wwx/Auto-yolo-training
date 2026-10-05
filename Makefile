@@ -11,9 +11,7 @@
 #   make lint           - ruff 检查
 #   make smoke          - 烟雾训练验证（_smoke_test 数据集）
 #   make gpu-smoke      - GPU 通道验收（真跑一次 CUDA 训练）
-#   make frontend-dev   - 启动前端开发服务器（Vite，含 API 代理）
-#   make frontend-build - 构建前端产物（frontend/dist）
-#   make frontend-check - 构建前端并校验产物预算
+#   make dist           - 打包 sdist + wheel（含静态快照校验）
 #   make docs           - 本地启动 MkDocs 预览
 #   make docker-build   - 构建 CPU Docker 镜像
 #   make docker-run     - 启动 Gradio 容器
@@ -21,7 +19,6 @@
 # ---------- 配置 ----------
 PYTHON ?= python
 PIP ?= pip
-PNPM ?= pnpm
 DOCKER_IMAGE ?= ayt
 DOCKER_TAG ?= cpu
 DOCKER_REGISTRY ?= ""
@@ -212,11 +209,10 @@ docker-train:  ## 在容器里跑训练（替换 dataset_name 与 epochs）
 	 ayt-train $(DATASET) --model yolov8s.pt --epochs $(EPOCHS)
 
 # ---------- 打包发布（PyPI）----------
-# 顺序不能省：先构建前端 → 装填进包内 src/api/static/ → 再 build。
-# 少了中间那步，wheel 装出来的控制台只有 API，首页是段 JSON 提示。
+# Vue 网页端已退役（桌面启动器是唯一前端）；静态快照 src/api/static/ 随仓库维护，
+# stage 脚本在快照已存在时是 no-op——保留这一步是为了轮子完整性有一个统一入口。
 .PHONY: dist-assets
-dist-assets:  ## 构建前端并把产物装填进包内（src/api/static/）
-	cd frontend && $(PNPM) install --frozen-lockfile && $(PNPM) build
+dist-assets:  ## 确认包内静态快照（src/api/static/）就绪
 	$(PYTHON) scripts/stage_frontend_assets.py
 
 .PHONY: dist
@@ -225,7 +221,7 @@ dist: dist-assets  ## 打包 sdist + wheel 并做 twine check（产物在 dist/�
 	$(PYTHON) -m twine check dist/*
 
 .PHONY: dist-check
-dist-check:  ## 校验包内静态资源与 frontend/dist 是否一致（CI 用）
+dist-check:  ## 校验包内静态资源与打包快照是否一致（CI 用）
 	$(PYTHON) scripts/stage_frontend_assets.py --check
 
 # ---------- Pre-commit ----------
@@ -245,7 +241,7 @@ clean:  ## 清理临时文件（不删 dataset/artifacts/basemodels/）
 	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
-	rm -rf build/ dist/ frontend/dist/ site/ *.egg-info htmlcov/ .coverage* 2>/dev/null || true
+	rm -rf build/ dist/ site/ *.egg-info htmlcov/ .coverage* 2>/dev/null || true
 	@echo "$(GREEN)✓ 清理完成（未删 dataset/artifacts/basemodels/）$(RESET)"
 
 .PHONY: clean-all
