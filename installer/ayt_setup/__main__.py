@@ -1,18 +1,24 @@
 """AYT 安装器 CLI：
 
-    python -m installer.ayt_setup scan [--install-dir PATH] [--json]
-    python -m installer.ayt_setup plan [--install-dir PATH] [--json]
+    python -m installer.ayt_setup scan    [--install-dir PATH] [--json]
+    python -m installer.ayt_setup plan    [--install-dir PATH] [--json]
+    python -m installer.ayt_setup install [--install-dir PATH] [--execute] [--yes]
+                                          [--gpu|--cpu] [--mirror] [--reuse] [--wheel PATH]
+    python -m installer.ayt_setup gui     [--install-dir PATH]
 
-scan 只做只读探测；plan 在 scan 的基础上给出「缺什么补什么」的安装步骤。
+scan 只做只读探测；plan 给出「缺什么补什么」步骤；install 默认 dry-run 展示
+将执行的动作，加 --execute 才真正执行；gui 启动 tkinter 安装向导。
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
+from .execute import InstallOptions, build_actions, run_actions
 from .plan import build_plan
-from .scan import REQUIRED_PACKAGES, satisfies, scan
+from .scan import REQUIRED_PACKAGES, default_install_dir, satisfies, scan
 
 STATUS_ICON = {"skip": "[·]", "action": "[+]", "warn": "[!]"}
 
@@ -84,15 +90,82 @@ def _fmt_plan(plan: dict) -> str:
     return "\n".join(lines)
 
 
+def _cmd_install(args: argparse.Namespace) -> int:
+    rep = scan(args.install_dir)
+    install_dir = Path(args.install_dir) if args.install_dir else default_install_dir()
+    gpu = args.gpu if args.gpu is not None else bool((rep.get("gpu") or {}).get("present"))
+    opt = InstallOptions(
+        install_dir=install_dir,
+        mode="reuse" if args.reuse else "venv",
+        gpu=gpu,
+        mirror=args.mirror,
+        ayt_source=args.wheel,
+        make_shortcut=True,
+    )
+    actions = build_actions(rep, opt)
+    if not actions:
+        print("没有需要执行的动作。")
+        return 0
+
+    if not args.execute:
+        print("=== 将执行的动作（dry-run；加 --execute 真正执行）===")
+        for a in actions:
+            line = " ".join(a["cmd"]) if a.get("cmd") else a.get("note", "")
+            print(f"  [{a['id']}] {a['title']}")
+            if line:
+                print(f"        {line}")
+        print(f"\n共 {len(actions)} 个动作 · 安装目录：{install_dir}")
+        return 0
+
+    if not args.yes:
+        try:
+            ans = input("确认执行以上动作？[y/N] ").strip().lower()
+        except EOFError:
+            ans = ""
+        if ans not in ("y", "yes"):
+            print("已取消。")
+            return 1
+
+    total = len(actions)
+    print(f"=== 开始执行（{total} 个动作）===")
+
+    def _on_step(i: int, act: dict) -> None:
+        print(f"\n--- [{i + 1}/{total}] {act['title']} ---")
+
+    results = run_actions(
+        actions, install_dir=install_dir, on_line=lambda s: print("   ", s), on_step=_on_step
+    )
+    ok = all(r.get("ok") for r in results)
+    print()
+    for r in results:
+        print(f"{'✓' if r.get('ok') else '×'} {r['title']} {r.get('detail', '')}")
+    print("\n安装完成 ✓" if ok else "\n安装中途失败 ×（详见上方输出）")
+    return 0 if ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="ayt_setup", description="AYT 环境扫描 / 安装计划")
-    ap.add_argument("command", choices=("scan", "plan"), help="scan=只读扫描；plan=安装计划")
+    ap = argparse.ArgumentParser(prog="ayt_setup", description="AYT 环境扫描 / 安装计划 / 安装器")
+    ap.add_argument("command", choices=("scan", "plan", "install", "gui"))
     ap.add_argument("--install-dir", default=None, help="安装目录（默认 %%LOCALAPPDATA%%\\AYT）")
-    ap.add_argument("--json", action="store_true", help="输出机器可读 JSON")
+    ap.add_argument("--json", action="store_true", help="输出机器可读 JSON（scan/plan）")
+    ap.add_argument("--execute", action="store_true", help="install：真正执行（默认 dry-run）")
+    ap.add_argument("--yes", action="store_true", help="install：跳过确认")
+    ap.add_argument("--gpu", dest="gpu", action="store_true", default=None, help="install：强制 GPU 版")
+    ap.add_argument("--cpu", dest="gpu", action="store_false", help="install：强制 CPU 版")
+    ap.add_argument("--mirror", action="store_true", help="install：依赖走清华镜像")
+    ap.add_argument("--reuse", action="store_true", help="install：复用现有环境（跳过安装）")
+    ap.add_argument("--wheel", default="", help="install：AYT wheel 路径（留空=从 PyPI 装）")
     args = ap.parse_args(argv)
 
-    rep = scan(args.install_dir)
+    if args.command == "install":
+        return _cmd_install(args)
 
+    if args.command == "gui":
+        from .gui import main as gui_main
+
+        return gui_main(args.install_dir)
+
+    rep = scan(args.install_dir)
     if args.command == "scan":
         print(json.dumps(rep, ensure_ascii=False, indent=1) if args.json else _fmt_scan(rep))
         return 0
