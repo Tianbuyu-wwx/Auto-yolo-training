@@ -126,6 +126,9 @@ frontend-review-*.md
 frontend-optimization-plan-*.md
 launcher-plan-*.md
 
+# 打包产物：桌面启动器 exe 直接落项目根（双击即用），不入版本库
+/AYT.exe
+
 # Ultralytics 运行期生成（与 YOLO_CONFIG_DIR 配置无关的 fallback 目录）
 Ultralytics/
 

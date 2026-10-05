@@ -4,12 +4,14 @@
     python scripts/build_launcher.py            # 构建
     python scripts/build_launcher.py --clean    # 先清理旧产物再构建
 
-产物：dist/launcher/AYT.exe —— 双击打开启动器（训练/推理子进程用本机 Python）。
+产物：**项目根目录下的 AYT.exe** —— 双击打开启动器；exe 在项目根，
+运行时能直接定位项目（训练/推理子进程用本机 Python 跑项目代码）。
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import shutil
 import subprocess
 import sys
@@ -37,15 +39,16 @@ EXCLUDES = [
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="打包 AYT.exe（桌面启动器）")
-    ap.add_argument("--clean", action="store_true", help="构建前清理 build/dist")
+    ap = argparse.ArgumentParser(description="打包 AYT.exe（桌面启动器，产物落项目根）")
+    ap.add_argument("--clean", action="store_true", help="构建前清理 build/launcher 与旧 AYT.exe")
     args = ap.parse_args()
 
-    out_dir = ROOT / "dist" / "launcher"
     work_dir = ROOT / "build" / "launcher"
+    out_exe = ROOT / "AYT.exe"
     if args.clean:
-        for d in (out_dir, work_dir):
-            shutil.rmtree(d, ignore_errors=True)
+        shutil.rmtree(work_dir, ignore_errors=True)
+        with contextlib.suppress(OSError):
+            out_exe.unlink()  # 正在运行时会被占用，留给 PyInstaller 给出明确报错
 
     cmd = [
         sys.executable,
@@ -58,7 +61,7 @@ def main() -> int:
         "--name",
         "AYT",
         "--distpath",
-        str(out_dir),
+        str(ROOT),  # 产物直接落项目根（双击即用）
         "--workpath",
         str(work_dir),
         "--specpath",
@@ -85,9 +88,8 @@ def main() -> int:
     if proc.returncode != 0:
         return proc.returncode
 
-    out = out_dir / "AYT.exe"
-    if out.exists():
-        print(f"\n产物：{out}（{out.stat().st_size / 1e6:.1f} MB）")
+    if out_exe.exists():
+        print(f"\n产物：{out_exe}（{out_exe.stat().st_size / 1e6:.1f} MB）—— 双击即启动器")
     else:
         print("\n警告：构建结束但未找到产物")
     return 0

@@ -199,6 +199,8 @@ class TrainingService:
         spawn_log_path = stem.with_suffix(".spawn.log")
         spawn_log = open(spawn_log_path, "a", encoding="utf-8")  # noqa: SIM115 —— 交给子进程持有
 
+        from src.runtime_env import no_window_flags
+
         try:
             self.training_proc = subprocess.Popen(
                 [*py, "-m", "src.worker", str(payload_path)],
@@ -206,6 +208,7 @@ class TrainingService:
                 env=env,
                 stdout=spawn_log,
                 stderr=subprocess.STDOUT,
+                creationflags=no_window_flags(),
             )
         except Exception as e:
             logger.exception("[WORKER] 子进程启动失败")

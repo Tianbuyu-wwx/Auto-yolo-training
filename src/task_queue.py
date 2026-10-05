@@ -299,10 +299,31 @@ class QueueRunner:
         )
 
         logger.info("[QUEUE] 启动任务 %s (dataset=%s)", task["id"], task["dataset_name"])
+
+        from src.runtime_env import (
+            no_window_flags,
+            project_root as _project_root,
+            worker_python_cmd,
+        )
+
+        try:
+            root = _project_root()
+            py = worker_python_cmd()
+        except RuntimeError as exc:
+            self.queue.mark_finished(task["id"], success=False, error=str(exc))
+            return
+        if py is None:
+            self.queue.mark_finished(
+                task["id"], success=False,
+                error="未找到带 torch 的 Python 解释器（队列任务需要）",
+            )
+            return
+
         proc = subprocess.Popen(
-            [sys.executable, "-m", "src.worker", str(payload_path)],
-            cwd=str(project_root), env=env,
+            [*py, "-m", "src.worker", str(payload_path)],
+            cwd=str(root), env=env,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=no_window_flags(),
         )
 
         # 等待结束；期间响应取消请求（写 stop 标志 → worker 优雅停止）

@@ -113,11 +113,11 @@ docker compose --profile gpu up         # 启动 GPU bash 容器
 队列 / 环境自检 / 设置 —— 「选数据集 → 调参 → 开训 → 看曲线 → 导出 → 注册版本」
 全流程都在这里点出来。
 
-**方式一 · 双击启动（推荐）**：构建单文件 `AYT.exe`，之后双击就行 ——
+**方式一 · 双击启动（推荐）**：构建单文件 `AYT.exe`（直接落在**项目根目录**），之后双击就行 ——
 
 ```bash
 python scripts/build_launcher.py --clean
-# → dist/launcher/AYT.exe（自包含：界面 + 内嵌管理面后端）
+# → ./AYT.exe（自包含：界面 + 内嵌管理面后端）
 ```
 
 **方式二 · 源码启动**：
@@ -318,7 +318,7 @@ scripts/               # 运维脚本：bootstrap / gpu_smoke / dataset_manifest
 docs/                  # 维护者文档（本地保留，不随仓库发布）
 
 requirements/          # 依赖清单：requirements / dev / lock / constraints
-dist/launcher/         # 打包产物：AYT.exe（scripts/build_launcher.py 生成，不入库；双击即启动器）
+AYT.exe                # 打包产物：桌面启动器（scripts/build_launcher.py 生成，不入库；双击即用）
 configs/               # 训练配置（train/ 下为生成物，不入库）
 
 dataset/               # 数据集（数据是一等公民，保留根位）

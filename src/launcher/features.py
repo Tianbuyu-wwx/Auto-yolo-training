@@ -103,7 +103,7 @@ class InferenceManager:
             if not model:
                 return {"status": "error", "message": "没有可用模型（runs/detect/*/weights/best.pt 为空）"}
             from src.launcher.backend import pick_free_port
-            from src.runtime_env import project_root, worker_python_cmd
+            from src.runtime_env import no_window_flags, project_root, worker_python_cmd
 
             try:
                 root = project_root()
@@ -126,6 +126,7 @@ class InferenceManager:
                     stdout=log,
                     stderr=subprocess.STDOUT,
                     env=env,
+                    creationflags=no_window_flags(),
                 )
             except OSError as exc:
                 return {"status": "error", "message": f"拉起推理子进程失败：{exc}"}

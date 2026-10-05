@@ -97,19 +97,19 @@ jobs:
 
       - name: Verify the exe was produced
         run: |
-          python -c "import pathlib; p=pathlib.Path('dist/launcher/AYT.exe'); assert p.is_file(), p; print('AYT.exe', round(p.stat().st_size/1e6, 1), 'MB')"
+          python -c "import pathlib; p=pathlib.Path('AYT.exe'); assert p.is_file(), p; print('AYT.exe', round(p.stat().st_size/1e6, 1), 'MB')"
 
       - name: Upload launcher artifact
         uses: actions/upload-artifact@v4
         with:
           name: AYT-Launcher
-          path: dist/launcher/AYT.exe
+          path: AYT.exe
 
       - name: Attach launcher to the GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/launcher/AYT.exe
+          files: AYT.exe
 
   publish:
     needs: build

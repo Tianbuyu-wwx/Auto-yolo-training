@@ -79,7 +79,13 @@ def project_root() -> Path:
     )
 
 
-def _no_window() -> int:
+def no_window_flags() -> int:
+    """Windows：``CREATE_NO_WINDOW`` 创建标志。
+
+    GUI（无 console）进程 spawn console 子进程（python / nvidia-smi / …）时，
+    不传这个标志系统会为每个子进程**弹出一个新的控制台窗口**——打包成
+    windowed exe 后表现为「命令行窗口持续弹出」。非 Windows 返回 0。
+    """
     if platform.system() == "Windows":
         return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
     return 0
@@ -96,7 +102,7 @@ def _can_import_torch(py_cmd: list[str]) -> bool:
             ],
             capture_output=True,
             timeout=20,
-            creationflags=_no_window(),
+            creationflags=no_window_flags(),
         )
         return proc.returncode == 0
     except (OSError, subprocess.TimeoutExpired):

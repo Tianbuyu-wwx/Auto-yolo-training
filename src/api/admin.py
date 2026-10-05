@@ -809,11 +809,14 @@ def create_admin_app(
 
         gpu: dict[str, str | None] = {"name": None, "memory": None, "driver": None}
         try:
+            from src.runtime_env import no_window_flags
+
             proc = _subprocess.run(
                 ["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader"],
                 capture_output=True,
                 text=True,
                 timeout=4,
+                creationflags=no_window_flags(),
             )
             if proc.returncode == 0 and proc.stdout.strip():
                 parts = [p.strip() for p in proc.stdout.strip().splitlines()[0].split(",")]
