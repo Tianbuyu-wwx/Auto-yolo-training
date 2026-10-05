@@ -141,12 +141,11 @@ configs/**/dummy_dataset_*.yaml
 # 的假改动。上面那条 dummy_dataset_* 规则只覆盖了测试生成的，这里补齐全部。
 configs/train/*_auto.yaml
 
-# 启动器设计过程产物（本地保留；设计源 AYT-Launcher-v8.html + _selfcheck 脚本入库）
-tools/launcher-design/fonts/
-tools/launcher-design/shots/
-tools/launcher-design/_ref/
-tools/launcher-design/_selfcheck/*.png
-tools/launcher-design/_selfcheck/archive/
+# 启动器设计过程产物段已移除（设计源与工具链随仓库精简清理，见 git 历史 c4e63db）
 
-# 历史分析/规划文档归档区（本地参考，不入版本库）
-docs/archive/
+# 维护者文档本地保留，不随仓库发布（README 展示图 docs/images/ 例外）
+docs/**
+!docs/images/
+!docs/images/**
+
+# 历史分析/规划文档归档区（本地参考，不入版本库）——已由上方 docs/** 覆盖

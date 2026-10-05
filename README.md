@@ -125,9 +125,7 @@ make launcher                    # 或：python -m src.launcher
 
 ```bash
 make launcher-smoke              # 开窗数秒后自动关闭（无交互验收）
-cd tools/launcher-design/_selfcheck
-node check-v8.mjs                # 9 页布局审计：溢出 / 越界 / 重叠 / 死链
-node e2e-live.mjs                # 真后端端到端：真数据渲染 + 动作拦截（21 断言）
+python -m pytest test/test_launcher_app.py test/test_launcher_features.py
 ```
 
 ### API 服务与推理服务
@@ -137,19 +135,18 @@ make web                     # 管理面 API（无界面；/ 返回 JSON 提示�
 ayt-serve                    # FastAPI 推理服务（http://127.0.0.1:8000，含 OpenAPI 文档）
 ```
 
-### 启动器组成与验证工具链
+### 启动器组成
 
 ```
 src/launcher/                # 运行时（启动器本体）
 ├── app.py                   # pywebview 窗口壳 + LauncherWinAPI（窗口控制/文件对话框）
-├── backend.py               # 内嵌管理面后端（子进程 uvicorn，自动挑端口）
+├── backend.py               # 内嵌管理面后端（子进程 uvicorn，自动挑空闲端口）
 ├── features.py              # 推理服务生命周期 / 打开路径 / 诊断包 / ZIP 上传
-└── static/                  # UI 包：index.html（v8 冻结原型）+ live.js（真数据层）+ fonts/
-
-tools/launcher-design/             # 设计源与验证工具链（v8 冻结 + _selfcheck 脚本）
-├── AYT-Launcher-v8.html     # 设计源（冻结基线）
-└── _selfcheck/              # check-v8 / smoke-v8 / audit-v8 / e2e-live / e2e-full
+└── static/                  # UI 包：index.html（界面）+ live.js（真数据层）+ fonts/
 ```
+
+> 设计源（v8 冻结原型）与浏览器端 e2e 工具链曾位于 `tools/launcher-design/`，已随仓库
+> 精简移除；需要时可用 `git checkout c4e63db -- tools/` 从历史恢复。
 
 `live.js` 是双模式数据层：`file://` 下为原型演示；`http(s)` 下探测 `/api/health`
 接管真数据、真动作与 WebSocket 训练流。
@@ -158,15 +155,8 @@ tools/launcher-design/             # 设计源与验证工具链（v8 冻结 + _
 
 ## 📖 文档
 
-完整文档部署在 GitHub Pages：<https://tianbuyu-wwx.github.io/Auto-yolo-training/>
-
-| 文档 | 说明 |
-|---|---|
-| [快速开始](docs/quickstart.md) | 5 分钟跑通指南 |
-| [数据集](docs/datasets.md) | YOLO / 分类 / Roboflow 格式 + 转换 |
-| [API 推理服务](docs/api.md) | FastAPI 端点 + 路径白名单 + Python 客户端示例 |
-| [打包与发布](docs/publishing.md) | 维护者视角：wheel 里的界面、发版流程、Trusted Publishing 配置 |
-| [第一阶段可信基线](docs/第一阶段可信基线实施记录与后续方案.md) | 项目演进历史 |
+维护者文档保留在本地 `docs/`（不随仓库发布），可用 `mkdocs serve` 本地预览；
+面向使用者的指南见本 README 的「快速开始」「训练示例」章节。
 
 ---
 
@@ -313,9 +303,8 @@ python -m src.cli.ayt_models download yolov8n.pt
 ```
 src/                   # 产品代码：launcher / api / cli / 训练管线 / 服务层
 test/                  # pytest 套件（405 用例；conftest 统一引导）
-tools/launcher-design  # 启动器设计源（v8 冻结原型）+ 验证工具链（check / e2e）
 scripts/               # 运维脚本：bootstrap / gpu_smoke / dataset_manifest …
-docs/                  # 文档站源（含 images/）
+docs/                  # 维护者文档（本地保留，不随仓库发布）
 
 requirements/          # 依赖清单：requirements / dev / lock / constraints
 configs/               # 训练配置（train/ 下为生成物，不入库）

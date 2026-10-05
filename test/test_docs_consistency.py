@@ -36,6 +36,7 @@ import sync_docs_readme  # noqa: E402  （先加 path 再导入）
 # ----------------------------------------------------------------------
 # 1. 站点首页 == 由根 README 生成的结果
 # ----------------------------------------------------------------------
+@pytest.mark.skipif(not DOCS_README.exists(), reason="维护者文档仅本地保留（不随仓库发布）")
 def test_docs_readme_is_in_sync_with_root_readme() -> None:
     """docs/README.md 必须等于生成器输出（改根 README 后要重跑同步脚本）"""
     expected = sync_docs_readme.render(README.read_text(encoding="utf-8"))
@@ -105,7 +106,10 @@ def test_readme_numbers_match_the_suite() -> None:
     # 文档索引页同样宣称当前测试数 —— 一起守。
     # 注意**不含** docs/第一阶段可信基线实施记录与后续方案.md：那是 2026-07-22 的历史
     # 快照（92 passed），把它改成今天的数字反而是篡改历史记录。
-    about = (REPO_ROOT / "docs" / "about.md").read_text(encoding="utf-8")
+    about_path = REPO_ROOT / "docs" / "about.md"
+    if not about_path.exists():
+        return  # 维护者文档仅本地保留（不随仓库发布的场景直接通过）
+    about = about_path.read_text(encoding="utf-8")
     about_stats = re.search(r"(\d+)\s*passed\s*/\s*(\d+)\s*skipped", about)
     assert about_stats, "docs/about.md 里的测试统计格式变了（守卫需要更新）"
     assert (int(about_stats.group(1)), int(about_stats.group(2))) == (passed, skipped), (
