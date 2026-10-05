@@ -2635,8 +2635,19 @@ ddAll();                    /* v8 · 自绘下拉初始化（先于一切摘要�
 cfgRefresh();
 
 function fit(){
+  /* 真实运行（启动器 / http）：窗口卡片铺满整个窗口——不留「桌面」边距
+     （原型时代的 24px 留白 + 卡片投影在深色下会被看成「一圈黑边」）。
+     file:// 原型演示：保留 v8 的「桌面上的窗口卡片」画布设计。 */
+  const shell = location.protocol === 'http:' || location.protocol === 'https:';
+  const win = document.querySelector('.win'), stage = $('#stageInner');
+  if (shell && win){
+    win.style.width = '100vw'; win.style.height = '100vh'; win.style.borderRadius = '0';
+    win.style.border = '0'; win.style.boxShadow = 'none';
+    stage.style.transform = '';
+    return;
+  }
   const scale = Math.min(1, (innerWidth - 24) / 1400, (innerHeight - 24) / 880);
-  $('#stageInner').style.transform = scale < 1 ? 'scale(' + scale + ')' : '';
+  stage.style.transform = scale < 1 ? 'scale(' + scale + ')' : '';
 }
 addEventListener('resize', fit); fit();
 /* ---------- v6 · 液面氛围引擎（水面高度场 · 自 InternalBeyond 精简移植 · 仅玻璃皮肤运行）
