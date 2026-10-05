@@ -2,7 +2,7 @@
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-410%20passed-brightgreen.svg)](#测试)
+[![Tests](https://img.shields.io/badge/tests-408%20passed-brightgreen.svg)](#测试)
 [![Ruff](https://img.shields.io/badge/lint-ruff-blue.svg)](https://github.com/astral-sh/ruff)
 [![Docker](https://img.shields.io/badge/docker-cpu%20%7C%20cu128-2496ED.svg)](Dockerfile)
 
@@ -25,7 +25,7 @@
 | **模型** | 27 个预训练权重（4 家族 × 5 尺寸 + 4 任务），自动识别 + 一键下载 |
 | **接口** | **桌面启动器（pywebview，9 页）** + CLI（`ayt-train` / `ayt-serve` 等 9 个）+ FastAPI 4 端点 + 通知（钉钉/飞书/企微/Slack） |
 | **部署** | Dockerfile（CPU + cu128 双 tag，纯 API 服务） + docker-compose（4 profile） + Makefile |
-| **质量** | pytest 410 passed / 2 skipped（Windows + Linux 双平台）+ 覆盖率门禁 ≥69% + ruff 全量规则 + pip-audit 依赖审计 + 打包链路（wheel 内含界面资源，twine check + 装后自检） + 数据集清单（`make dataset-manifest` / `dataset-verify`，回答"这次用的是哪份数据"） + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含桌面启动器 e2e 冒烟） |
+| **质量** | pytest 408 passed / 2 skipped（Windows + Linux 双平台）+ 覆盖率门禁 ≥69% + ruff 全量规则 + pip-audit 依赖审计 + 打包链路（wheel 内含界面资源，twine check + 装后自检） + 数据集清单（`make dataset-manifest` / `dataset-verify`，回答"这次用的是哪份数据"） + pre-commit 钩子 + MkDocs 文档站 + GitHub Actions CI（含桌面启动器 e2e 冒烟） |
 
 ---
 
@@ -113,13 +113,24 @@ docker compose --profile gpu up         # 启动 GPU bash 容器
 队列 / 环境自检 / 设置 —— 「选数据集 → 调参 → 开训 → 看曲线 → 导出 → 注册版本」
 全流程都在这里点出来。
 
+**方式一 · 双击启动（推荐）**：构建单文件 `AYT.exe`，之后双击就行 ——
+
+```bash
+python scripts/build_launcher.py --clean
+# → dist/launcher/AYT.exe（自包含：界面 + 内嵌管理面后端）
+```
+
+**方式二 · 源码启动**：
+
 ```bash
 pip install -e ".[launcher]"     # 装启动器依赖（pywebview）
 make launcher                    # 或：python -m src.launcher
 ```
 
-窗口即控制台：无边框设计、右上自绘最小化/最大化/关闭，顶栏空白处可拖动。
-没有 GPU 的机器也能安装（界面照常可用，只是训练不可用）。
+> **AYT.exe 与源码的边界**：界面与后端在 exe 内；**训练/推理子进程用本机 Python
+> 跑项目代码**（自动探测带 torch 的解释器——可用 `AYT_PYTHON` 指定；项目根按
+> exe 位置自动识别——可用 `AYT_PROJECT_ROOT` 指定）。发 Release 时 GitHub
+> Actions 会自动构建并挂上 `AYT.exe`。
 
 ### e2e 验证（开发者）
 
@@ -166,7 +177,7 @@ src/launcher/                # 运行时（启动器本体）
 |---|---|
 | `make help` | 显示所有目标 |
 | `make install` | 安装运行时 + 开发依赖 |
-| `make test` | 跑测试套件（412 tests） |
+| `make test` | 跑测试套件（410 tests） |
 | `make test-cov-gate` | 覆盖率门禁（CI 同款：地板 69%，基线 73%） |
 | `make audit` | 依赖安全审计（pip-audit，本地看全量） |
 | `make lint` | ruff 检查 |
@@ -307,7 +318,7 @@ scripts/               # 运维脚本：bootstrap / gpu_smoke / dataset_manifest
 docs/                  # 维护者文档（本地保留，不随仓库发布）
 
 requirements/          # 依赖清单：requirements / dev / lock / constraints
-installer/             # Windows 安装器（环境扫描 / 补装计划 / 自举安装；独立工程）
+dist/launcher/         # 打包产物：AYT.exe（scripts/build_launcher.py 生成，不入库；双击即启动器）
 configs/               # 训练配置（train/ 下为生成物，不入库）
 
 dataset/               # 数据集（数据是一等公民，保留根位）
@@ -345,7 +356,7 @@ artifacts/             # 全部输出集中于此
 ## 🧪 测试
 
 ```bash
-# 跑全部 CPU-safe 测试（412 tests）
+# 跑全部 CPU-safe 测试（410 tests）
 make test
 
 # 跑单个文件
@@ -355,7 +366,7 @@ python -m pytest test/test_data_validator.py -v
 make test-cov
 ```
 
-**测试统计**：410 passed, 2 skipped in ~27s（`pytest -m "not gpu and not training"`）。
+**测试统计**：408 passed, 2 skipped in ~26s（`pytest -m "not gpu and not training"`）。
 
 > **GPU 通道**：`gpu` 标记的用例不在上面这条命令里（GitHub 托管的 runner 没有 GPU）。
 > 本机验证用 `make gpu-smoke` —— 它先跑标记用例（驱动可见性、算力、**真算一遍 CUDA

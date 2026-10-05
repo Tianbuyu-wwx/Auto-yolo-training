@@ -104,6 +104,7 @@ dataset/**/*.rar
 # 测试用 dummy + smoke 数据集（CI 与本地共享）
 !dataset/dummy_dataset/**
 !dataset/_smoke_test/**
+dataset/_smoke_test/**/*.cache
 
 # Temporary files
 *.tmp
@@ -142,10 +143,6 @@ configs/**/dummy_dataset_*.yaml
 configs/train/*_auto.yaml
 
 # 启动器设计过程产物段已移除（设计源与工具链随仓库精简清理，见 git 历史 c4e63db）
-
-# 安装器打包产物（PyInstaller）
-installer/build/
-installer/dist/
 
 # 维护者文档本地保留，不随仓库发布（README 展示图 docs/images/ 例外）
 docs/**

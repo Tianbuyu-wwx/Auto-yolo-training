@@ -9,6 +9,7 @@ Phase 1 验收（launcher-plan-2026-10-04.md）：
 from __future__ import annotations
 
 import argparse
+import contextlib
 import ctypes
 import ctypes.wintypes
 import inspect
@@ -221,8 +222,16 @@ def main(argv: list[str] | None = None) -> int:
             print("启动器已在运行。")
         return 0
 
+    base_dir = args.base_dir
+    if base_dir is None:
+        from src.runtime_env import is_frozen, project_root
+
+        if is_frozen():
+            # 打包态：默认工作目录 = 探测到的项目根（训练产物写进项目内）
+            base_dir = project_root()
+
     backend = LauncherBackend(
-        base_dir=args.base_dir, port=args.port, frontend_dist=default_static_dir()
+        base_dir=base_dir, port=args.port, frontend_dist=default_static_dir()
     )
     try:
         backend.start()
@@ -406,10 +415,8 @@ def main(argv: list[str] | None = None) -> int:
             threading.Thread(target=_steady_fix, name="frameless-steady-fix", daemon=True).start()
             if args.smoke:
                 time.sleep(args.smoke)
-                try:
+                with contextlib.suppress(Exception):  # 用户已手关时 destroy 幂等兜底
                     window.destroy()
-                except Exception:  # noqa: BLE001 —— 用户已手关时 destroy 幂等兜底
-                    pass
 
         start_kwargs: dict = {
             "func": _post_start,

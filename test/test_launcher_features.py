@@ -19,7 +19,6 @@ STATIC_DIR = REPO_ROOT / "src" / "launcher" / "static"
 from src.launcher import features  # noqa: E402
 from src.launcher.backend import LauncherBackend  # noqa: E402
 
-
 # ---------------- open_path ----------------
 
 def test_open_path_rejects_outside_whitelist(tmp_path):

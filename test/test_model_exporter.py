@@ -62,13 +62,13 @@ class TestModelExporter(unittest.TestCase):
         calls: dict = {}
 
         class FakeYOLO:
-            def __init__(self, _p):
-                pass
+            def __init__(self, model_path):
+                self._model_path = model_path
 
             def export(self, **kw):
                 fmt = kw.pop("format")
                 calls[fmt] = kw
-                return str(Path(_p).parent / f"fake_{fmt}.onnx")
+                return str(Path(self._model_path).parent / f"fake_{fmt}.onnx")
 
         with tempfile.TemporaryDirectory() as td:
             model_pt = Path(td) / "best.pt"

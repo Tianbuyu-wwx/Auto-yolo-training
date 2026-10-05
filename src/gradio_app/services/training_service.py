@@ -170,18 +170,42 @@ class TrainingService:
                                 encoding="utf-8")
         self.worker_payload_path = payload_path
 
+        from src.runtime_env import project_root, worker_python_cmd
+
+        try:
+            root = project_root()
+            py = worker_python_cmd()
+        except RuntimeError as exc:
+            self.state.update(
+                is_running=False, success=False, error_message=str(exc),
+                end_time=datetime.now().isoformat(),
+            )
+            return
+        if py is None:
+            self.state.update(
+                is_running=False, success=False,
+                error_message="未找到带 torch 的 Python 解释器（训练子进程需要）。"
+                "请在本机安装训练依赖，或设置环境变量 AYT_PYTHON 指向可用的解释器。",
+                end_time=datetime.now().isoformat(),
+            )
+            return
+
         env = os.environ.copy()
         env["PYTHONPATH"] = os.pathsep.join(
-            [str(_PROJECT_ROOT), str(self.base_dir), env.get("PYTHONPATH", "")]
+            [str(root), str(self.base_dir), env.get("PYTHONPATH", "")]
         )
+
+        # 子进程 stdout/stderr 落盘（worker 自身日志初始化前崩溃时，这里是唯一线索）
+        spawn_log_path = stem.with_suffix(".spawn.log")
+        spawn_log = open(spawn_log_path, "a", encoding="utf-8")  # noqa: SIM115 —— 交给子进程持有
 
         try:
             self.training_proc = subprocess.Popen(
-                [sys.executable, "-m", "src.worker", str(payload_path)],
-                cwd=str(_PROJECT_ROOT),
+                [*py, "-m", "src.worker", str(payload_path)],
+                cwd=str(root),
                 env=env,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=spawn_log,
+                stderr=subprocess.STDOUT,
             )
         except Exception as e:
             logger.exception("[WORKER] 子进程启动失败")

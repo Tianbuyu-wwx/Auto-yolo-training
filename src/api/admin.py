@@ -850,7 +850,11 @@ def create_admin_app(
         }
 
     # ================ 启动器扩展：推理服务 / 受控打开 / 诊断包 / 回收站 ================
-    from src.launcher.features import InferenceManager, diag_pack as _diag_pack, open_path as _open_path
+    from src.launcher.features import (
+        InferenceManager,
+        diag_pack as _diag_pack,
+        open_path as _open_path,
+    )
 
     _inference_mgr = InferenceManager(base)
 

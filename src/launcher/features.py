@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -101,18 +102,27 @@ class InferenceManager:
             model = model_path or self._discover_model()
             if not model:
                 return {"status": "error", "message": "没有可用模型（runs/detect/*/weights/best.pt 为空）"}
-            if not self._port_free(port):
-                from src.launcher.backend import pick_free_port
+            from src.launcher.backend import pick_free_port
+            from src.runtime_env import project_root, worker_python_cmd
 
+            try:
+                root = project_root()
+                py = worker_python_cmd()
+            except RuntimeError as exc:
+                return {"status": "error", "message": str(exc)}
+            if py is None:
+                return {"status": "error", "message": "未找到可用的本机 Python（推理子进程需要）"}
+
+            if not self._port_free(port):
                 port = pick_free_port()
             (self.base_dir / "artifacts" / "logs").mkdir(parents=True, exist_ok=True)
             log = open(self._log_file, "a", encoding="utf-8")  # noqa: SIM115 —— 交给子进程持有
             env = dict(os.environ)
-            env["PYTHONPATH"] = str(REPO_ROOT) + os.pathsep + env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = str(root) + os.pathsep + env.get("PYTHONPATH", "")
             try:
                 self._proc = subprocess.Popen(
-                    [sys.executable, "-m", "src.inference_service", "--model", model, "--port", str(port)],
-                    cwd=str(REPO_ROOT),
+                    [*py, "-m", "src.inference_service", "--model", model, "--port", str(port)],
+                    cwd=str(root),
                     stdout=log,
                     stderr=subprocess.STDOUT,
                     env=env,
@@ -251,15 +261,15 @@ def upload_zip(zip_path: str, api_base: str, name: str = "", overwrite: bool = F
     def _field(field_name: str, value: str) -> bytes:
         return (
             f'--{boundary}\r\nContent-Disposition: form-data; name="{field_name}"\r\n\r\n{value}\r\n'
-        ).encode("utf-8")
+        ).encode()
 
     body = (
         f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{path.name}"\r\n'
         "Content-Type: application/zip\r\n\r\n"
-    ).encode("utf-8") + zdata + b"\r\n"
+    ).encode() + zdata + b"\r\n"
     body += _field("name", name or path.stem)
     body += _field("overwrite", "true" if overwrite else "false")
-    body += f"--{boundary}--\r\n".encode("utf-8")
+    body += f"--{boundary}--\r\n".encode()
 
     req = urllib.request.Request(
         api_base.rstrip("/") + "/api/datasets/upload",
@@ -272,10 +282,8 @@ def upload_zip(zip_path: str, api_base: str, name: str = "", overwrite: bool = F
             return json.loads(resp.read())
     except urllib.error.HTTPError as exc:
         detail = ""
-        try:
+        with contextlib.suppress(Exception):
             detail = json.loads(exc.read()).get("detail", "")
-        except Exception:  # noqa: BLE001
-            pass
         return {"status": "error", "message": detail or f"HTTP {exc.code}"}
     except (OSError, urllib.error.URLError) as exc:
         return {"status": "error", "message": f"上传失败：{exc}"}

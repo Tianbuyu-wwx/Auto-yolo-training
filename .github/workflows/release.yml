@@ -69,9 +69,9 @@ jobs:
           name: dist
           path: dist/
 
-  setup-exe:
-    # 单文件安装器 AYT-Setup.exe：Windows runner 构建，随 Release 分发。
-    # 双击 = 图形安装向导；换机器时先跑它装环境，再开桌面启动器。
+  launcher-exe:
+    # 单文件桌面启动器 AYT.exe：Windows runner 构建，随 Release 分发。
+    # 双击即打开启动器（训练/推理子进程用本机 Python 跑项目代码，不进 exe）。
     runs-on: windows-latest
     timeout-minutes: 25
     permissions:
@@ -85,30 +85,31 @@ jobs:
         with:
           python-version: "3.12"
 
+      # 打包环境只需「主进程 import 链」的依赖：PyInstaller 靠 import 分析
+      # 决定打进什么；torch/ultralytics 属于子进程侧，不装也不会进包。
       - name: Install build tools
-        run: python -m pip install --upgrade pyinstaller pillow
+        run: >-
+          python -m pip install --upgrade pyinstaller fastapi "uvicorn[standard]"
+          pydantic pydantic-settings pywebview numpy opencv-python
 
-      - name: Build AYT-Setup.exe
-        run: python installer/build_setup.py --clean
+      - name: Build AYT.exe
+        run: python scripts/build_launcher.py --clean
 
-      # 冒烟：打包体里的扫描器要真跑起来并产出报告（防「能打包但装完不能用」）
-      - name: Smoke test (frozen exe runs the scanner)
-        shell: bash
+      - name: Verify the exe was produced
         run: |
-          ./installer/dist/AYT-Setup.exe --selftest
-          python -c "import json,os,tempfile;p=os.path.join(tempfile.gettempdir(),'ayt-selftest.json');d=json.load(open(p,encoding='utf-8'));assert isinstance(d.get('interpreters'),list),d;print('selftest ok ->',p)"
+          python -c "import pathlib; p=pathlib.Path('dist/launcher/AYT.exe'); assert p.is_file(), p; print('AYT.exe', round(p.stat().st_size/1e6, 1), 'MB')"
 
-      - name: Upload installer artifact
+      - name: Upload launcher artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AYT-Setup
-          path: installer/dist/AYT-Setup.exe
+          name: AYT-Launcher
+          path: dist/launcher/AYT.exe
 
-      - name: Attach installer to the GitHub Release
+      - name: Attach launcher to the GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: installer/dist/AYT-Setup.exe
+          files: dist/launcher/AYT.exe
 
   publish:
     needs: build
