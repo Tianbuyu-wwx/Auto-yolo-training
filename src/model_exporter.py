@@ -79,8 +79,8 @@ class ModelExporter:
 
     def __init__(self, base_dir: str | None = None):
         self.base_dir = Path(base_dir) if base_dir else Path(__file__).parent.parent
-        self.exports_dir = self.base_dir / "exports"
-        self.exports_dir.mkdir(exist_ok=True)
+        self.exports_dir = self.base_dir / "artifacts" / "exports"
+        self.exports_dir.mkdir(parents=True, exist_ok=True)
 
     def export(
         self,
@@ -123,7 +123,7 @@ class ModelExporter:
         # 创建导出目录
         model_name = model_path.stem
         export_dir = self.exports_dir / f"{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        export_dir.mkdir(exist_ok=True)
+        export_dir.mkdir(parents=True, exist_ok=True)
 
         for fmt in formats:
             if fmt not in self.SUPPORTED_FORMATS:

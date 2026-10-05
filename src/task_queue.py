@@ -281,7 +281,7 @@ class QueueRunner:
 
     def _execute(self, task: dict[str, Any]) -> None:
         """用 worker 子进程执行一个队列任务"""
-        logs_dir = self.base_dir / "logs"
+        logs_dir = self.base_dir / "artifacts" / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)
         stem = logs_dir / f"queue_task_{task['id']:06d}"
         payload_path = stem.with_suffix(".json")

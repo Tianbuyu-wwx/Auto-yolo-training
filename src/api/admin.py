@@ -503,7 +503,7 @@ def create_admin_app(
     @app.get("/api/trainings/results/{run}/plot/{filename}")
     def result_plot(run: str, filename: str):
         plot_path = (paths.runs_dir / run / filename).resolve()
-        if not is_path_allowed(str(plot_path), ["runs"], base) or not plot_path.is_file():
+        if not is_path_allowed(str(plot_path), ["artifacts/runs"], base) or not plot_path.is_file():
             raise HTTPException(404, "Plot not found")
         return FileResponse(plot_path)
 
@@ -617,7 +617,7 @@ def create_admin_app(
             raise HTTPException(400, "请填写数据集名称")
 
         if req.model_path:
-            if not is_path_allowed(req.model_path, ["runs", "basemodels", "exports"], base):
+            if not is_path_allowed(req.model_path, ["artifacts/runs", "basemodels", "artifacts/exports"], base):
                 raise HTTPException(400, "model_path 必须位于 runs/、basemodels/ 或 exports/ 之下")
             weights = Path(req.model_path)
         elif req.run_name:
@@ -625,7 +625,7 @@ def create_admin_app(
                 raise HTTPException(400, "weights 只能是 best 或 last")
             weights = paths.runs_dir / req.run_name / "weights" / f"{req.weights}.pt"
             # run_name 由请求体给出，可能含 ../ —— 解析后必须仍在 runs/ 内
-            if not is_path_allowed(str(weights), ["runs"], base):
+            if not is_path_allowed(str(weights), ["artifacts/runs"], base):
                 raise HTTPException(400, "run 名称非法")
         else:
             raise HTTPException(400, "请提供 run_name 或 model_path")

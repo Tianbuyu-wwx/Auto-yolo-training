@@ -134,7 +134,7 @@ class TestConfigGenerator(unittest.TestCase):
             saved = yaml.safe_load(saved_path.read_text(encoding="utf-8"))
 
             self.assertEqual(saved["dataset_path"], "dataset/sample")
-            self.assertEqual(saved["output_dir"], "runs/detect/sample_auto")
+            self.assertEqual(saved["output_dir"], "artifacts/runs/detect/sample_auto")
             self.assertEqual(saved["data_yaml_path"], "configs/models/data_sample.yaml")
             self.assertEqual(saved["training_config"]["model"], "basemodels/local.pt")
             self.assertTrue(all(

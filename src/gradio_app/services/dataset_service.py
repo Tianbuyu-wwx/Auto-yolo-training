@@ -278,7 +278,7 @@ class DatasetService:
             "#FF2D55",
         ]
 
-        cache_dir = self.base_dir / "logs" / "preview_cache" / dataset_name
+        cache_dir = self.base_dir / "artifacts" / "logs" / "preview_cache" / dataset_name
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         images = [

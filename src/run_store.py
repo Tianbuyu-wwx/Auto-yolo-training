@@ -81,9 +81,9 @@ class RunStore:
 
     def __init__(self, base_dir: str | Path):
         self.base_dir = Path(base_dir)
-        self.runs_root = self.base_dir / "runs"
-        self.exports_dir = self.base_dir / "exports"
-        self.reports_dir = self.base_dir / "reports"
+        self.runs_root = self.base_dir / "artifacts" / "runs"
+        self.exports_dir = self.base_dir / "artifacts" / "exports"
+        self.reports_dir = self.base_dir / "artifacts" / "reports"
 
     # ------------------------------------------------------------------
     # 路径与匹配

@@ -17,7 +17,7 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # 项目根（src/cli/x.py 上溯三级）
 
 from src.branding import get_cli_banner
 from src.model_catalog import (

@@ -35,31 +35,31 @@ def test_open_path_empty_rejected(tmp_path):
 def test_open_path_ok_within_whitelist(monkeypatch, tmp_path):
     opened: list[str] = []
     monkeypatch.setattr(features.os, "startfile", lambda p: opened.append(p), raising=False)
-    res = features.open_path("logs", tmp_path)  # 不存在会自动创建目录
+    res = features.open_path("artifacts/logs", tmp_path)  # 不存在会自动创建目录
     assert res["status"] == "ok"
-    assert opened and (tmp_path / "logs").is_dir()
+    assert opened and (tmp_path / "artifacts" / "logs").is_dir()
 
 
 def test_open_path_nested_allowed(monkeypatch, tmp_path):
     opened: list[str] = []
     monkeypatch.setattr(features.os, "startfile", lambda p: opened.append(p), raising=False)
-    target = tmp_path / "runs" / "detect"
+    target = tmp_path / "artifacts" / "runs" / "detect"
     target.mkdir(parents=True)
-    res = features.open_path("runs/detect", tmp_path)
+    res = features.open_path("artifacts/runs/detect", tmp_path)
     assert res["status"] == "ok" and opened
 
 
 def test_open_path_missing_file_errors(tmp_path):
-    res = features.open_path("runs/nonexistent.txt", tmp_path)
+    res = features.open_path("artifacts/runs/nonexistent.txt", tmp_path)
     assert res["status"] == "error"
 
 
 # ---------------- diag_pack ----------------
 
 def test_diag_pack_creates_zip(tmp_path):
-    (tmp_path / "logs").mkdir()
-    (tmp_path / "logs" / "launcher.log").write_text("hello", encoding="utf-8")
-    (tmp_path / "runs" / "detect" / "run-a").mkdir(parents=True)
+    (tmp_path / "artifacts" / "logs").mkdir(parents=True)
+    (tmp_path / "artifacts" / "logs" / "launcher.log").write_text("hello", encoding="utf-8")
+    (tmp_path / "artifacts" / "runs" / "detect" / "run-a").mkdir(parents=True)
     res = features.diag_pack(tmp_path)
     assert res["status"] == "ok" and res["bytes"] > 0
     with zipfile.ZipFile(res["file"]) as zf:
@@ -90,7 +90,7 @@ def test_inference_stop_when_not_running(tmp_path):
 
 
 def test_inference_discovers_latest_best(tmp_path):
-    best_a = tmp_path / "runs" / "detect" / "run-a" / "weights"
+    best_a = tmp_path / "artifacts" / "runs" / "detect" / "run-a" / "weights"
     best_a.mkdir(parents=True)
     pa = best_a / "best.pt"
     pa.write_bytes(b"x")
@@ -131,7 +131,7 @@ def test_inference_endpoints_contract(backend):
 
 def test_open_path_endpoint_contract(backend, monkeypatch):
     monkeypatch.setattr("src.launcher.features.os.startfile", lambda p: None, raising=False)
-    res = _post(f"{backend.url}/api/launcher/open-path?rel_path=logs")
+    res = _post(f"{backend.url}/api/launcher/open-path?rel_path=artifacts/logs")
     assert res["status"] == "ok"
     with pytest.raises(urllib.error.HTTPError) as ei:
         _post(f"{backend.url}/api/launcher/open-path?rel_path=../etc")

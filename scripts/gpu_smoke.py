@@ -9,7 +9,7 @@
 
 1. **环境段**：torch/CUDA 版本、设备名、显存、算力，以及一次真实的 CUDA 矩阵乘
    （与 CPU 结果逐元素比对，容差 1e-3）—— 这一步才是「kernel 真跑了」的证据；
-2. **训练段**：真跑一次 `train.py <dataset> --device 0`，同时用 nvidia-smi 采样，
+2. **训练段**：真跑一次 `python -m src.cli.train <dataset> --device 0`，同时用 nvidia-smi 采样，
    断言：
    - 训练日志出现 `CUDA:0 (NVIDIA ...)`（Ultralytics 真的选了 GPU，而不是回落 CPU）；
    - 采样到的显存峰值比基线高 ≥200MB（训练进程真的在卡上分配了显存）；
@@ -161,7 +161,7 @@ def locate_model(name: str) -> str:
 def run_training(dataset: str, model: str, epochs: int, imgsz: int, batch: int,
                  device: str, timeout: int = 900) -> dict:
     cmd = [
-        sys.executable, str(PROJECT_ROOT / "train.py"), dataset,
+        sys.executable, "-m", "src.cli.train", dataset,
         "--model", model, "--epochs", str(epochs), "--imgsz", str(imgsz),
         "--batch", str(batch), "--device", device, "--skip-validation",
     ]

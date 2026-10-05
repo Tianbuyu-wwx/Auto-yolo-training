@@ -200,7 +200,7 @@ def main() -> int:
         )
 
         # 5) 定位刚训练的 run（weights/best.pt 最新）
-        runs_dir = REPO / "runs" / "detect"
+        runs_dir = REPO / "artifacts" / "runs" / "detect"
         newest = None
         if runs_dir.is_dir():
             cands = sorted(

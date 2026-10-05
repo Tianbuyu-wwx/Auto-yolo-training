@@ -47,7 +47,7 @@ def create_app(css: str = ""):
     dataset_svc = DatasetService(base_dir)
     training_svc = TrainingService(base_dir, log_svc)
     # 任务队列（P3-2）：SQLite 持久化 + 后台 runner（子进程执行任务）
-    task_queue = TaskQueue(base_dir / "logs" / "task_queue.db")
+    task_queue = TaskQueue(base_dir / "artifacts" / "logs" / "task_queue.db")
     queue_runner = QueueRunner(task_queue, base_dir)
     queue_runner.start()
 

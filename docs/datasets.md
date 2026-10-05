@@ -111,10 +111,10 @@ names: ['good', 'defect']
 
 ```bash
 # 人类可读输出
-python validate_data.py my-dataset
+python -m src.cli.validate_data my-dataset
 
 # JSON 报告（便于脚本处理）
-python validate_data.py my-dataset --json > report.json
+python -m src.cli.validate_data my-dataset --json > report.json
 ```
 
 ### 校验内容
@@ -175,7 +175,7 @@ print('exists:', os.path.exists(d['train']))
 ### 类别不匹配
 
 ```bash
-python validate_data.py my-dataset --json | python -c "
+python -m src.cli.validate_data my-dataset --json | python -c "
 import json, sys
 r = json.load(sys.stdin)
 for issue in r['errors']:
@@ -203,7 +203,7 @@ names: ['正常', '缺陷', '严重缺陷']  # 支持中文（YAML UTF-8）
 通过训练覆盖参数：
 
 ```bash
-python train.py my-dataset --override cls=1.5  # 提升分类损失权重
+python -m src.cli.train my-dataset --override cls=1.5  # 提升分类损失权重
 ```
 
 阶段 C 计划加入自动类别权重（基于 inverse frequency）。

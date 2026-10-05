@@ -61,7 +61,8 @@ class TestDeviceDefault:
 
         root = Path(__file__).parent.parent
         result = subprocess.run(
-            [sys.executable, str(root / "train.py"), "--help"],
+            [sys.executable, "-m", "src.cli.train", "--help"],
+            cwd=str(root),
             capture_output=True, text=True, timeout=60,
             # 显式钉住编码：子进程的 stdout 编码取决于环境（PYTHONUTF8 /
             # PYTHONIOENCODING），而父进程 text=True 默认按 locale 解码。两者
@@ -178,7 +179,7 @@ class TestTrainingServiceTaskAware:
 
     def test_update_from_results_segment_columns(self, svc, tmp_path):
         headers = ["epoch", "train/box_loss", "metrics/mAP50(M)", "metrics/mAP50-95(M)"]
-        self._write_results_csv(tmp_path / "runs" / "detect", headers,
+        self._write_results_csv(tmp_path / "artifacts" / "runs" / "detect", headers,
                                 ["5", "1.25", "0.77", "0.44"])
         svc.state.update(is_running=True, total_epochs=100, task="segment")
         svc._update_from_results()
@@ -192,7 +193,7 @@ class TestTrainingServiceTaskAware:
 
     def test_update_from_results_classify_columns(self, svc, tmp_path):
         headers = ["epoch", "train/loss", "metrics/accuracy_top1", "metrics/accuracy_top5"]
-        self._write_results_csv(tmp_path / "runs" / "detect", headers,
+        self._write_results_csv(tmp_path / "artifacts" / "runs" / "detect", headers,
                                 ["3", "0.9", "0.91", "0.99"])
         svc.state.update(is_running=True, total_epochs=50, task="classify")
         svc._update_from_results()
@@ -202,9 +203,9 @@ class TestTrainingServiceTaskAware:
         assert svc.state.current_loss == pytest.approx(0.9)
 
     def test_get_training_results_reports_task_labels(self, svc, tmp_path):
-        (tmp_path / "runs" / "detect" / "demo_auto").mkdir(parents=True)
+        (tmp_path / "artifacts" / "runs" / "detect" / "demo_auto").mkdir(parents=True)
         headers = ["epoch", "train/loss", "metrics/accuracy_top1", "metrics/accuracy_top5"]
-        self._write_results_csv(tmp_path / "runs" / "detect", headers, ["9", "0.4", "0.93", "0.98"])
+        self._write_results_csv(tmp_path / "artifacts" / "runs" / "detect", headers, ["9", "0.4", "0.93", "0.98"])
 
         results = svc.get_training_results()
         assert results["task"] == "classify"

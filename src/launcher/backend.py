@@ -73,7 +73,7 @@ class LauncherBackend:
         """把实际端口写到工作目录（给外部工具/调试脚本读）。"""
         if self.base_dir is None:
             return None
-        return self.base_dir / "logs" / "launcher-port.txt"
+        return self.base_dir / "artifacts" / "logs" / "launcher-port.txt"
 
     def start(self, ready_timeout: float = READY_TIMEOUT) -> None:
         """构建 admin app 并在后台线程跑 uvicorn，阻塞直到健康检查通过。"""
@@ -85,7 +85,7 @@ class LauncherBackend:
             self.base_dir = default_base_dir()
 
         # TaskQueue 的 sqlite 落在 logs/（sqlite 不会自建父目录）
-        (self.base_dir / "logs").mkdir(parents=True, exist_ok=True)
+        (self.base_dir / "artifacts" / "logs").mkdir(parents=True, exist_ok=True)
 
         app = create_admin_app(
             base_dir=self.base_dir,

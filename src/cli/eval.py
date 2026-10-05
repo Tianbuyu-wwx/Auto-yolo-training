@@ -6,7 +6,7 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # 项目根（src/cli/x.py 上溯三级）
 
 import argparse
 
@@ -111,7 +111,7 @@ def main():
         data_yaml = args.data
     else:
         # 尝试自动查找
-        base_dir = Path(__file__).parent
+        base_dir = Path(__file__).resolve().parents[2]
         dataset_name = args.dataset
         # 优先查找 configs/models/ 目录
         auto_yaml = base_dir / "configs" / "models" / f"data_{dataset_name}.yaml"

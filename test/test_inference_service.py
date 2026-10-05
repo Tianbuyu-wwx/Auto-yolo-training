@@ -20,7 +20,7 @@ class TestInferenceService(unittest.TestCase):
         base_dir = Path(__file__).parent.parent
 
         # 优先查找训练结果中的 best.pt
-        runs_dir = base_dir / "runs" / "detect"
+        runs_dir = base_dir / "artifacts" / "runs" / "detect"
         cls.model_path = None
         if runs_dir.exists():
             for run_dir in sorted(runs_dir.iterdir(), key=lambda d: d.stat().st_mtime, reverse=True):

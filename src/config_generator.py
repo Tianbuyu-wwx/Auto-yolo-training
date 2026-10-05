@@ -167,7 +167,7 @@ class ConfigGenerator:
             else Path(__file__).resolve().parent.parent
         )
         self.dataset_base = self.base_dir / "dataset"
-        self.runs_dir = self.base_dir / "runs" / "detect"
+        self.runs_dir = self.base_dir / "artifacts" / "runs" / "detect"
         self.basemodels_dir = self.base_dir / "basemodels"
         self.configs_dir = self.base_dir / "configs"
         self.models_config_dir = self.configs_dir / "models"

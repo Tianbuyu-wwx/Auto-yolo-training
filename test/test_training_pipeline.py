@@ -24,7 +24,7 @@ class TestTrainingPipelineRunTraining(unittest.TestCase):
             project_name="test_project",
             dataset_name="test_dataset",
             dataset_path=str(Path(self.temp_dir) / "dataset" / "test_dataset"),
-            output_dir=str(Path(self.temp_dir) / "runs" / "detect" / "test_project"),
+            output_dir=str(Path(self.temp_dir) / "artifacts" / "runs" / "detect" / "test_project"),
             data_yaml_path=str(Path(self.temp_dir) / "dataset" / "test_dataset" / "data.yaml"),
             training_config=TrainingConfig(model="yolov8n.pt", epochs=2, imgsz=640, batch=2),
         )
@@ -121,7 +121,7 @@ class TestCleanupOldRuns(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
         self.pipeline = TrainingPipeline(base_dir=self.temp_dir)
-        self.runs_dir = Path(self.temp_dir) / "runs" / "detect"
+        self.runs_dir = Path(self.temp_dir) / "artifacts" / "runs" / "detect"
 
     def tearDown(self):
         import shutil
@@ -145,7 +145,7 @@ class TestCleanupOldRuns(unittest.TestCase):
 
         kept = sorted(p.name for p in self.runs_dir.iterdir())
         self.assertEqual(kept, ["ds_auto-3", "ds_auto-4"], kept)
-        recycle = Path(self.temp_dir) / "runs" / ".recycle"
+        recycle = Path(self.temp_dir) / "artifacts" / "runs" / ".recycle"
         recycled = sorted(p.name for p in recycle.iterdir())
         self.assertEqual(len(recycled), 2, recycled)
         self.assertTrue(all(n.startswith("ds_auto") for n in recycled), recycled)

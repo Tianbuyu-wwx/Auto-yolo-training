@@ -477,7 +477,7 @@ class TestComparisonAndTensorboard:
         from src.gradio_app.services.training_service import TrainingService
 
         svc = TrainingService(tmp_path, LogService())
-        runs = tmp_path / "runs" / "detect"
+        runs = tmp_path / "artifacts" / "runs" / "detect"
         for run in ("a_auto", "b_auto"):
             (runs / run).mkdir(parents=True)
             headers = "epoch,train/box_loss,metrics/mAP50(B),metrics/mAP50-95(B)"
@@ -539,7 +539,7 @@ class TestInference:
         svc.class_names = {}
         svc.base_dir = Path(".")
         svc.allowed_image_dirs = ["dataset"]
-        svc.allowed_model_dirs = ["runs", "basemodels"]
+        svc.allowed_model_dirs = ["artifacts/runs", "basemodels"]
         svc._model_lock = __import__("threading").Lock()
 
         app = create_app(service=svc)

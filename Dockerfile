@@ -63,8 +63,8 @@ RUN if [ "$TORCH_VARIANT" = "cu128" ]; then \
  torch==2.11.0 torchvision==0.26.0
 
 # 装项目依赖（运行时 + 开发）
-COPY constraints.txt requirements.txt requirements-dev.txt ./
-RUN pip install --no-cache-dir -c constraints.txt -r requirements-dev.txt
+COPY requirements/ ./requirements/
+RUN pip install --no-cache-dir -c requirements/constraints.txt -r requirements/requirements-dev.txt
 
 # 安装项目自身。**这一步以前完全没有**，后果是镜像里不存在 ayt-web / ayt-train /
 # ayt-gradio 等任何入口点 —— 而这些名字正写在下面的 CMD 注释与本文件的用法说明里。
@@ -113,7 +113,6 @@ ENV MPLCONFIGDIR=/as/.ci/matplotlib
 WORKDIR /as
 COPY --chown=ayt:ayt pyproject.toml README.md ./
 COPY --chown=ayt:ayt src/ ./src/
-COPY --chown=ayt:ayt train.py tune.py eval.py export.py serve.py validate_data.py gradio_app.py ayt_models.py ./
 COPY --chown=ayt:ayt test/ ./test/
 
 # 前端产物：Vue 网页端已退役，这里不再提供 SPA 静态根（/ 返回 JSON 提示）。
@@ -122,7 +121,7 @@ COPY --chown=ayt:ayt test/ ./test/
 # .ci/ 也要一起建并 chown：YOLO_CONFIG_DIR / MPLCONFIGDIR 指到这里，缺了它
 # Ultralytics 会打 "user config directory is not writable, using /tmp/..." 警告
 # 并把配置落到容器外（实测：ayt:cpu 首跑即出现该警告）。
-RUN mkdir -p /as/dataset /as/basemodels /as/runs /as/exports /as/logs /as/reports /as/tuning \
+RUN mkdir -p /as/dataset /as/basemodels /as/artifacts/runs /as/artifacts/exports /as/artifacts/logs /as/artifacts/reports /as/tuning \
               /as/.ci/Ultralytics /as/.ci/matplotlib && \
  chown -R ayt:ayt /as
 

@@ -21,7 +21,7 @@ class TestFindLatestRun(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = Path(tempfile.mkdtemp())
-        self.runs_dir = self.temp_dir / "runs" / "detect"
+        self.runs_dir = self.temp_dir / "artifacts" / "runs" / "detect"
         self.runs_dir.mkdir(parents=True)
 
     def tearDown(self):

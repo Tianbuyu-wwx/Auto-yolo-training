@@ -25,7 +25,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # 允许「打开」（资源管理器/默认程序）的白名单目录（相对 base_dir）
-OPENABLE_DIRS = ("logs", "runs", "dataset", "exports", "reports")
+OPENABLE_DIRS = ("artifacts/logs", "artifacts/runs", "dataset", "artifacts/exports", "artifacts/reports")
 
 
 class InferenceManager:
@@ -41,7 +41,7 @@ class InferenceManager:
     # ---------------- 内部 ----------------
     @property
     def _log_file(self) -> Path:
-        return self.base_dir / "logs" / "inference.log"
+        return self.base_dir / "artifacts" / "logs" / "inference.log"
 
     def _alive(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
@@ -50,7 +50,7 @@ class InferenceManager:
         """自动发现推理模型：runs/detect/*/weights/best.pt 里最新的那个。"""
         try:
             cands = sorted(
-                (self.base_dir / "runs" / "detect").glob("*/weights/best.pt"),
+                (self.base_dir / "artifacts" / "runs" / "detect").glob("*/weights/best.pt"),
                 key=lambda p: p.stat().st_mtime,
                 reverse=True,
             )
@@ -105,7 +105,7 @@ class InferenceManager:
                 from src.launcher.backend import pick_free_port
 
                 port = pick_free_port()
-            (self.base_dir / "logs").mkdir(parents=True, exist_ok=True)
+            (self.base_dir / "artifacts" / "logs").mkdir(parents=True, exist_ok=True)
             log = open(self._log_file, "a", encoding="utf-8")  # noqa: SIM115 —— 交给子进程持有
             env = dict(os.environ)
             env["PYTHONPATH"] = str(REPO_ROOT) + os.pathsep + env.get("PYTHONPATH", "")
@@ -188,7 +188,7 @@ def diag_pack(base_dir: str | Path) -> dict:
     import json
 
     base = Path(base_dir).resolve()
-    reports = base / "reports"
+    reports = base / "artifacts" / "reports"
     reports.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     out = reports / f"diag-{ts}.zip"
@@ -212,7 +212,7 @@ def diag_pack(base_dir: str | Path) -> dict:
     counts = {"logs": 0, "misc": 0}
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         # logs/（全部文本类）
-        logs_dir = base / "logs"
+        logs_dir = base / "artifacts" / "logs"
         if logs_dir.is_dir():
             for f in sorted(logs_dir.glob("*.*")):
                 if f.suffix.lower() in (".log", ".txt", ".out"):
@@ -220,7 +220,7 @@ def diag_pack(base_dir: str | Path) -> dict:
                     counts["logs"] += 1
         # 环境与快照
         z.writestr("env-report.json", json.dumps(_collect_env(), ensure_ascii=False, indent=1))
-        runs = sorted((base / "runs" / "detect").glob("*")) if (base / "runs" / "detect").is_dir() else []
+        runs = sorted((base / "artifacts" / "runs" / "detect").glob("*")) if (base / "artifacts" / "runs" / "detect").is_dir() else []
         z.writestr(
             "runs-snapshot.json",
             json.dumps([p.name for p in runs if p.is_dir()], ensure_ascii=False, indent=1),

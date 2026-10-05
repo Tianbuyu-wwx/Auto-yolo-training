@@ -60,7 +60,7 @@ class ApiSettings(BaseModel):
 
     # 允许通过路径推理的目录白名单（逗号分隔环境变量自动转 list）
     allowed_image_dirs: list[str] = Field(default_factory=lambda: ["dataset", "test_images"])
-    allowed_model_dirs: list[str] = Field(default_factory=lambda: ["runs", "basemodels"])
+    allowed_model_dirs: list[str] = Field(default_factory=lambda: ["artifacts/runs", "basemodels"])
 
 
 class StorageSettings(BaseModel):

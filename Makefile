@@ -129,8 +129,8 @@ gpu-check:  ## 只做 GPU 环境/kernel 检查（秒级，不跑训练）
 	$(PYTHON) scripts/gpu_smoke.py --skip-training
 
 .PHONY: tensorboard
-tensorboard:  ## 启动 TensorBoard 查看训练曲线（runs/ 目录）
-	$(PYTHON) -m tensorboard.main --logdir runs
+tensorboard:  ## 启动 TensorBoard 查看训练曲线（artifacts/runs/ 目录）
+	$(PYTHON) -m tensorboard.main --logdir artifacts/runs
 
 # ---------- 网页控制台 ----------
 # Vue 网页端已退役（桌面启动器为唯一前端，见 src/launcher/）。
@@ -189,8 +189,8 @@ docker-run:  ## 启动容器并进 bash
 	 -p 7860:7860 -p 8000:8000 \
 	 -v $(PWD)/dataset:/as/dataset \
 	 -v $(PWD)/basemodels:/as/basemodels \
-	 -v $(PWD)/runs:/as/runs \
-	 -v $(PWD)/logs:/as/logs \
+	 -v $(PWD)/artifacts/runs:/as/artifacts/runs \
+	 -v $(PWD)/artifacts/logs:/as/artifacts/logs \
 	 $(DOCKER_IMAGE):$(DOCKER_TAG)
 
 .PHONY: docker-gradio
@@ -207,7 +207,7 @@ docker-train:  ## 在容器里跑训练（替换 dataset_name 与 epochs）
 	docker run --rm \
 	 -v $(PWD)/dataset:/as/dataset \
 	 -v $(PWD)/basemodels:/as/basemodels \
-	 -v $(PWD)/runs:/as/runs \
+	 -v $(PWD)/artifacts/runs:/as/artifacts/runs \
 	 $(DOCKER_IMAGE):$(DOCKER_TAG) \
 	 ayt-train $(DATASET) --model yolov8s.pt --epochs $(EPOCHS)
 
@@ -239,17 +239,17 @@ pre-commit-run:  ## 跑全部 pre-commit hook
 
 # ---------- 清理 ----------
 .PHONY: clean
-clean:  ## 清理临时文件（不删 dataset/runs/basemodels/）
+clean:  ## 清理临时文件（不删 dataset/artifacts/basemodels/）
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
 	rm -rf build/ dist/ frontend/dist/ site/ *.egg-info htmlcov/ .coverage* 2>/dev/null || true
-	@echo "$(GREEN)✓ 清理完成（未删 dataset/runs/basemodels/）$(RESET)"
+	@echo "$(GREEN)✓ 清理完成（未删 dataset/artifacts/basemodels/）$(RESET)"
 
 .PHONY: clean-all
-clean-all:  ## 深度清理（删 runs/logs/reports/tuning + clean）
-	rm -rf runs/ logs/ reports/ tuning/ exports/ model_registry/ Ultralytics/ .ci/ultralytics/ .ci/matplotlib/ 2>/dev/null || true
+clean-all:  ## 深度清理（删 artifacts/ 全部输出 + tuning + clean）
+	rm -rf artifacts/runs/ artifacts/logs/ artifacts/reports/ artifacts/exports/ tuning/ model_registry/ Ultralytics/ .ci/ultralytics/ .ci/matplotlib/ 2>/dev/null || true
 	$(MAKE) clean
 	@echo "$(RED)⚠ 已删所有训练产物 + Ultralytics 缓存$(RESET)"

@@ -41,7 +41,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = REPO_ROOT / "src"
-REQUIREMENTS = REPO_ROOT / "requirements.txt"
+REQUIREMENTS = REPO_ROOT / "requirements" / "requirements.txt"
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 
 # 可选功能依赖：允许不在 requirements.txt 里，但必须在 pyproject 的 extra 中声明
@@ -226,7 +226,7 @@ def test_gradio_entry_gives_actionable_error_when_missing(tmp_path: Path) -> Non
     env["PYTHONPATH"] = os.pathsep.join([str(REPO_ROOT), str(tmp_path)])
 
     result = subprocess.run(
-        [sys.executable, str(REPO_ROOT / "gradio_app.py")],
+        [sys.executable, "-m", "src.cli.gradio_app"],
         cwd=REPO_ROOT, capture_output=True, text=True,
         encoding="utf-8", errors="replace", env=env, timeout=180,
     )

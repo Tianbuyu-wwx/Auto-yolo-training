@@ -9,7 +9,7 @@
 - ``suggest_download()``：返回缺失模型的下载命令
 
 设计原则：
-- 不强行下载：只提示用户，由 ``serve.py`` / ``gradio_app.py`` / ``train.py`` 暴露提示
+- 不强行下载：只提示用户，由 ``src/cli.serve`` / ``src/cli.gradio_app`` / ``src/cli.train`` 暴露提示
 - 不绑定具体业务场景：所有 Ultralytics 官方支持的模型家族都覆盖
 - 单文件无依赖：方便未来扩展其他任务类型（segment/pose/classify）
 """

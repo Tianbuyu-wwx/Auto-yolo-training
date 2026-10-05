@@ -157,7 +157,7 @@ class TestExportAndCleanup(unittest.TestCase):
         而「哪个是刚训完的」正是本组测试要区分的。
         """
         import os
-        run = self.temp_dir / "runs" / "detect" / name
+        run = self.temp_dir / "artifacts" / "runs" / "detect" / name
         (run / "weights").mkdir(parents=True)
         (run / "weights" / "best.pt").write_bytes(b"B" * size)
         (run / "weights" / "last.pt").write_bytes(b"L" * size)
@@ -191,7 +191,7 @@ class TestExportAndCleanup(unittest.TestCase):
         self.assertTrue((run / "weights" / "best.pt").is_file(), "best.pt 被 move 走了")
         self.assertTrue((run / "weights" / "last.pt").is_file(), "断点没了，续训无从谈起")
         self.assertTrue((run / "results.csv").is_file())
-        self.assertTrue((self.temp_dir / "exports" / "mine.pt").is_file(), "导出件没生成")
+        self.assertTrue((self.temp_dir / "artifacts" / "exports" / "mine.pt").is_file(), "导出件没生成")
 
     def test_cleanup_never_removes_run_dirs(self):
         """本方法不碰 run 目录：保留策略只留一处（TrainingPipeline._cleanup_old_runs）。
@@ -209,12 +209,12 @@ class TestExportAndCleanup(unittest.TestCase):
         for run in runs:
             self.assertTrue(run.is_dir(), f"{run.name} 被这次清理动过了")
             self.assertTrue((run / "weights" / "best.pt").is_file())
-        recycle = self.temp_dir / "runs" / ".recycle"
+        recycle = self.temp_dir / "artifacts" / "runs" / ".recycle"
         self.assertFalse(recycle.exists(), "本方法不应把 run 移入回收站（那是 pipeline 的活）")
 
     def test_stale_reports_recycled_by_exact_prefix(self):
         """报告清理必须前缀精确匹配：data / _smoke_test 这类短名极易被子串撞车"""
-        reports = self.temp_dir / "reports"
+        reports = self.temp_dir / "artifacts" / "reports"
         reports.mkdir(parents=True, exist_ok=True)
         mine_old = reports / "pipeline_mine_20260101_000000.json"
         mine_new = reports / "pipeline_mine_20260102_000000.json"
@@ -233,7 +233,7 @@ class TestExportAndCleanup(unittest.TestCase):
         self.assertTrue(other.is_file(), "别的数据集的报告被删/被移走了")
         self.assertTrue(mine_new.is_file(), "本次训练刚写出的报告应留在原位")
         self.assertFalse(mine_old.exists(), "旧的同数据集报告应被移走")
-        recycles = list((self.temp_dir / "runs" / ".recycle" / "_reports").glob("pipeline_mine_*"))
+        recycles = list((self.temp_dir / "artifacts" / "runs" / ".recycle" / "_reports").glob("pipeline_mine_*"))
         self.assertEqual(len(recycles), 1, recycles)
 
     def test_current_run_survives_even_if_not_the_newest_by_mtime(self):

@@ -47,7 +47,7 @@ python -c "import torch, ultralytics, gradio, fastapi; print(torch.__version__, 
 ## 2. 烟雾训练（1 分钟）
 
 ```bash
-python train.py _smoke_test --model yolov8n.pt --imgsz 64 --batch 2 --epochs 1 --skip-validation
+python -m src.cli.train _smoke_test --model yolov8n.pt --imgsz 64 --batch 2 --epochs 1 --skip-validation
 ```
 
 预期输出：
@@ -101,25 +101,25 @@ names: ['cat', 'dog']
 
 ```bash
 # Step 1：验证数据集
-python validate_data.py my-dataset
+python -m src.cli.validate_data my-dataset
 # 期望：验证结果: 通过
 
 # Step 2：训练
-python train.py my-dataset --model yolov8s.pt --imgsz 640 --batch 16 --epochs 150
-# 训练产物：runs/detect/my-dataset_auto/weights/best.pt
+python -m src.cli.train my-dataset --model yolov8s.pt --imgsz 640 --batch 16 --epochs 150
+# 训练产物：artifacts/runs/detect/my-dataset_auto/weights/best.pt
 
 # Step 3：评估
-python eval.py --run runs/detect/my-dataset_auto --dataset my-dataset
+python -m src.cli.eval --run artifacts/runs/detect/my-dataset_auto --dataset my-dataset
 ```
 
 ### 覆盖训练参数
 
 ```bash
 # 单个参数覆盖
-python train.py my-dataset --override lr0=0.0005 dropout=0.1
+python -m src.cli.train my-dataset --override lr0=0.0005 dropout=0.1
 
 # 多个参数
-python train.py my-dataset --override lr0=0.0005 dropout=0.1 warmup_epochs=5
+python -m src.cli.train my-dataset --override lr0=0.0005 dropout=0.1 warmup_epochs=5
 ```
 
 ---
@@ -130,10 +130,10 @@ python train.py my-dataset --override lr0=0.0005 dropout=0.1 warmup_epochs=5
 
 ```bash
 # 加载训练好的最佳模型
-python serve.py --run runs/detect/my-dataset_auto
+python -m src.cli.serve --run artifacts/runs/detect/my-dataset_auto
 
 # 或显式指定模型
-python serve.py --model runs/detect/my-dataset_auto/weights/best.pt
+python -m src.cli.serve --model artifacts/runs/detect/my-dataset_auto/weights/best.pt
 ```
 
 启动后访问：
@@ -152,7 +152,7 @@ basic auth）或 VPN 后面，而不是直接 `--host 0.0.0.0`。
 ```python
 from src.inference_service import create_app
 
-app = create_app(model_path="runs/detect/best.pt", base_dir="/path/to/project")
+app = create_app(model_path="artifacts/runs/detect/best.pt", base_dir="/path/to/project")
 # 挂载到主 ASGI app
 ```
 
@@ -161,7 +161,7 @@ app = create_app(model_path="runs/detect/best.pt", base_dir="/path/to/project")
 ## 5. 启动 Gradio 界面（1 分钟）
 
 ```bash
-python gradio_app.py
+python -m src.cli.gradio_app
 # 浏览器访问 http://127.0.0.1:7860
 ```
 
@@ -177,10 +177,10 @@ python gradio_app.py
 
 ```bash
 # 搜索 20 轮
-python tune.py my-dataset --n-trials 20
+python -m src.cli.tune my-dataset --n-trials 20
 
 # 用最优参数训练
-python tune.py my-dataset --n-trials 20 --full-pipeline --epochs 150
+python -m src.cli.tune my-dataset --n-trials 20 --full-pipeline --epochs 150
 ```
 
 ---

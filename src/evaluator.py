@@ -62,8 +62,8 @@ class ModelEvaluator:
 
     def __init__(self, base_dir: str | None = None):
         self.base_dir = Path(base_dir).resolve() if base_dir else Path(__file__).parent.parent.resolve()
-        self.reports_dir = self.base_dir / "reports"
-        self.reports_dir.mkdir(exist_ok=True)
+        self.reports_dir = self.base_dir / "artifacts" / "reports"
+        self.reports_dir.mkdir(parents=True, exist_ok=True)
 
     def evaluate(
         self,
@@ -131,7 +131,7 @@ class ModelEvaluator:
             save_json=save_json,
             plots=save_plots,
             split=split,
-            project=str(self.base_dir / "runs" / "detect"),
+            project=str(self.base_dir / "artifacts" / "runs" / "detect"),
             name=f"{dataset_name}_eval",
             exist_ok=True,
         )

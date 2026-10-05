@@ -51,15 +51,9 @@ Desktop.ini
 *.pem
 *.key
 
-# Logs, reports, runs, and generated artifacts
-runs/**
-!runs/.gitkeep
-exports/**
-!exports/.gitkeep
-reports/**
-!reports/.gitkeep
-logs/**
-!logs/.gitkeep
+# 输出产物统一在 artifacts/ 下（runs / exports / reports / logs）
+artifacts/**
+!artifacts/.gitkeep
 tuning/**
 !tuning/.gitkeep
 

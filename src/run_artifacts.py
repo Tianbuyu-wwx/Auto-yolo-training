@@ -70,7 +70,7 @@ def find_latest_run(dataset_name: str, base_dir: Path | str) -> Path | None:
 
     Ultralytics 自动命名：``runs/detect/<name>`` → 若已存在则 ``<name>2`` → ``<name>3``。
     """
-    runs_dir = Path(base_dir) / "runs" / "detect"
+    runs_dir = Path(base_dir) / "artifacts" / "runs" / "detect"
     if not runs_dir.exists():
         return None
     candidates: list[tuple[float, Path]] = []

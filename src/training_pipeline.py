@@ -978,8 +978,8 @@ class TrainingPipeline:
             self.report.total_duration = sum(s["duration"] for s in self.report.stages)
 
         # 保存报告
-        reports_dir = self.base_dir / "reports"
-        reports_dir.mkdir(exist_ok=True)
+        reports_dir = self.base_dir / "artifacts" / "reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_path = reports_dir / f"pipeline_{self.report.dataset_name}_{timestamp}.json"
 

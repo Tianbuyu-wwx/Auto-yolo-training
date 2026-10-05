@@ -85,7 +85,7 @@ result["hwnd"] = int(hwnd) if hwnd else 0
 result["window_visible"] = bool(hwnd)
 
 # 2) 端口文件 + health
-port_file = REPO / "logs" / "launcher-port.txt"
+port_file = REPO / "artifacts" / "logs" / "launcher-port.txt"
 port = None
 for _ in range(20):
     if port_file.exists():

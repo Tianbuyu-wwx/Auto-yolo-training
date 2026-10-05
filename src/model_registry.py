@@ -35,10 +35,10 @@ class ModelRegistry:
     def __init__(self, base_dir: str | None = None):
         self.base_dir = Path(base_dir) if base_dir else Path(__file__).parent.parent
         self.registry_dir = self.base_dir / "model_registry"
-        self.registry_dir.mkdir(exist_ok=True)
+        self.registry_dir.mkdir(parents=True, exist_ok=True)
         self.versions_file = self.registry_dir / "versions.json"
         self.models_dir = self.registry_dir / "models"
-        self.models_dir.mkdir(exist_ok=True)
+        self.models_dir.mkdir(parents=True, exist_ok=True)
 
         self._versions: dict[str, list[ModelVersion]] = {}
         self._load_registry()
@@ -89,7 +89,7 @@ class ModelRegistry:
     def _copy_model(self, source_path: str, version_id: str) -> str:
         """复制模型到注册表"""
         dest_dir = self.models_dir / version_id
-        dest_dir.mkdir(exist_ok=True)
+        dest_dir.mkdir(parents=True, exist_ok=True)
         dest_path = dest_dir / "model.pt"
         shutil.copy2(source_path, dest_path)
         return str(dest_path)

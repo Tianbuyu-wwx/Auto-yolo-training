@@ -58,7 +58,7 @@ def reg_run(client):
     的「权重被清理后」状态。
     """
     base = client.app.state.base_dir
-    run = base / "runs" / "detect" / "reg_run"
+    run = base / "artifacts" / "runs" / "detect" / "reg_run"
     (run / "weights").mkdir(parents=True)
     (run / "weights" / "best.pt").write_bytes(b"fake-best")
     (run / "weights" / "last.pt").write_bytes(b"fake-last")
@@ -222,7 +222,7 @@ class TestTrainingEndpoints:
 
     def test_runs_and_results(self, client, tmp_path):
         base = client.app.state.base_dir
-        run = base / "runs" / "detect" / "cmp_auto"
+        run = base / "artifacts" / "runs" / "detect" / "cmp_auto"
         run.mkdir(parents=True)
         (run / "results.csv").write_text(
             "epoch,train/box_loss,metrics/mAP50(B),metrics/mAP50-95(B)\n9,0.5,0.77,0.55\n",
@@ -249,7 +249,7 @@ class TestTrainingEndpoints:
         上不是分隔符，这里同时锁住跨平台解析。
         """
         base = client.app.state.base_dir
-        run = base / "runs" / "detect" / "resume_auto"
+        run = base / "artifacts" / "runs" / "detect" / "resume_auto"
         (run / "weights").mkdir(parents=True)
         (run / "weights" / "last.pt").write_bytes(b"\x00" * 1024)
         (run / "args.yaml").write_text(
@@ -281,7 +281,7 @@ class TestTrainingEndpoints:
 
     def test_compare(self, client):
         base = client.app.state.base_dir
-        run = base / "runs" / "detect" / "cmp_auto"
+        run = base / "artifacts" / "runs" / "detect" / "cmp_auto"
         run.mkdir(parents=True)
         (run / "results.csv").write_text(
             "epoch,train/box_loss,metrics/mAP50(B),metrics/mAP50-95(B)\n9,0.5,0.77,0.55\n",
@@ -339,7 +339,7 @@ class TestModelAndRegistry:
         # 注册一个版本
         from src.model_registry import ModelRegistry
 
-        weights = base / "runs" / "detect" / "reg_auto" / "weights" / "best.pt"
+        weights = base / "artifacts" / "runs" / "detect" / "reg_auto" / "weights" / "best.pt"
         weights.parent.mkdir(parents=True)
         weights.write_bytes(b"fake")
         ModelRegistry(str(base)).register(
@@ -512,7 +512,7 @@ class TestRegistryEndpoints:
         assert r.json()["deleted_registry_copy"] is True
         assert not copy_path.exists(), "注册表副本应被删除"
         assert (
-            client.app.state.base_dir / "runs" / "detect" / "reg_run" / "weights" / "best.pt"
+            client.app.state.base_dir / "artifacts" / "runs" / "detect" / "reg_run" / "weights" / "best.pt"
         ).is_file(), "原位权重被误删"
 
     def test_production_version_cannot_be_deleted(self, client, reg_run):
@@ -694,7 +694,7 @@ class TestRegistryWeightsMissing:
         )
         assert r.status_code == 200, r.text
         version = r.json()["version"]
-        shutil.rmtree(client.app.state.base_dir / "runs" / "detect" / reg_run)
+        shutil.rmtree(client.app.state.base_dir / "artifacts" / "runs" / "detect" / reg_run)
         return version
 
     def _register_live(self, client, reg_run):
@@ -795,7 +795,7 @@ class TestRunArtifacts:
     @pytest.fixture()
     def run_with_artifacts(self, client):
         base = client.app.state.base_dir
-        run = base / "runs" / "detect" / "artds_auto"
+        run = base / "artifacts" / "runs" / "detect" / "artds_auto"
         (run / "weights").mkdir(parents=True)
         (run / "weights" / "best.pt").write_bytes(b"B" * 128)
         (run / "weights" / "last.pt").write_bytes(b"L" * 128)
@@ -819,8 +819,8 @@ class TestRunArtifacts:
 
     def test_export_copy_is_reported(self, client, run_with_artifacts):
         base = client.app.state.base_dir
-        (base / "exports").mkdir(exist_ok=True)
-        (base / "exports" / "artds.pt").write_bytes(b"x" * 256)
+        (base / "artifacts" / "exports").mkdir(exist_ok=True)
+        (base / "artifacts" / "exports" / "artds.pt").write_bytes(b"x" * 256)
 
         artifacts, row = self._row(client)
 
@@ -834,6 +834,6 @@ class TestRunArtifacts:
         assert artifacts["recycled_count"] == 0
 
     def test_eval_dirs_are_not_runs(self, client, run_with_artifacts):
-        (client.app.state.base_dir / "runs" / "detect" / "artds_eval").mkdir(parents=True)
+        (client.app.state.base_dir / "artifacts" / "runs" / "detect" / "artds_eval").mkdir(parents=True)
         artifacts, _ = self._row(client)
         assert "artds_eval" not in [r["run"] for r in artifacts["runs"]]

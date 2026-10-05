@@ -11,20 +11,20 @@ PROJECT_ROOT = Path(os.environ.get("YOLO_PROJECT_ROOT", Path(__file__).parent.pa
 
 # 目录结构
 DATASET_DIR = PROJECT_ROOT / "dataset"
-RUNS_DIR = PROJECT_ROOT / "runs" / "detect"
+RUNS_DIR = PROJECT_ROOT / "artifacts" / "runs" / "detect"
 BASEMODELS_DIR = PROJECT_ROOT / "basemodels"
 CONFIGS_DIR = PROJECT_ROOT / "configs"
 MODELS_CONFIG_DIR = CONFIGS_DIR / "models"
 TRAIN_CONFIG_DIR = CONFIGS_DIR / "train"
-REPORTS_DIR = PROJECT_ROOT / "reports"
-LOGS_DIR = PROJECT_ROOT / "logs"
+REPORTS_DIR = PROJECT_ROOT / "artifacts" / "reports"
+LOGS_DIR = PROJECT_ROOT / "artifacts" / "logs"
 
 # 支持的图像格式
 SUPPORTED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 
 # 路径白名单（相对项目根目录）
 ALLOWED_IMAGE_DIRS = ["dataset", "test_images"]
-ALLOWED_MODEL_DIRS = ["runs", "basemodels"]
+ALLOWED_MODEL_DIRS = ["artifacts/runs", "basemodels"]
 
 # 训练默认参数
 DEFAULT_MODEL = "yolov8s.pt"
@@ -50,7 +50,7 @@ class ProjectPaths:
 
     @property
     def runs_dir(self) -> Path:
-        return self.base_dir / "runs" / "detect"
+        return self.base_dir / "artifacts" / "runs" / "detect"
 
     @property
     def basemodels_dir(self) -> Path:
@@ -58,12 +58,12 @@ class ProjectPaths:
 
     @property
     def exports_dir(self) -> Path:
-        return self.base_dir / "exports"
+        return self.base_dir / "artifacts" / "exports"
 
     @property
     def reports_dir(self) -> Path:
-        return self.base_dir / "reports"
+        return self.base_dir / "artifacts" / "reports"
 
     @property
     def logs_dir(self) -> Path:
-        return self.base_dir / "logs"
+        return self.base_dir / "artifacts" / "logs"

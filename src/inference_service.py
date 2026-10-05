@@ -84,7 +84,7 @@ class InferenceService:
 
     # 允许访问的目录白名单（默认值；阶段 B6 后实际从 src.settings.get_settings().api 读取）
     ALLOWED_IMAGE_DIRS = ["dataset", "test_images"]
-    ALLOWED_MODEL_DIRS = ["runs", "basemodels"]
+    ALLOWED_MODEL_DIRS = ["artifacts/runs", "basemodels"]
 
     def __init__(self, model_path: str | None = None, base_dir: str | None = None):
         self.base_dir = Path(base_dir) if base_dir else Path(__file__).parent.parent
@@ -299,7 +299,7 @@ class InferenceService:
     def get_available_models(self) -> list[ModelInfo]:
         """获取可用的模型列表"""
         models = []
-        runs_dir = self.base_dir / "runs" / "detect"
+        runs_dir = self.base_dir / "artifacts" / "runs" / "detect"
 
         if runs_dir.exists():
             for run_dir in runs_dir.iterdir():

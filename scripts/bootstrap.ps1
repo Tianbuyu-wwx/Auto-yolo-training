@@ -45,7 +45,7 @@ try {
         throw "PyTorch installation failed."
     }
 
-    $RequirementFile = if ($RuntimeOnly) { "requirements.txt" } else { "requirements-dev.txt" }
+    $RequirementFile = if ($RuntimeOnly) { "requirements/requirements.txt" } else { "requirements/requirements-dev.txt" }
     Write-Host "Installing $RequirementFile..."
     & $VenvPython -m pip install --requirement $RequirementFile
     if ($LASTEXITCODE -ne 0) {

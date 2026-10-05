@@ -8,13 +8,13 @@
 
 ```bash
 # 加载训练好的最佳模型
-python serve.py --run runs/detect/my-dataset_auto
+python -m src.cli.serve --run artifacts/runs/detect/my-dataset_auto
 
 # 或显式指定模型
-python serve.py --model runs/detect/my-dataset_auto/weights/best.pt
+python -m src.cli.serve --model artifacts/runs/detect/my-dataset_auto/weights/best.pt
 
 # 自定义主机/端口
-python serve.py --model best.pt --host 0.0.0.0 --port 8000
+python -m src.cli.serve --model best.pt --host 0.0.0.0 --port 8000
 ```
 
 ---
@@ -112,7 +112,7 @@ export YOLO_API__ALLOWED_MODEL_DIRS='["runs","basemodels"]'
 ### 命令行参数
 
 ```bash
-python serve.py --help
+python -m src.cli.serve --help
 ```
 
 ```
@@ -214,7 +214,7 @@ FastAPI app 通过 `create_app()` 工厂函数构建。所有 5 个端点用 `Se
 改端口：`--port 8001`
 
 ### "Model not loaded"
-确认模型文件存在：`ls runs/detect/my-dataset_auto/weights/best.pt`
+确认模型文件存在：`ls artifacts/runs/detect/my-dataset_auto/weights/best.pt`
 
 ### "Access denied: path outside allowed directories"
 路径不在白名单。检查 `YOLO_API__ALLOWED_IMAGE_DIRS` 环境变量，或用 multipart 上传代替路径推理。

@@ -20,7 +20,7 @@ from src.run_store import RunStore
 
 def _make_run(base: Path, name: str, *, best: bool = True, last: bool = True,
               results: bool = True, mtime: float | None = None) -> Path:
-    run = base / "runs" / "detect" / name
+    run = base / "artifacts" / "runs" / "detect" / name
     (run / "weights").mkdir(parents=True)
     if best:
         (run / "weights" / "best.pt").write_bytes(b"B" * 64)
@@ -60,7 +60,7 @@ class TestRunStore(unittest.TestCase):
 
     def test_eval_dirs_are_a_separate_kind(self):
         _make_run(self.temp_dir, "ds_auto")
-        eval_dir = self.temp_dir / "runs" / "detect" / "ds_eval"
+        eval_dir = self.temp_dir / "artifacts" / "runs" / "detect" / "ds_eval"
         eval_dir.mkdir(parents=True)
 
         self.assertEqual([p.name for p in self.store.dataset_dirs("ds", kind="auto")], ["ds_auto"])
@@ -76,7 +76,7 @@ class TestRunStore(unittest.TestCase):
 
         recycled = self.store.enforce_retention("ds", keep_runs=2)
 
-        kept = sorted(p.name for p in (self.temp_dir / "runs" / "detect").iterdir())
+        kept = sorted(p.name for p in (self.temp_dir / "artifacts" / "runs" / "detect").iterdir())
         self.assertEqual(kept, ["ds_auto-3", "ds_auto-4"])
         self.assertEqual(len(recycled), 2)
         for dest in recycled:
@@ -97,7 +97,7 @@ class TestRunStore(unittest.TestCase):
     def test_retention_handles_eval_dirs(self):
         base = 1_700_000_000
         for i, name in enumerate(["ds_eval", "ds_eval-2"]):
-            d = self.temp_dir / "runs" / "detect" / name
+            d = self.temp_dir / "artifacts" / "runs" / "detect" / name
             d.mkdir(parents=True)
             import os
             os.utime(d, (base + i, base + i))
@@ -109,7 +109,7 @@ class TestRunStore(unittest.TestCase):
 
     def test_recycle_dir_is_inside_runs(self):
         """回收站放在 runs/ 下：同盘 move 不会跨卷失败，且 scan 逻辑天然跳过"""
-        self.assertEqual(self.store.recycle_dir, self.temp_dir / "runs" / ".recycle")
+        self.assertEqual(self.store.recycle_dir, self.temp_dir / "artifacts" / "runs" / ".recycle")
 
     # ------------------------------------------------------------------
     # 归档
@@ -120,7 +120,7 @@ class TestRunStore(unittest.TestCase):
         exported = self.store.archive_best(run, "ds")
 
         self.assertIsNotNone(exported)
-        self.assertEqual(exported, self.temp_dir / "exports" / "ds.pt")
+        self.assertEqual(exported, self.temp_dir / "artifacts" / "exports" / "ds.pt")
         self.assertTrue((run / "weights" / "best.pt").is_file(), "run 里的 best.pt 不该被搬走")
         self.assertTrue((run / "weights" / "last.pt").is_file(), "断点必须保留")
 
@@ -135,14 +135,14 @@ class TestRunStore(unittest.TestCase):
 
         self.store.archive_best(first, "ds")
 
-        exported = (self.temp_dir / "exports" / "ds.pt").read_bytes()
+        exported = (self.temp_dir / "artifacts" / "exports" / "ds.pt").read_bytes()
         self.assertEqual(exported, b"NEW" * 32)
 
     # ------------------------------------------------------------------
     # 报告
     # ------------------------------------------------------------------
     def test_recycle_reports_uses_exact_prefix_and_keeps_newest(self):
-        reports = self.temp_dir / "reports"
+        reports = self.temp_dir / "artifacts" / "reports"
         reports.mkdir(parents=True)
         import os
         old = reports / "pipeline_ds_20260101_000000.json"
@@ -170,7 +170,7 @@ class TestRunStore(unittest.TestCase):
     def test_list_artifacts_flags(self):
         _make_run(self.temp_dir, "ds_auto")
         _make_run(self.temp_dir, "ds_auto-2", best=False, last=False, results=False)
-        d = self.temp_dir / "runs" / "detect" / "ds_eval"
+        d = self.temp_dir / "artifacts" / "runs" / "detect" / "ds_eval"
         d.mkdir(parents=True)   # 非 auto 目录不该出现
 
         by_name = {a.run: a for a in self.store.list_artifacts()}
@@ -196,7 +196,7 @@ class TestRunStore(unittest.TestCase):
         self.store.archive_best(run, "ds")
         info = self.store.describe_export("ds")
         self.assertIsNotNone(info)
-        self.assertEqual(info["path"], str(self.temp_dir / "exports" / "ds.pt"))
+        self.assertEqual(info["path"], str(self.temp_dir / "artifacts" / "exports" / "ds.pt"))
         self.assertGreater(info["size_bytes"], 0)
 
 

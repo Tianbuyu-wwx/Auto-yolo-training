@@ -85,25 +85,9 @@ Documentation = "https://tianbuyu-wwx.github.io/Auto-yolo-training/"
 # ----------------------------------------------------------------------
 # 包布局（显式声明，覆盖 setuptools 的自动探测）
 #
-# 本项目根目录下同时存在 `src/` 包与根级单文件模块。setuptools 的自动探测
-# 一旦发现 `src/` 就按 src-layout 处理，把包根指向 `src/` 本身，导致：
-#   - `import src` 不可解析（代码内部统一写 `from src.xxx import ...`）
-#   - 根级模块（serve.py / train.py …）不在搜索路径上
-# 实测后果：`pip install -e .` 生成的 9 个 CLI 入口中有 5 个直接
-# ModuleNotFoundError。因此必须显式指定包根为项目根目录。
+# CLI 入口已内迁到 src/cli/（见 [project.scripts]），随 src* 包一起分发，
+# 不再需要顶层 py-modules。
 # ----------------------------------------------------------------------
-[tool.setuptools]
-py-modules = [
-    "train",
-    "tune",
-    "eval",
-    "export",
-    "serve",
-    "validate_data",
-    "gradio_app",
-    "ayt_models",
-]
-
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
@@ -117,15 +101,15 @@ include = ["src*"]
 "src.launcher" = ["static/*", "static/**/*"]
 
 [project.scripts]
-# 阶段 B3：安装后系统 PATH 可直接调用
-ayt-train = "train:main"
-ayt-tune = "tune:main"
-ayt-eval = "eval:main"
-ayt-export = "export:main"
-ayt-serve = "serve:main"
-ayt-validate = "validate_data:main"
-ayt-gradio = "gradio_app:main"
-ayt-models = "ayt_models:main"  # 阶段 C5：预训练模型清单与下载
+# 阶段 B3：安装后系统 PATH 可直接调用（实现位于 src/cli/）
+ayt-train = "src.cli.train:main"
+ayt-tune = "src.cli.tune:main"
+ayt-eval = "src.cli.eval:main"
+ayt-export = "src.cli.export:main"
+ayt-serve = "src.cli.serve:main"
+ayt-validate = "src.cli.validate_data:main"
+ayt-gradio = "src.cli.gradio_app:main"
+ayt-models = "src.cli.ayt_models:main"  # 阶段 C5：预训练模型清单与下载
 # 管理面 Web（FastAPI + Vue SPA）。src/api/admin.py 的 CLI 文档字符串一直宣称
 # 存在该入口，但此前从未注册，导致 pip install -e . 后 ayt-web 不可用。
 ayt-web = "src.api.admin:main"
@@ -134,7 +118,19 @@ ayt-launcher = "src.launcher.app:main"
 
 [project.gui-scripts]
 # Windows 菜单项；不影响 Unix
-ayt-gradio-gui = "gradio_app:main"
+ayt-gradio-gui = "src.cli.gradio_app:main"
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-ra --strict-config --strict-markers"
+norecursedirs = [".git", ".venv", "basemodels", "dataset", "artifacts"]
+markers = [
+    "training: executes a real model-training workload (excluded from baseline CI)",
+    "gpu: requires a CUDA-capable GPU (excluded from baseline CI)",
+]
 
 [tool.coverage.run]
 # 只统计产品代码；test/ 不计入（否则覆盖率会随测试写法波动）

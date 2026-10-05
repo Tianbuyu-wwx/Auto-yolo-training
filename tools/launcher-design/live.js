@@ -130,10 +130,19 @@
   }
   function nn(e) { console.warn('[live] 端點读取失败', e && e.message); return null; }
 
+  function fixPathCopy() {
+    document.querySelectorAll('.sec-head .hint').forEach(function (n) {
+      var t = n.textContent || '';
+      if (t.indexOf('runs/detect') >= 0 && t.indexOf('artifacts') < 0) {
+        n.textContent = t.replace('runs/detect', 'artifacts/runs/detect');
+      }
+    });
+  }
+
   function applyAll() {
     applyHome(); applyDatasets(); applyConfigSelects(); applyCheckpoints();
     applyResults(); applyRegistry(); applyQueue(); applyCheckup(); applyStatus();
-    applyInference(); applyRecycle();
+    applyInference(); applyRecycle(); fixPathCopy();
   }
 
   /* ======================== 首页 ======================== */
@@ -311,7 +320,7 @@
       stat.innerHTML = '<div class="stat"><div class="k">最近断点</div><div class="v">' + esc(last ? last.run : '—') + '</div></div>'
         + '<div class="stat"><div class="k">可续训</div><div class="v">' + LIVE.checkpoints.length + ' <small>个</small></div></div>'
         + '<div class="stat"><div class="k">注册版本</div><div class="v">' + vers + ' <small>个</small></div></div>'
-        + '<div class="stat"><div class="k">目录</div><div class="v mono" style="font-size:11px">runs/detect</div></div>';
+        + '<div class="stat"><div class="k">目录</div><div class="v mono" style="font-size:11px">artifacts/runs/detect</div></div>';
     }
   }
 
@@ -760,12 +769,12 @@
   }
   function actCopyRunPath(btn) {
     var run = rowNameOf(btn);
-    var text = 'runs/detect/' + run;
+    var text = 'artifacts/runs/detect/' + run;
     copyText(text, '已复制路径：' + text);
   }
-  function actOpenExports() { openRel('exports'); }
-  function actOpenRuns() { openRel('runs/detect'); }
-  function actOpenLogs() { openRel('logs'); }
+  function actOpenExports() { openRel('artifacts/exports'); }
+  function actOpenRuns() { openRel('artifacts/runs/detect'); }
+  function actOpenLogs() { openRel('artifacts/logs'); }
   function actRestoreRecycle(btn) {
     var row = btn.closest('.row');
     var name = row ? (row.dataset.recycle || '') : '';

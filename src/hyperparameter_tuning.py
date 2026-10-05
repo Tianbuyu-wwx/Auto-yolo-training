@@ -308,7 +308,7 @@ class YOLOHyperparameterTuner:
 
         # 创建调优结果目录
         self.tuning_dir = self.base_dir / "tuning"
-        self.tuning_dir.mkdir(exist_ok=True)
+        self.tuning_dir.mkdir(parents=True, exist_ok=True)
 
         # 底模目录
         self.basemodels_dir = self.base_dir / "basemodels"
@@ -423,7 +423,7 @@ class YOLOHyperparameterTuner:
             # 构建trial专属输出目录
             trial_name = f"trial_{trial.number:03d}"
             trial_output = self.temp_dir / trial_name
-            trial_output.mkdir(exist_ok=True)
+            trial_output.mkdir(parents=True, exist_ok=True)
 
             # 加载模型（解析底模路径）
             model_path = self.resolve_model_path(params["model"])

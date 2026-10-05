@@ -216,7 +216,7 @@ class NotifierManager:
 
     def add_file_notifier(self, enabled: bool = True):
         """添加文件通知器"""
-        log_dir = self.base_dir / "logs"
+        log_dir = self.base_dir / "artifacts" / "logs"
         self.notifiers.append(FileNotifier(str(log_dir), enabled=enabled))
 
     def add_webhook_notifier(self, webhook_url: str, enabled: bool = True, notifier_type: str = "generic"):

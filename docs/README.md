@@ -226,14 +226,14 @@ ayt-models    # 预训练模型清单与下载（list / local / download）
 
 ```bash
 # 1. 校验数据集
-python validate_data.py my-dataset
+python -m src.cli.validate_data my-dataset
 # 期望输出：验证结果: 通过
 
 # 2. 训练（默认 yolov8s.pt + 150 epochs）
-python train.py my-dataset
+python -m src.cli.train my-dataset
 
 # 3. 覆盖参数
-python train.py my-dataset \
+python -m src.cli.train my-dataset \
     --model yolo26m.pt \
     --imgsz 1280 \
     --batch 8 \
@@ -241,10 +241,10 @@ python train.py my-dataset \
     --override lr0=0.0005 dropout=0.1
 
 # 4. 训练后自动评估 + 注册到 ModelRegistry
-# （报告输出在 runs/detect/my-dataset_auto/）
+# （报告输出在 artifacts/runs/detect/my-dataset_auto/）
 
 # 5. 启动推理服务
-python serve.py --run runs/detect/my-dataset_auto
+python -m src.cli.serve --run artifacts/runs/detect/my-dataset_auto
 # OpenAPI 文档：http://127.0.0.1:8000/docs
 ```
 
@@ -252,23 +252,23 @@ python serve.py --run runs/detect/my-dataset_auto
 
 ```bash
 # 20 轮 Optuna 搜索 + 完整流水线训练
-python tune.py my-dataset --n-trials 20 --full-pipeline --epochs 150
+python -m src.cli.tune my-dataset --n-trials 20 --full-pipeline --epochs 150
 ```
 
 ### 模型清单
 
 ```bash
 # 列出全部 27 个支持的预训练模型
-python ayt_models.py list
+python -m src.cli.ayt_models list
 
 # 仅列出 detect 任务、yolov8 家族、size=n
-python ayt_models.py list --task detect --family yolov8 --size n
+python -m src.cli.ayt_models list --task detect --family yolov8 --size n
 
 # 列出已下载到 basemodels/ 的模型
-python ayt_models.py local
+python -m src.cli.ayt_models local
 
 # 下载指定模型
-python ayt_models.py download yolov8n.pt
+python -m src.cli.ayt_models download yolov8n.pt
 ```
 
 ---
@@ -277,10 +277,9 @@ python ayt_models.py download yolov8n.pt
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│                 Entry Points（9 CLI，含 ayt-web 控制台）              │
-│  train.py / tune.py / eval.py / export.py / serve.py / validate.py │
-│  src/api/admin.py（Web 控制台 + 管理面 API） / gradio_app.py（冻结） │
-│  ayt_models.py                                                     │
+│        Entry Points（11 CLI：ayt-train / ayt-serve / ayt-launcher …）  │
+│  src/cli/（train · tune · eval · export · serve · validate · gradio）  │
+│  src/api/admin.py（管理面 API） · src/launcher/（桌面启动器）           │
 └────────────────────────┬───────────────────────────────────────────┘
                          │
 ┌────────────────────────┴───────────────────────────────────────────┐
@@ -310,6 +309,35 @@ python ayt_models.py download yolov8n.pt
                  │ model_dl     │   │   v26/OBB)  │
                  └──────────────┘   └─────────────┘
 ```
+
+### 目录布局
+
+```
+src/                   # 产品代码：launcher / api / cli / 训练管线 / 服务层
+test/                  # pytest 套件（405 用例；conftest 统一引导）
+tools/launcher-design  # 启动器设计源（v8 冻结原型）+ 验证工具链（check / e2e）
+scripts/               # 运维脚本：bootstrap / gpu_smoke / dataset_manifest …
+docs/                  # 文档站源（含 images/）
+
+requirements/          # 依赖清单：requirements / dev / lock / constraints
+configs/               # 训练配置（train/ 下为生成物，不入库）
+
+dataset/               # 数据集（数据是一等公民，保留根位）
+basemodels/            # 预训练权重缓存（ayt-models 下载到这里）
+model_registry/        # 模型注册表数据（versions.json）
+
+artifacts/             # 全部输出集中于此
+  ├── runs/            #   训练产物：detect/<run>/weights/best.pt
+  ├── exports/         #   导出模型（onnx / engine / openvino …）
+  ├── logs/            #   运行日志 / 端口文件 / 推理日志
+  └── reports/         #   流水线报告 / 诊断包
+```
+
+> **为什么有些散文件必须留在根目录**：`pyproject.toml` 是构建锚点（PEP 517/518 规定）；
+> `README.md` / `LICENSE` 是 GitHub 首页与许可证识别的固定位置；`Makefile` / `Dockerfile` /
+> `docker-compose.yml` / `mkdocs.yml` 等由对应工具默认在当前目录查找。这些不是"没收拾"，
+> 而是生态约定 —— 挪进子目录反而要和所有工具链对着干。能收的都已经收好：
+> 入口脚本在 `src/cli/`、依赖清单在 `requirements/`、输出产物在 `artifacts/`。
 
 ---
 
@@ -343,7 +371,7 @@ make test-cov
 
 > **GPU 通道**：`gpu` 标记的用例不在上面这条命令里（GitHub 托管的 runner 没有 GPU）。
 > 本机验证用 `make gpu-smoke` —— 它先跑标记用例（驱动可见性、算力、**真算一遍 CUDA
-> 矩阵乘**并与 CPU 比对），再用 `train.py --device 0` 真跑一次训练，并用 nvidia-smi
+> 矩阵乘**并与 CPU 比对），再用 `python -m src.cli.train --device 0` 真跑一次训练，并用 nvidia-smi
 > 采样显存/利用率作为「确实在用 GPU」的证据。CI 侧对应 `.github/workflows/gpu.yml`，
 > **只能手动触发**且需要自托管 GPU runner（注册步骤见该文件头部注释）。
 

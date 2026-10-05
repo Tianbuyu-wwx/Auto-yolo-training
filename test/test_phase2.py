@@ -85,7 +85,7 @@ class TestSubprocessIsolation:
             assert svc.state.success is False
             assert svc.state.error_message  # 有错误信息
             # 日志文件已生成
-            log_files = list((tmp_path / "logs").glob("ayt_worker_*.log"))
+            log_files = list((tmp_path / "artifacts" / "logs").glob("ayt_worker_*.log"))
             assert log_files, "worker 日志文件应存在"
         finally:
             svc.stop()
@@ -119,7 +119,7 @@ class TestRunAndCheckpointLists:
         from src.gradio_app.services.log_service import LogService
         from src.gradio_app.services.training_service import TrainingService
 
-        runs = tmp_path / "runs" / "detect"
+        runs = tmp_path / "artifacts" / "runs" / "detect"
         (runs / "ds1_auto").mkdir(parents=True)
         (runs / "ds1_auto" / "results.csv").write_text("epoch\n1", encoding="utf-8")
         (runs / "ds2_auto" / "weights").mkdir(parents=True)
@@ -135,7 +135,7 @@ class TestRunAndCheckpointLists:
         from src.gradio_app.services.log_service import LogService
         from src.gradio_app.services.training_service import TrainingService
 
-        runs = tmp_path / "runs" / "detect"
+        runs = tmp_path / "artifacts" / "runs" / "detect"
         (runs / "ds1_auto" / "weights").mkdir(parents=True)
         (runs / "ds1_auto" / "weights" / "last.pt").write_bytes(b"ckpt")
         (runs / "ds2_auto" / "weights").mkdir(parents=True)  # 无 last.pt
@@ -219,7 +219,7 @@ class TestResume:
 
         ckpt = tmp_path / "last.pt"
         ckpt.write_bytes(b"fake")
-        (tmp_path / "runs" / "detect").mkdir(parents=True)  # run 目录扫描需要存在
+        (tmp_path / "artifacts" / "runs" / "detect").mkdir(parents=True)  # run 目录扫描需要存在
 
         gen_cfg = GenTrainingConfig(
             model=str(ckpt), resume=True, device="cpu",
@@ -228,7 +228,7 @@ class TestResume:
             project_name="resume_auto",
             dataset_name="resume-ds",
             dataset_path=str(tmp_path),
-            output_dir=str(tmp_path / "runs" / "detect" / "resume_auto"),
+            output_dir=str(tmp_path / "artifacts" / "runs" / "detect" / "resume_auto"),
             data_yaml_path=str(tmp_path / "data.yaml"),
             training_config=gen_cfg,
         )
@@ -270,7 +270,7 @@ class TestResume:
         model = tmp_path / "basemodels" / "yolov8n.pt"
         model.parent.mkdir(parents=True)
         model.write_bytes(b"fake")
-        (tmp_path / "runs" / "detect").mkdir(parents=True)
+        (tmp_path / "artifacts" / "runs" / "detect").mkdir(parents=True)
 
         gen_cfg = GenTrainingConfig(
             model=str(model), resume=False, device="cpu", epochs=7,
@@ -279,7 +279,7 @@ class TestResume:
             project_name="normal_auto",
             dataset_name="normal-ds",
             dataset_path=str(tmp_path),
-            output_dir=str(tmp_path / "runs" / "detect" / "normal_auto"),
+            output_dir=str(tmp_path / "artifacts" / "runs" / "detect" / "normal_auto"),
             data_yaml_path=str(tmp_path / "data.yaml"),
             training_config=gen_cfg,
         )
