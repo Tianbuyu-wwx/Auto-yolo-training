@@ -13,7 +13,9 @@ scan 只做只读探测；plan 给出「缺什么补什么」步骤；install �
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
+import sys
 from pathlib import Path
 
 from .execute import InstallOptions, build_actions, run_actions
@@ -21,6 +23,14 @@ from .plan import build_plan
 from .scan import REQUIRED_PACKAGES, default_install_dir, satisfies, scan
 
 STATUS_ICON = {"skip": "[·]", "action": "[+]", "warn": "[!]"}
+
+
+def _setup_streams() -> None:
+    """把 stdout/stderr 切到 UTF-8（Windows 中文控制台默认 GBK，印不出 ✓ ─ 等符号）。"""
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            with contextlib.suppress(Exception):  # 流不支持时忽略
+                stream.reconfigure(encoding="utf-8", errors="replace")
 
 
 def _fmt_scan(rep: dict) -> str:
@@ -144,6 +154,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _setup_streams()
     ap = argparse.ArgumentParser(prog="ayt_setup", description="AYT 环境扫描 / 安装计划 / 安装器")
     ap.add_argument("command", choices=("scan", "plan", "install", "gui"))
     ap.add_argument("--install-dir", default=None, help="安装目录（默认 %%LOCALAPPDATA%%\\AYT）")
