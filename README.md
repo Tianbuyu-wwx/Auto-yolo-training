@@ -307,6 +307,7 @@ scripts/               # 运维脚本：bootstrap / gpu_smoke / dataset_manifest
 docs/                  # 维护者文档（本地保留，不随仓库发布）
 
 requirements/          # 依赖清单：requirements / dev / lock / constraints
+installer/             # Windows 安装器（环境扫描 / 补装计划 / 自举安装；独立工程）
 configs/               # 训练配置（train/ 下为生成物，不入库）
 
 dataset/               # 数据集（数据是一等公民，保留根位）
